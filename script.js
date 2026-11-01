@@ -1,8 +1,3 @@
-// ============================================================
-// ARQUIVO: script.js
-// MOTOR COM VELOCIDADE DE TESTE (150 KM/H) E DETECÇÃO AMPLIADA
-// ============================================================
-
 const cssStyles = `
   * {
     box-sizing: border-box !important;
