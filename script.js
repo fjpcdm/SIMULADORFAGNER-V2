@@ -1,3 +1,8 @@
+// ============================================================
+// ARQUIVO: script.js
+// MOTOR DE SIMULAÇÃO DE ÔNIBUS - OTIMIZADO (90 KM/H + SAÍDA MANUAL)
+// ============================================================
+
 const cssStyles = `
   * {
     box-sizing: border-box !important;
@@ -354,7 +359,7 @@ const cssStyles = `
     left: 50% !important;
     transform: translateX(-50%) !important;
     z-index: 999999 !important;
-    background: rgba(10, 15, 25, 0.85) !important;
+    background: rgba(10, 15, 25, 0.88) !important;
     backdrop-filter: blur(6px);
     -webkit-backdrop-filter: blur(6px);
     color: #38bdf8 !important;
@@ -480,7 +485,7 @@ const cssStyles = `
 
   @media (max-width: 768px) {
     .mobile-top-bar {
-      display: flex;
+      display: flex !important;
     }
 
     .hud {
@@ -498,12 +503,14 @@ const cssStyles = `
     }
 
     .speedometer-container {
+      display: flex !important;
       bottom: 22px !important;
       padding: 6px 16px !important;
       font-size: 1.4rem !important;
     }
 
     .mobile-controls-right {
+      display: flex !important;
       bottom: 90px !important;
     }
 
@@ -733,9 +740,9 @@ let busLat = 0;
 let currentSpeedKmh = 0;
 let isAutopilotMoving = false;
 
-// VELOCIDADE DE TESTE AUMENTADA PARA 150 KM/H
-let cruiseSpeedKmh = 150;
-let boostSpeedKmh = 150;
+// VELOCIDADE MÁXIMA AJUSTADA PARA 90 KM/H
+let cruiseSpeedKmh = 90;
+let boostSpeedKmh = 90;
 
 let targetHeading = 0;
 let smoothHeading = 0;
@@ -1015,7 +1022,7 @@ function atualizarMarcadorProximoPonto(busCoords) {
 
   const distToStop = getMetersBetween(busCoords, nextStop.coords);
 
-  if (distToStop <= 150.0) {
+  if (distToStop <= 200.0) {
     if (!currentVisibleMarker || currentVisibleMarker._stopId !== nextStop.id) {
       if (currentVisibleMarker) currentVisibleMarker.remove();
 
@@ -1214,6 +1221,7 @@ function handleAccelerate() {
     isTripActive = true;
     startTripTimer();
   }
+  // Se estiver parado numa paragem, destrava e permite continuar apenas ao acelerar
   if (isAtBusStop && !isHoldingAtStop) {
     isAtBusStop = false;
     mapBanner.style.display = 'none';
@@ -1232,41 +1240,43 @@ function processStop(stop) {
 
   const nomePonto = (stop.nome || "").toLowerCase();
 
-  // 1. SENAC: Esvaziar o ônibus 100%
+  // 1. SENAC: Esvaziar o ônibus 100% e aguardar aceleração manual
   if (nomePonto.includes("senac")) {
     passengerCount = 0;
-    showAlert("🚏 SENAC: Desembarque total de passageiros.");
-    atenderParadaTemporizada(4000);
+    showAlert("🚏 SENAC: Desembarque total. Acelere para continuar.");
+    pararEaguardarAceleracaoManual();
     return;
   }
 
-  // 2. Olegário Maciel: Paragem obrigatória de 1m30s (90 segundos) para retorno
+  // 2. Olegário Maciel: Paragem obrigatória e espera de 90s (ou até acelerar manualmente)
   if (nomePonto.includes("olegario")) {
     passengerCount = 0; 
     const embarqueRetorno = Math.floor(Math.random() * 20) + 10;
     passengerCount = Math.min(maxPassengers, embarqueRetorno);
-    showAlert("🚏 Olegário Maciel: Início do retorno. Paragem obrigatória de 1m30s.");
-    atenderParadaTemporizada(90000); 
+    showAlert("🚏 Olegário Maciel: Retorno. Paragem de 1m30s (ou acelere para partir).");
+    pararEaguardarAceleracaoManual(90000); // 90 segundos ou até o jogador acelerar
     return;
   }
 
   // 3. Terminais de Início / Fim
   if (nomePonto.includes("terminal")) {
     passengerCount = nomePonto.includes("inicio") ? Math.floor(maxPassengers * 0.2) : 0;
-    atenderParadaTemporizada(6000);
+    showAlert("🚏 Terminal. Acelere para continuar a viagem.");
+    pararEaguardarAceleracaoManual();
     return;
   }
 
-  // 4. Paragem obrigatória em TODOS os pontos cadastrados (3 segundos por ponto)
+  // 4. Demais pontos cadastrados: Paragem obrigatória que aguarda o jogador acelerar
   const espaco = maxPassengers - passengerCount;
-  const emb = Math.min(espaco, Math.floor(Math.random() * 6) + 1);
+  const emb = Math.min(espaco, Math.floor(Math.random() * 5) + 1);
   const des = passengerCount > 0 ? Math.floor(Math.random() * 2) : 0;
   passengerCount = Math.max(0, Math.min(maxPassengers, passengerCount - des + emb));
   
-  atenderParadaTemporizada(3000); 
+  showAlert(`🚏 ${stop.nome}. Acelere para prosseguir.`);
+  pararEaguardarAceleracaoManual(); 
 }
 
-function atenderParadaTemporizada(tempoMs) {
+function pararEaguardarAceleracaoManual(tempoMaximoMs = null) {
   currentSpeedKmh = 0;
   isAutopilotMoving = false;
   isAtBusStop = true;
@@ -1276,13 +1286,18 @@ function atenderParadaTemporizada(tempoMs) {
 
   if (stopHoldTimer) clearTimeout(stopHoldTimer);
 
-  stopHoldTimer = setTimeout(() => {
-    isHoldingAtStop = false;
-    isAtBusStop = false;
-    isAutopilotMoving = true;
-    updateTripStatus();
-    updateStopInfoDisplay();
-  }, tempoMs);
+  // Se houver um tempo máximo (ex: 90s na Olegário Maciel), liberta após o tempo caso não acelere
+  if (tempoMaximoMs) {
+    stopHoldTimer = setTimeout(() => {
+      if (isAtBusStop) {
+        isHoldingAtStop = false;
+        isAtBusStop = false;
+        isAutopilotMoving = true;
+        updateTripStatus();
+        updateStopInfoDisplay();
+      }
+    }, tempoMaximoMs);
+  }
 }
 
 let lastFrameTime = performance.now();
@@ -1368,14 +1383,12 @@ function gameLoop(now) {
 
       smoothHeading = lerpHeading(smoothHeading, targetHeading, 8.0 * deltaTime);
 
-      // VERIFICAÇÃO PONTO A PONTO COM TOLERÂNCIA EXPANDIDA (90 METROS)
       if (currentStopIndex < activeStops.length) {
         const nextStop = activeStops[currentStopIndex];
         if (!nextStop.visited) {
           const distToStop = getMetersBetween([busLng, busLat], nextStop.coords);
           
-          // Tolerância aumentada para 90 metros para cobrir trechos mais distantes do Depósito Portela em diante
-          if (distToStop < 90.0 || currentSegIndex >= nextStop.targetPathIndex) {
+          if (distToStop < 150.0 || currentSegIndex >= nextStop.targetPathIndex) {
             currentStopIndex++; 
             processStop(nextStop);
           }
@@ -1471,4 +1484,4 @@ window.addEventListener('keyup', (e) => {
   if (['ArrowDown', 'KeyS'].includes(e.code)) keysPressed.Down = false;
   if (['ArrowLeft', 'KeyA'].includes(e.code)) keysPressed.Left = false;
   if (['ArrowRight', 'KeyD'].includes(e.code)) keysPressed.Right = false;
-})
+});
