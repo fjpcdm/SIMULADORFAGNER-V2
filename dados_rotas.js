@@ -138,7 +138,7 @@ window.linesDatabase["3450"] = {
 };
 
 // ============================================================
-// LINHA: 301C - Cadastrada com os pontos exatos solicitados
+// LINHA: 301C - Com as coordenadas originais exatas fornecidas por si
 // ============================================================
 window.linesDatabase["301C"] = {
   nome: "301 C - Terminal Ibirité x BH (Via Amazonas)",
