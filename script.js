@@ -1,6 +1,6 @@
 // ============================================================
 // ARQUIVO: script.js
-// MOTOR DE SIMULAÇÃO - CORREÇÃO DE INTERFACE, MOBILE E TREM
+// MOTOR DE SIMULAÇÃO - CORREÇÃO DE ESTADO E DESBLOQUEIO DE PARAGEM
 // ============================================================
 
 const cssStyles = `
@@ -156,7 +156,6 @@ const cssStyles = `
     max-width: 90vw !important;
   }
 
-  /* BARRA SUPERIOR MOBILE (OCULTA POR DEFEITO ATÉ INICIAR A VIAGEM) */
   .mobile-top-bar {
     position: absolute;
     top: 12px;
@@ -355,7 +354,6 @@ const cssStyles = `
     text-align: center;
   }
 
-  /* VELOCÍMETRO PARA COMPUTADOR (DESKTOP) */
   .speedometer-container {
     position: absolute !important;
     bottom: 20px !important;
@@ -552,6 +550,12 @@ const cssStyles = `
     display: block !important;
     filter: drop-shadow(0px 3px 6px rgba(0, 0, 0, 0.95));
   }
+
+  @media (max-width: 768px) {
+    .speedometer-container {
+      display: none !important;
+    }
+  }
 `;
 
 const styleElement = document.createElement('style');
@@ -570,7 +574,6 @@ function showAlert(message) {
   }, 4000);
 }
 
-// CORES ATUALIZADAS COM A OPÇÃO DE TREM (AZUL E LARANJA)
 const COLOR_PRESETS = {
   'vermelho': { name: 'Vermelho', bodyColor: '#dc2626', stripeColor: '#ffffff' },
   'azul': { name: 'Azul', bodyColor: '#2563eb', stripeColor: '#ffffff' },
@@ -678,10 +681,11 @@ mapBanner.id = 'mapInstructionBanner';
 mapBanner.style.display = 'none';
 document.body.appendChild(mapBanner);
 
-// BARRA SUPERIOR MOBILE COM TEMPO, KM E VELOCIDADE JUNTOS
+// BARRA SUPERIOR MOBILE (INICIALMENTE OCULTA)
 const mobileTopBar = document.createElement('div');
 mobileTopBar.className = 'mobile-top-bar';
 mobileTopBar.id = 'mobileTopBar';
+mobileTopBar.style.display = 'none';
 mobileTopBar.innerHTML = `
   <span>⏱️ <strong id="miniTimerDisplay" style="color:#10b981; font-family:monospace;">00:00</strong></span>
   <span>📍 <strong id="miniKmDisplay" style="color:#38bdf8;">0.00 km</strong></span>
@@ -1010,11 +1014,13 @@ document.getElementById('btnStartFreeMode').addEventListener('click', async () =
 function startSimulation(startCoords) {
   setupModal.style.display = 'none';
   
-  // EXIBE OS ELEMENTOS DE INTERFACE DE JOGO APÓS ESCOLHER A LINHA
+  // EXIBE OS ELEMENTOS DE INTERFACE DE JOGO APÓS INICIAR
   hudContainer.style.display = 'block';
   hudContainer.classList.remove('mobile-visible');
+  mobileTopBar.style.display = 'flex';
   rightControlsContainer.style.display = 'flex';
-  
+  speedBox.style.display = 'flex';
+
   const cardPax = document.getElementById('cardPaxStatus');
 
   if (currentGameMode === 'free') {
@@ -1116,6 +1122,7 @@ function exitGame() {
 
   hudContainer.style.display = 'none';
   speedBox.style.display = 'none';
+  mobileTopBar.style.display = 'none';
   leftControlsContainer.style.display = 'none';
   rightControlsContainer.style.display = 'none';
   mapBanner.style.display = 'none';
@@ -1296,10 +1303,18 @@ function handleAccelerate() {
     isTripActive = true;
     startTripTimer();
   }
-  if (isAtBusStop && !isHoldingAtStop) {
+  
+  // LIMPA COMPLETAMENTE O BLOQUEIO DA PARAGEM AO ACELERAR
+  if (isAtBusStop || isHoldingAtStop) {
     isAtBusStop = false;
+    isHoldingAtStop = false;
+    if (stopHoldTimer) {
+      clearTimeout(stopHoldTimer);
+      stopHoldTimer = null;
+    }
     mapBanner.style.display = 'none';
   }
+
   isAutopilotMoving = true;
   updateTripStatus();
 }
