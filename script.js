@@ -1,6 +1,6 @@
 // ============================================================
 // ARQUIVO: script.js
-// MOTOR DE SIMULAÇÃO - CORREÇÃO DE ESTADO E DESBLOQUEIO DE PARAGEM
+// MOTOR DE SIMULAÇÃO - CORREÇÃO DE ACELERAÇÃO E HUD MOBILE
 // ============================================================
 
 const cssStyles = `
@@ -156,6 +156,7 @@ const cssStyles = `
     max-width: 90vw !important;
   }
 
+  /* BARRA SUPERIOR MOBILE COM TEMPO, KM E VELOCIDADE */
   .mobile-top-bar {
     position: absolute;
     top: 12px;
@@ -169,7 +170,7 @@ const cssStyles = `
     padding: 6px 14px;
     display: none;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
     z-index: 999999;
     color: #ffffff;
     font-size: 0.78rem;
@@ -188,12 +189,13 @@ const cssStyles = `
     cursor: pointer;
   }
 
+  /* MENU HUD OCULTO POR DEFEITO NO MOBILE (ABRE PELO BOTÃO) */
   .hud {
     position: absolute !important;
-    top: 15px !important;
+    top: 60px !important;
     left: 15px !important;
     z-index: 999999 !important;
-    background: rgba(15, 23, 42, 0.88) !important;
+    background: rgba(15, 23, 42, 0.92) !important;
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
     color: #ffffff !important;
@@ -202,8 +204,12 @@ const cssStyles = `
     border: 1px solid rgba(255, 255, 255, 0.25) !important;
     width: 260px;
     max-width: calc(100vw - 30px);
-    transition: transform 0.25s ease, opacity 0.25s ease;
     display: none;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+  }
+
+  .hud.mobile-visible {
+    display: block !important;
   }
 
   .hud h2 {
@@ -354,6 +360,7 @@ const cssStyles = `
     text-align: center;
   }
 
+  /* VELOCÍMETRO APENAS PARA DESKTOP (NO MOBILE FICA NA BARRA SUPERIOR) */
   .speedometer-container {
     position: absolute !important;
     bottom: 20px !important;
@@ -369,7 +376,7 @@ const cssStyles = `
     font-size: 1.6rem !important;
     font-weight: 800 !important;
     border: 2px solid #38bdf8 !important;
-    display: none;
+    display: flex;
     align-items: baseline;
     gap: 6px;
     pointer-events: none;
@@ -387,7 +394,7 @@ const cssStyles = `
     bottom: 30px !important;
     left: 15px !important;
     z-index: 999999 !important;
-    display: none;
+    display: flex;
     gap: 10px;
   }
 
@@ -396,7 +403,7 @@ const cssStyles = `
     bottom: 85px !important;
     right: 15px !important;
     z-index: 999999 !important;
-    display: none;
+    display: flex;
     flex-direction: column;
     gap: 14px;
   }
@@ -681,7 +688,7 @@ mapBanner.id = 'mapInstructionBanner';
 mapBanner.style.display = 'none';
 document.body.appendChild(mapBanner);
 
-// BARRA SUPERIOR MOBILE (INICIALMENTE OCULTA)
+// BARRA SUPERIOR MOBILE (OCULTA NO MENU INICIAL)
 const mobileTopBar = document.createElement('div');
 mobileTopBar.className = 'mobile-top-bar';
 mobileTopBar.id = 'mobileTopBar';
@@ -1015,8 +1022,6 @@ function startSimulation(startCoords) {
   setupModal.style.display = 'none';
   
   // EXIBE OS ELEMENTOS DE INTERFACE DE JOGO APÓS INICIAR
-  hudContainer.style.display = 'block';
-  hudContainer.classList.remove('mobile-visible');
   mobileTopBar.style.display = 'flex';
   rightControlsContainer.style.display = 'flex';
   speedBox.style.display = 'flex';
@@ -1121,6 +1126,7 @@ function exitGame() {
   document.getElementById('miniSpeedDisplay').textContent = '0';
 
   hudContainer.style.display = 'none';
+  hudContainer.classList.remove('mobile-visible');
   speedBox.style.display = 'none';
   mobileTopBar.style.display = 'none';
   leftControlsContainer.style.display = 'none';
@@ -1304,16 +1310,14 @@ function handleAccelerate() {
     startTripTimer();
   }
   
-  // LIMPA COMPLETAMENTE O BLOQUEIO DA PARAGEM AO ACELERAR
-  if (isAtBusStop || isHoldingAtStop) {
-    isAtBusStop = false;
-    isHoldingAtStop = false;
-    if (stopHoldTimer) {
-      clearTimeout(stopHoldTimer);
-      stopHoldTimer = null;
-    }
-    mapBanner.style.display = 'none';
+  // LIMPA O ESTADO DE PARAGEM E PERMITE ACELERAR IMEDIATAMENTE
+  isAtBusStop = false;
+  isHoldingAtStop = false;
+  if (stopHoldTimer) {
+    clearTimeout(stopHoldTimer);
+    stopHoldTimer = null;
   }
+  mapBanner.style.display = 'none';
 
   isAutopilotMoving = true;
   updateTripStatus();
@@ -1405,6 +1409,25 @@ function gameLoop(now) {
 
   if (currentGameMode === 'line') {
     let desiredSpeed = 0;
+
+    // SE O JOGADOR ESTIVER A CARREGAR NO ACELERADOR (BOTÃO OU TECLA)
+    if (keysPressed.Up) {
+      if (!isTripActive && currentGameMode === 'line') {
+        isTripActive = true;
+        startTripTimer();
+      }
+      if (isAtBusStop || isHoldingAtStop) {
+        isAtBusStop = false;
+        isHoldingAtStop = false;
+        if (stopHoldTimer) {
+          clearTimeout(stopHoldTimer);
+          stopHoldTimer = null;
+        }
+        mapBanner.style.display = 'none';
+      }
+      isAutopilotMoving = true;
+      updateTripStatus();
+    }
 
     if (isTripActive && isAutopilotMoving && !isAtBusStop && !isLineFinished) {
       if (keysPressed.Down) {
