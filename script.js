@@ -12,7 +12,7 @@ const cssStyles = `
     user-select: none !important;
     -webkit-user-select: none !important;
   }
-
+  
   html, body {
     width: 100vw;
     height: 100vh;
