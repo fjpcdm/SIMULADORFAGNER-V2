@@ -1,6 +1,6 @@
 // ============================================================
 // ARQUIVO: script.js
-// MOTOR DE SIMULAÇÃO DE ÔNIBUS - OTIMIZADO (90 KM/H + SAÍDA MANUAL)
+// MOTOR DE SIMULAÇÃO DE ÔNIBUS - COM RELATÓRIO FINAL E MOBILE CORRIGIDO
 // ============================================================
 
 const cssStyles = `
@@ -167,7 +167,7 @@ const cssStyles = `
     border: 1px solid rgba(255, 255, 255, 0.2);
     border-radius: 20px;
     padding: 6px 14px;
-    display: none;
+    display: flex;
     align-items: center;
     gap: 12px;
     z-index: 999999;
@@ -353,25 +353,27 @@ const cssStyles = `
     text-align: center;
   }
 
+  /* VELOCÍMETRO CORRIGIDO PARA APARECER EM QUALQUER ECRÃ */
   .speedometer-container {
     position: absolute !important;
     bottom: 20px !important;
     left: 50% !important;
     transform: translateX(-50%) !important;
     z-index: 999999 !important;
-    background: rgba(10, 15, 25, 0.88) !important;
+    background: rgba(10, 15, 25, 0.9) !important;
     backdrop-filter: blur(6px);
     -webkit-backdrop-filter: blur(6px);
     color: #38bdf8 !important;
-    padding: 8px 20px !important;
+    padding: 8px 22px !important;
     border-radius: 25px !important;
     font-size: 1.6rem !important;
     font-weight: 800 !important;
     border: 2px solid #38bdf8 !important;
-    display: flex;
+    display: flex !important;
     align-items: baseline;
     gap: 6px;
     pointer-events: none;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.6);
   }
 
   .speed-unit {
@@ -389,12 +391,13 @@ const cssStyles = `
     gap: 10px;
   }
 
+  /* CONTROLOS DE TOQUE DIREITO (ACELERAR / TRAVAGEM) VISÍVEIS */
   .mobile-controls-right {
     position: absolute !important;
     bottom: 85px !important;
     right: 15px !important;
     z-index: 999999 !important;
-    display: flex;
+    display: flex !important;
     flex-direction: column;
     gap: 14px;
   }
@@ -402,7 +405,7 @@ const cssStyles = `
   .btn-drive-touch {
     width: 62px;
     height: 62px;
-    background: rgba(15, 23, 42, 0.85);
+    background: rgba(15, 23, 42, 0.9);
     backdrop-filter: blur(6px);
     -webkit-backdrop-filter: blur(6px);
     border: 2px solid #38bdf8;
@@ -423,16 +426,16 @@ const cssStyles = `
 
   .btn-drive-touch.btn-accel {
     border-color: #10b981;
-    background: rgba(16, 185, 129, 0.45);
+    background: rgba(16, 185, 129, 0.5);
   }
 
   .btn-drive-touch.btn-accel:active {
-    background: rgba(16, 185, 129, 0.8);
+    background: rgba(16, 185, 129, 0.9);
   }
 
   .btn-drive-touch.btn-brake {
     border-color: #ef4444;
-    background: rgba(239, 68, 68, 0.45);
+    background: rgba(239, 68, 68, 0.5);
   }
 
   .alert-toast {
@@ -449,6 +452,73 @@ const cssStyles = `
     z-index: 10000000;
     text-align: center;
     display: none;
+  }
+
+  /* MODAL DE RELATÓRIO DE VIAGEM FINAL */
+  .report-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(15, 23, 42, 0.92);
+    z-index: 99999999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+  }
+
+  .report-card {
+    background: #1e293b;
+    border: 2px solid #10b981;
+    border-radius: 20px;
+    padding: 24px;
+    width: 100%;
+    max-width: 420px;
+    color: #ffffff;
+    box-shadow: 0 25px 50px rgba(0, 0, 0, 0.9);
+    text-align: center;
+  }
+
+  .report-card h2 {
+    color: #10b981;
+    font-size: 1.5rem;
+    margin-bottom: 12px;
+  }
+
+  .report-stats {
+    background: #0f172a;
+    border: 1px solid #334155;
+    border-radius: 12px;
+    padding: 14px;
+    margin: 16px 0;
+    text-align: left;
+    font-size: 0.95rem;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    color: #cbd5e1;
+  }
+
+  .report-stats strong {
+    color: #38bdf8;
+    float: right;
+    font-family: monospace;
+    font-size: 1.05rem;
+  }
+
+  .btn-close-report {
+    width: 100%;
+    padding: 14px;
+    background: #10b981;
+    border: none;
+    border-radius: 10px;
+    color: #ffffff;
+    font-weight: bold;
+    font-size: 1.05rem;
+    cursor: pointer;
+    margin-top: 10px;
   }
 
   .stop-marker-container {
@@ -740,7 +810,7 @@ let busLat = 0;
 let currentSpeedKmh = 0;
 let isAutopilotMoving = false;
 
-// VELOCIDADE MÁXIMA AJUSTADA PARA 90 KM/H
+// VELOCIDADE MÁXIMA CONFIGURADA PARA 90 KM/H
 let cruiseSpeedKmh = 90;
 let boostSpeedKmh = 90;
 
@@ -1089,6 +1159,43 @@ function exitGame() {
 
 document.getElementById('btnExitGame').addEventListener('click', exitGame);
 
+// FUNÇÃO PARA EXIBIR O RELATÓRIO FINAL DA VIAGEM
+function mostrarRelatorioFinal() {
+  stopTripTimer();
+  isTripActive = false;
+  isAutopilotMoving = false;
+  currentSpeedKmh = 0;
+
+  const tempoStr = document.getElementById('tripTimerDisplay').textContent;
+  const kmStr = document.getElementById('kmCoveredDisplay').textContent;
+  const nomeLinha = document.getElementById('lineBadgeDisplay').textContent;
+
+  const reportOverlay = document.createElement('div');
+  reportOverlay.className = 'report-modal-overlay';
+  reportOverlay.innerHTML = `
+    <div class="report-card">
+      <h2>🏆 Viagem Concluída!</h2>
+      <p style="color: #94a3b8; font-size: 0.9rem;">Relatório Oficial de Operação</p>
+      
+      <div class="report-stats">
+        <span>Linha: <strong>${nomeLinha}</strong></span>
+        <span>Tempo Total: <strong>${tempoStr}</strong></span>
+        <span>Distância Percorrida: <strong>${kmStr}</strong></span>
+        <span>Paragens Atendidas: <strong>${activeStops.length} de ${activeStops.length}</strong></span>
+        <span>Estado Final: <strong style="color: #10b981;">Sucesso Total</strong></span>
+      </div>
+
+      <button class="btn-close-report" id="btnCloseReport">Voltar ao Menu Principal</button>
+    </div>
+  `;
+  document.body.appendChild(reportOverlay);
+
+  document.getElementById('btnCloseReport').addEventListener('click', () => {
+    reportOverlay.remove();
+    exitGame();
+  });
+}
+
 function getBusSvg(bodyColor, stripeColor, isDD, label) {
   return 'data:image/svg+xml;utf8,' + encodeURIComponent(`
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 260" width="120" height="260">
@@ -1221,7 +1328,7 @@ function handleAccelerate() {
     isTripActive = true;
     startTripTimer();
   }
-  // Se estiver parado numa paragem, destrava e permite continuar apenas ao acelerar
+  // Liberta o autocarro da paragem ao acelerar manualmente
   if (isAtBusStop && !isHoldingAtStop) {
     isAtBusStop = false;
     mapBanner.style.display = 'none';
@@ -1248,20 +1355,25 @@ function processStop(stop) {
     return;
   }
 
-  // 2. Olegário Maciel: Paragem obrigatória e espera de 90s (ou até acelerar manualmente)
+  // 2. Olegário Maciel: Paragem de 90s ou até acelerar manualmente
   if (nomePonto.includes("olegario")) {
     passengerCount = 0; 
     const embarqueRetorno = Math.floor(Math.random() * 20) + 10;
     passengerCount = Math.min(maxPassengers, embarqueRetorno);
     showAlert("🚏 Olegário Maciel: Retorno. Paragem de 1m30s (ou acelere para partir).");
-    pararEaguardarAceleracaoManual(90000); // 90 segundos ou até o jogador acelerar
+    pararEaguardarAceleracaoManual(90000); 
     return;
   }
 
   // 3. Terminais de Início / Fim
   if (nomePonto.includes("terminal")) {
+    if (currentStopIndex >= activeStops.length) {
+      isLineFinished = true;
+      mostrarRelatorioFinal();
+      return;
+    }
     passengerCount = nomePonto.includes("inicio") ? Math.floor(maxPassengers * 0.2) : 0;
-    showAlert("🚏 Terminal. Acelere para continuar a viagem.");
+    showAlert("🚏 Terminal. Acelere para prosseguir.");
     pararEaguardarAceleracaoManual();
     return;
   }
@@ -1286,7 +1398,6 @@ function pararEaguardarAceleracaoManual(tempoMaximoMs = null) {
 
   if (stopHoldTimer) clearTimeout(stopHoldTimer);
 
-  // Se houver um tempo máximo (ex: 90s na Olegário Maciel), liberta após o tempo caso não acelere
   if (tempoMaximoMs) {
     stopHoldTimer = setTimeout(() => {
       if (isAtBusStop) {
@@ -1365,12 +1476,7 @@ function gameLoop(now) {
             busLng = activePath[activePath.length - 1][0];
             busLat = activePath[activePath.length - 1][1];
             isLineFinished = true;
-            isTripActive = false;
-            isAutopilotMoving = false;
-            currentSpeedKmh = 0;
-            passengerCount = 0;
-            stopTripTimer();
-            updateTripStatus();
+            mostrarRelatorioFinal();
             break;
           } else {
             currentSegLength = getMetersBetween(activePath[currentSegIndex], activePath[currentSegIndex + 1]);
@@ -1392,6 +1498,11 @@ function gameLoop(now) {
             currentStopIndex++; 
             processStop(nextStop);
           }
+        }
+      } else {
+        if (!isLineFinished) {
+          isLineFinished = true;
+          mostrarRelatorioFinal();
         }
       }
     }
@@ -1452,7 +1563,9 @@ function gameLoop(now) {
     bearing: smoothHeading
   });
 
-  animationFrameId = requestAnimationFrame(gameLoop);
+  if (!isLineFinished) {
+    animationFrameId = requestAnimationFrame(gameLoop);
+  }
 }
 
 document.getElementById('btnZoomNear').addEventListener('pointerdown', (e) => {
