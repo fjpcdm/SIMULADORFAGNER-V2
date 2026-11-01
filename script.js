@@ -1476,4 +1476,4 @@ window.addEventListener('keyup', (e) => {
   if (['ArrowDown', 'KeyS'].includes(e.code)) keysPressed.Down = false;
   if (['ArrowLeft', 'KeyA'].includes(e.code)) keysPressed.Left = false;
   if (['ArrowRight', 'KeyD'].includes(e.code)) keysPressed.Right = false;
-});
+})
