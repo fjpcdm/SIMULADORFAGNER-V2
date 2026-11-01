@@ -1,6 +1,6 @@
 // ============================================================
 // ARQUIVO: script.js
-// MOTOR DE SIMULAÇÃO DE ÔNIBUS - VELOCÍMETRO NO TOPO (MOBILE)
+// MOTOR DE SIMULAÇÃO - CORREÇÃO DE INTERFACE, MOBILE E TREM
 // ============================================================
 
 const cssStyles = `
@@ -12,7 +12,7 @@ const cssStyles = `
     user-select: none !important;
     -webkit-user-select: none !important;
   }
-  
+
   html, body {
     width: 100vw;
     height: 100vh;
@@ -156,21 +156,21 @@ const cssStyles = `
     max-width: 90vw !important;
   }
 
-  /* BARRA SUPERIOR MOBILE (CRONÓMETRO, KM E VELOCIDADE) */
+  /* BARRA SUPERIOR MOBILE (OCULTA POR DEFEITO ATÉ INICIAR A VIAGEM) */
   .mobile-top-bar {
     position: absolute;
     top: 12px;
     left: 50%;
     transform: translateX(-50%);
-    background: rgba(15, 23, 42, 0.9);
+    background: rgba(15, 23, 42, 0.92);
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.25);
     border-radius: 20px;
     padding: 6px 14px;
     display: none;
     align-items: center;
-    gap: 10px;
+    gap: 12px;
     z-index: 999999;
     color: #ffffff;
     font-size: 0.78rem;
@@ -204,6 +204,7 @@ const cssStyles = `
     width: 260px;
     max-width: calc(100vw - 30px);
     transition: transform 0.25s ease, opacity 0.25s ease;
+    display: none;
   }
 
   .hud h2 {
@@ -354,7 +355,7 @@ const cssStyles = `
     text-align: center;
   }
 
-  /* VELOCÍMETRO NO COMPUTADOR (FLUTUANTE ABAIXO) */
+  /* VELOCÍMETRO PARA COMPUTADOR (DESKTOP) */
   .speedometer-container {
     position: absolute !important;
     bottom: 20px !important;
@@ -370,7 +371,7 @@ const cssStyles = `
     font-size: 1.6rem !important;
     font-weight: 800 !important;
     border: 2px solid #38bdf8 !important;
-    display: flex !important;
+    display: none;
     align-items: baseline;
     gap: 6px;
     pointer-events: none;
@@ -388,7 +389,7 @@ const cssStyles = `
     bottom: 30px !important;
     left: 15px !important;
     z-index: 999999 !important;
-    display: flex;
+    display: none;
     gap: 10px;
   }
 
@@ -397,7 +398,7 @@ const cssStyles = `
     bottom: 85px !important;
     right: 15px !important;
     z-index: 999999 !important;
-    display: flex !important;
+    display: none;
     flex-direction: column;
     gap: 14px;
   }
@@ -551,42 +552,6 @@ const cssStyles = `
     display: block !important;
     filter: drop-shadow(0px 3px 6px rgba(0, 0, 0, 0.95));
   }
-
-  @media (max-width: 768px) {
-    .mobile-top-bar {
-      display: flex !important;
-    }
-
-    /* NO MOBILE, ESCONDE O VELOCÍMETRO FLUTUANTE INFERIOR E DEIXA SÓ NO TOPO */
-    .speedometer-container {
-      display: none !important;
-    }
-
-    .hud {
-      top: 52px !important;
-      left: 50% !important;
-      transform: translateX(-50%) translateY(-20px);
-      opacity: 0;
-      pointer-events: none;
-    }
-
-    .hud.mobile-visible {
-      transform: translateX(-50%) translateY(0);
-      opacity: 1;
-      pointer-events: auto;
-    }
-
-    .mobile-controls-right {
-      display: flex !important;
-      bottom: 90px !important;
-    }
-
-    .btn-drive-touch {
-      width: 58px;
-      height: 58px;
-      font-size: 1.3rem;
-    }
-  }
 `;
 
 const styleElement = document.createElement('style');
@@ -605,17 +570,15 @@ function showAlert(message) {
   }, 4000);
 }
 
+// CORES ATUALIZADAS COM A OPÇÃO DE TREM (AZUL E LARANJA)
 const COLOR_PRESETS = {
   'vermelho': { name: 'Vermelho', bodyColor: '#dc2626', stripeColor: '#ffffff' },
-  'trem': { name: 'TREM', bodyColor: '#4A2052, #FF5A00,#005DAA', stripeColor: '#ffffff' },
-  'bh': { name: 'BHBUS', bodyColor: '#005CAA', stripeColor: '#ffffff' },
-  'move': { name: 'BHBUS', bodyColor: '#005CAA', stripeColor: '#ffffff' },
-  'azul': { name: 'Move BH', bodyColor: '#009254', stripeColor: '#ffffff' },
+  'azul': { name: 'Azul', bodyColor: '#2563eb', stripeColor: '#ffffff' },
   'laranja': { name: 'Laranja', bodyColor: '#ea580c', stripeColor: '#ffffff' },
   'amarelo': { name: 'Amarelo', bodyColor: '#eab308', stripeColor: '#ffffff' },
   'verde': { name: 'Verde', bodyColor: '#16a34a', stripeColor: '#ffffff' },
-  'branco': { name: 'Branco', bodyColor: '#16a34a', stripeColor: '#ffffff' },
- 
+  'trem_azul': { name: 'Trem Azul', bodyColor: '#1C4485', stripeColor: '#ffffff' },
+  'trem_laranja': { name: 'Trem Laranja', bodyColor: '#E76F43', stripeColor: '#ffffff' }
 };
 
 function getLinesDatabase() {
@@ -644,7 +607,7 @@ for (const key in COLOR_PRESETS) {
 
 setupModal.innerHTML = `
   <div class="setup-card" id="cardMainMenu">
-    <h2>🚍 Simulador de Ônibus</h2>
+    <h2>🚍 Simulador de Ônibus & Trem</h2>
     <div class="mode-selection-box">
       <button class="btn-mode-select" id="btnSelectLineMode">📍 Modo Linha</button>
       <button class="btn-mode-select" id="btnSelectFreeMode">🗺️ Modo Livre</button>
@@ -658,7 +621,7 @@ setupModal.innerHTML = `
       <select id="selectLine"></select>
     </div>
     <div class="form-group">
-      <label>Cor do Ônibus:</label>
+      <label>Cor do Veículo:</label>
       <select id="selectColorLine">${colorOptionsHtml}</select>
     </div>
     <button class="btn-start-sim" id="btnStartLineMode">Iniciar Viagem</button>
@@ -668,7 +631,7 @@ setupModal.innerHTML = `
   <div class="setup-card" id="cardFreeMode" style="display: none;">
     <h2>🗺️ Modo Livre</h2>
     <div class="form-group">
-      <label>Cor do Ônibus:</label>
+      <label>Cor do Veículo:</label>
       <select id="selectColorFree">${colorOptionsHtml}</select>
     </div>
     <div class="form-group">
@@ -715,7 +678,7 @@ mapBanner.id = 'mapInstructionBanner';
 mapBanner.style.display = 'none';
 document.body.appendChild(mapBanner);
 
-// BARRA SUPERIOR MOBILE COM CRONÓMETRO, KM E VELOCIDADE INTEGRADOS
+// BARRA SUPERIOR MOBILE COM TEMPO, KM E VELOCIDADE JUNTOS
 const mobileTopBar = document.createElement('div');
 mobileTopBar.className = 'mobile-top-bar';
 mobileTopBar.id = 'mobileTopBar';
@@ -770,7 +733,6 @@ hudContainer.innerHTML = `
   <button class="btn-exit-game" id="btnExitGame">🚪 Sair do Jogo</button>
 `;
 
-// VELOCÍMETRO PARA DESKTOP
 let speedBox = document.createElement('div');
 speedBox.className = 'speedometer-container';
 speedBox.style.display = 'none';
@@ -815,7 +777,7 @@ let busLat = 0;
 let currentSpeedKmh = 0;
 let isAutopilotMoving = false;
 
-// VELOCIDADE MÁXIMA CONFIGURADA PARA 90 KM/H
+// VELOCIDADE MÁXIMA DE 90 KM/H
 let cruiseSpeedKmh = 90;
 let boostSpeedKmh = 90;
 
@@ -1047,11 +1009,12 @@ document.getElementById('btnStartFreeMode').addEventListener('click', async () =
 
 function startSimulation(startCoords) {
   setupModal.style.display = 'none';
+  
+  // EXIBE OS ELEMENTOS DE INTERFACE DE JOGO APÓS ESCOLHER A LINHA
   hudContainer.style.display = 'block';
   hudContainer.classList.remove('mobile-visible');
-  speedBox.style.display = 'flex';
   rightControlsContainer.style.display = 'flex';
-
+  
   const cardPax = document.getElementById('cardPaxStatus');
 
   if (currentGameMode === 'free') {
