@@ -1,6 +1,6 @@
 // ============================================================
 // ARQUIVO: script.js
-// MOTOR COM DETECÇÃO SEQUENCIAL E CORREÇÃO DE ANTECIPAÇÃO
+// MOTOR COM VELOCIDADE DE TESTE (150 KM/H) E DETECÇÃO AMPLIADA
 // ============================================================
 
 const cssStyles = `
@@ -156,7 +156,6 @@ const cssStyles = `
     max-width: 90vw !important;
   }
 
-  /* MINI BARRA TOPO PARA MOBILE */
   .mobile-top-bar {
     position: absolute;
     top: 12px;
@@ -390,7 +389,6 @@ const cssStyles = `
     gap: 10px;
   }
 
-  /* BOTÕES MOBILE MAIS ACIMA CONFORME SOLICITADO */
   .mobile-controls-right {
     position: absolute !important;
     bottom: 85px !important;
@@ -485,7 +483,6 @@ const cssStyles = `
     filter: drop-shadow(0px 3px 6px rgba(0, 0, 0, 0.95));
   }
 
-  /* ADAPTAÇÃO PARA VERSÃO MOBILE */
   @media (max-width: 768px) {
     .mobile-top-bar {
       display: flex;
@@ -644,7 +641,6 @@ mapBanner.id = 'mapInstructionBanner';
 mapBanner.style.display = 'none';
 document.body.appendChild(mapBanner);
 
-// Mini-barra topo para celular
 const mobileTopBar = document.createElement('div');
 mobileTopBar.className = 'mobile-top-bar';
 mobileTopBar.id = 'mobileTopBar';
@@ -664,7 +660,6 @@ hudContainer.innerHTML = `
   <h2>🚍 Linha Operacional</h2>
   <div class="line-badge" id="lineBadgeDisplay">---</div>
 
-  <!-- Cartão de Passageiros (Ativo exclusivamente no Modo Linha) -->
   <div class="pax-status-card" id="cardPaxStatus">
     <div class="pax-status-main">
       Passageiros a Bordo:<br>
@@ -736,14 +731,16 @@ let activePresetKey = 'vermelho';
 
 let activePath = [];
 let activeStops = [];
+let currentStopIndex = 0; 
 let busLng = 0;
 let busLat = 0;
 
 let currentSpeedKmh = 0;
 let isAutopilotMoving = false;
 
-let cruiseSpeedKmh = 70;
-let boostSpeedKmh = 90;
+// VELOCIDADE DE TESTE AUMENTADA PARA 150 KM/H
+let cruiseSpeedKmh = 150;
+let boostSpeedKmh = 150;
 
 let targetHeading = 0;
 let smoothHeading = 0;
@@ -760,7 +757,6 @@ let isTripActive = false;
 let tripStartTime = null;
 let tripTimerInterval = null;
 
-// Variáveis para controlar paragens obrigatórias e tempos especiais
 let stopHoldTimer = null;
 let isHoldingAtStop = false;
 
@@ -896,8 +892,6 @@ document.getElementById('btnStartLineMode').addEventListener('click', () => {
   }
 
   const isRodoviario = lineData.tipo === 'rodoviario';
-  cruiseSpeedKmh = isRodoviario ? 100 : 70;
-  boostSpeedKmh = isRodoviario ? 120 : 90;
   maxPassengers = isRodoviario ? 42 : 70;
   passengerCount = Math.floor(maxPassengers * 0.15);
 
@@ -905,6 +899,7 @@ document.getElementById('btnStartLineMode').addEventListener('click', () => {
 
   activePath = extractCoordinates(lineData.trajeto);
   
+  currentStopIndex = 0; 
   activeStops = (lineData.pontos || []).map((s, idx) => {
     let closestIndex = 0;
     let minDistance = Infinity;
@@ -918,7 +913,7 @@ document.getElementById('btnStartLineMode').addEventListener('click', () => {
     return {
       ...s,
       targetPathIndex: closestIndex,
-      visited: (idx === 0)
+      visited: false
     };
   });
 
@@ -952,8 +947,6 @@ document.getElementById('btnStartFreeMode').addEventListener('click', async () =
   activePresetKey = document.getElementById('selectColorFree').value || 'vermelho';
   const locationQuery = document.getElementById('inputFreeLocation').value.trim();
 
-  cruiseSpeedKmh = 70;
-  boostSpeedKmh = 90;
   document.getElementById('lineBadgeDisplay').textContent = `Modo Livre`;
 
   currentSpeedKmh = 0;
@@ -1003,7 +996,7 @@ function startSimulation(startCoords) {
 }
 
 function updateStopInfoDisplay() {
-  const nextStop = activeStops.find(s => !s.visited);
+  const nextStop = activeStops[currentStopIndex];
   const nextName = nextStop ? nextStop.nome : "Fim da Linha";
   document.getElementById('stopInfoDynamic').innerHTML = `
     <div style="margin-top: 4px; padding-top: 4px; border-top: 1px solid rgba(255,255,255,0.1);">
@@ -1016,9 +1009,8 @@ function updateStopInfoDisplay() {
 function atualizarMarcadorProximoPonto(busCoords) {
   if (currentGameMode !== 'line' || !map) return;
 
-  const nextStop = activeStops.find(s => !s.visited);
-
-  if (!nextStop) {
+  const nextStop = activeStops[currentStopIndex];
+  if (!nextStop || nextStop.visited) {
     if (currentVisibleMarker) {
       currentVisibleMarker.remove();
       currentVisibleMarker = null;
@@ -1028,7 +1020,7 @@ function atualizarMarcadorProximoPonto(busCoords) {
 
   const distToStop = getMetersBetween(busCoords, nextStop.coords);
 
-  if (distToStop <= 100.0) {
+  if (distToStop <= 150.0) {
     if (!currentVisibleMarker || currentVisibleMarker._stopId !== nextStop.id) {
       if (currentVisibleMarker) currentVisibleMarker.remove();
 
@@ -1075,6 +1067,7 @@ function exitGame() {
   targetHeading = 0;
   smoothHeading = 0;
   distanceCoveredKm = 0;
+  currentStopIndex = 0;
   document.getElementById('tripTimerDisplay').textContent = '00:00';
   document.getElementById('miniTimerDisplay').textContent = '00:00';
   document.getElementById('kmCoveredDisplay').textContent = '0.00 km';
@@ -1244,44 +1237,38 @@ function processStop(stop) {
 
   const nomePonto = (stop.nome || "").toLowerCase();
 
-  // REGRAS ESPECIAIS SOLICITADAS:
-  // 1. SENAC: Esvaziar o ônibus 100% (passageiros = 0) e parada breve
+  // 1. SENAC: Esvaziar o ônibus 100%
   if (nomePonto.includes("senac")) {
     passengerCount = 0;
     showAlert("🚏 SENAC: Desembarque total de passageiros.");
-    atenderParadaTemporizada(5000);
+    atenderParadaTemporizada(4000);
     return;
   }
 
   // 2. Olegário Maciel: Paragem obrigatória de 1m30s (90 segundos) para retorno
   if (nomePonto.includes("olegario")) {
-    passengerCount = 0; // Opcional ou embarque novo para o retorno
+    passengerCount = 0; 
     const embarqueRetorno = Math.floor(Math.random() * 20) + 10;
     passengerCount = Math.min(maxPassengers, embarqueRetorno);
     showAlert("🚏 Olegário Maciel: Início do retorno. Paragem obrigatória de 1m30s.");
-    atenderParadaTemporizada(90000); // 90.000 ms = 1 minuto e 30 segundos
+    atenderParadaTemporizada(90000); 
     return;
   }
 
   // 3. Terminais de Início / Fim
   if (nomePonto.includes("terminal")) {
     passengerCount = nomePonto.includes("inicio") ? Math.floor(maxPassengers * 0.2) : 0;
-    atenderParadaTemporizada(10000);
+    atenderParadaTemporizada(6000);
     return;
   }
 
-  // 4. Demais paragens comuns: O autocarro não para obrigatoriamente em todas. 
-  // Decide aleatoriamente se para (30% de chance) ou passa direto (70%).
-  if (Math.random() < 0.30) {
-    const espaco = maxPassengers - passengerCount;
-    const emb = Math.min(espaco, Math.floor(Math.random() * 6) + 2);
-    const des = passengerCount > 0 ? Math.floor(Math.random() * 2) : 0;
-    passengerCount = Math.max(0, Math.min(maxPassengers, passengerCount - des + emb));
-    atenderParadaTemporizada(4000);
-  } else {
-    // Passa direto sem parar
-    updateStopInfoDisplay();
-  }
+  // 4. Paragem obrigatória em TODOS os pontos cadastrados (3 segundos por ponto)
+  const espaco = maxPassengers - passengerCount;
+  const emb = Math.min(espaco, Math.floor(Math.random() * 6) + 1);
+  const des = passengerCount > 0 ? Math.floor(Math.random() * 2) : 0;
+  passengerCount = Math.max(0, Math.min(maxPassengers, passengerCount - des + emb));
+  
+  atenderParadaTemporizada(3000); 
 }
 
 function atenderParadaTemporizada(tempoMs) {
@@ -1331,9 +1318,9 @@ function gameLoop(now) {
     }
 
     if (currentSpeedKmh < desiredSpeed) {
-      currentSpeedKmh = Math.min(currentSpeedKmh + 32 * deltaTime, desiredSpeed);
+      currentSpeedKmh = Math.min(currentSpeedKmh + 45 * deltaTime, desiredSpeed);
     } else if (currentSpeedKmh > desiredSpeed) {
-      currentSpeedKmh = Math.max(currentSpeedKmh - 22 * deltaTime, desiredSpeed);
+      currentSpeedKmh = Math.max(currentSpeedKmh - 30 * deltaTime, desiredSpeed);
     }
 
     if (currentSpeedKmh > 0 && !isAtBusStop && !isLineFinished && isTripActive) {
@@ -1386,11 +1373,17 @@ function gameLoop(now) {
 
       smoothHeading = lerpHeading(smoothHeading, targetHeading, 8.0 * deltaTime);
 
-      const nextStop = activeStops.find(s => !s.visited);
-      if (nextStop) {
-        const distToStop = getMetersBetween([busLng, busLat], nextStop.coords);
-        if (distToStop < 10.0 || (currentSegIndex >= nextStop.targetPathIndex && distToStop < 25.0)) {
-          processStop(nextStop);
+      // VERIFICAÇÃO PONTO A PONTO COM TOLERÂNCIA EXPANDIDA (90 METROS)
+      if (currentStopIndex < activeStops.length) {
+        const nextStop = activeStops[currentStopIndex];
+        if (!nextStop.visited) {
+          const distToStop = getMetersBetween([busLng, busLat], nextStop.coords);
+          
+          // Tolerância aumentada para 90 metros para cobrir trechos mais distantes do Depósito Portela em diante
+          if (distToStop < 90.0 || currentSegIndex >= nextStop.targetPathIndex) {
+            currentStopIndex++; 
+            processStop(nextStop);
+          }
         }
       }
     }
@@ -1405,8 +1398,8 @@ function gameLoop(now) {
       desiredSpeed = cruiseSpeedKmh;
     }
 
-    if (currentSpeedKmh < desiredSpeed) currentSpeedKmh = Math.min(currentSpeedKmh + 30 * deltaTime, desiredSpeed);
-    else if (currentSpeedKmh > desiredSpeed && desiredSpeed > 0) currentSpeedKmh = Math.max(currentSpeedKmh - 20 * deltaTime, desiredSpeed);
+    if (currentSpeedKmh < desiredSpeed) currentSpeedKmh = Math.min(currentSpeedKmh + 40 * deltaTime, desiredSpeed);
+    else if (currentSpeedKmh > desiredSpeed && desiredSpeed > 0) currentSpeedKmh = Math.max(currentSpeedKmh - 30 * deltaTime, desiredSpeed);
 
     if (currentSpeedKmh < 0.1) {
       currentSpeedKmh = 0;
