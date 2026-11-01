@@ -92,7 +92,7 @@ window.linesDatabase["3450"] = {
   { id: 79, nome: "Av. Pinheiros - Pátio de Manutenção da Prefeitura", coords: [-44.066903, -20.008595] },
   { id: 80, nome: "Av. Pinheiros - Escola Vila Ideal / Serra Dourada", coords: [-44.068051, -20.011664] },
   { id: 81, nome: "Av. Pinheiros - Entrada do Serra Dourada", coords: [-44.065734, -20.018534] },
-  { id: 82, nome: "Terminal Ibirité - PC Final", coords: [-44.066531, -20.017555] },
+  { id: 82, nome: "Terminal Ibirité - PC Final", coords: [-44.066531, -20.017555] }
 ];
     
   ],
