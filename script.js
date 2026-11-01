@@ -1,6 +1,6 @@
 // ============================================================
 // ARQUIVO: script.js
-// MOTOR DE SIMULAÇÃO DE ÔNIBUS - COM RELATÓRIO FINAL E MOBILE CORRIGIDO
+// MOTOR DE SIMULAÇÃO DE ÔNIBUS - VELOCÍMETRO NO TOPO (MOBILE)
 // ============================================================
 
 const cssStyles = `
@@ -156,23 +156,24 @@ const cssStyles = `
     max-width: 90vw !important;
   }
 
+  /* BARRA SUPERIOR MOBILE (CRONÓMETRO, KM E VELOCIDADE) */
   .mobile-top-bar {
     position: absolute;
     top: 12px;
     left: 50%;
     transform: translateX(-50%);
-    background: rgba(15, 23, 42, 0.85);
+    background: rgba(15, 23, 42, 0.9);
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
     border: 1px solid rgba(255, 255, 255, 0.2);
     border-radius: 20px;
     padding: 6px 14px;
-    display: flex;
+    display: none;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
     z-index: 999999;
     color: #ffffff;
-    font-size: 0.8rem;
+    font-size: 0.78rem;
     box-shadow: 0 4px 14px rgba(0,0,0,0.45);
     white-space: nowrap;
   }
@@ -181,9 +182,9 @@ const cssStyles = `
     background: #3b82f6;
     border: none;
     color: #ffffff;
-    padding: 4px 10px;
-    border-radius: 12px;
-    font-size: 0.72rem;
+    padding: 4px 8px;
+    border-radius: 10px;
+    font-size: 0.7rem;
     font-weight: bold;
     cursor: pointer;
   }
@@ -353,7 +354,7 @@ const cssStyles = `
     text-align: center;
   }
 
-  /* VELOCÍMETRO CORRIGIDO PARA APARECER EM QUALQUER ECRÃ */
+  /* VELOCÍMETRO NO COMPUTADOR (FLUTUANTE ABAIXO) */
   .speedometer-container {
     position: absolute !important;
     bottom: 20px !important;
@@ -391,7 +392,6 @@ const cssStyles = `
     gap: 10px;
   }
 
-  /* CONTROLOS DE TOQUE DIREITO (ACELERAR / TRAVAGEM) VISÍVEIS */
   .mobile-controls-right {
     position: absolute !important;
     bottom: 85px !important;
@@ -454,7 +454,6 @@ const cssStyles = `
     display: none;
   }
 
-  /* MODAL DE RELATÓRIO DE VIAGEM FINAL */
   .report-modal-overlay {
     position: fixed;
     top: 0;
@@ -558,6 +557,11 @@ const cssStyles = `
       display: flex !important;
     }
 
+    /* NO MOBILE, ESCONDE O VELOCÍMETRO FLUTUANTE INFERIOR E DEIXA SÓ NO TOPO */
+    .speedometer-container {
+      display: none !important;
+    }
+
     .hud {
       top: 52px !important;
       left: 50% !important;
@@ -570,13 +574,6 @@ const cssStyles = `
       transform: translateX(-50%) translateY(0);
       opacity: 1;
       pointer-events: auto;
-    }
-
-    .speedometer-container {
-      display: flex !important;
-      bottom: 22px !important;
-      padding: 6px 16px !important;
-      font-size: 1.4rem !important;
     }
 
     .mobile-controls-right {
@@ -610,10 +607,15 @@ function showAlert(message) {
 
 const COLOR_PRESETS = {
   'vermelho': { name: 'Vermelho', bodyColor: '#dc2626', stripeColor: '#ffffff' },
-  'azul': { name: 'Azul', bodyColor: '#2563eb', stripeColor: '#ffffff' },
+  'trem': { name: 'TREM', bodyColor: '#4A2052, #FF5A00,#005DAA', stripeColor: '#ffffff' },
+  'bh': { name: 'BHBUS', bodyColor: '#005CAA', stripeColor: '#ffffff' },
+  'move': { name: 'BHBUS', bodyColor: '#005CAA', stripeColor: '#ffffff' },
+  'azul': { name: 'Move BH', bodyColor: '#009254', stripeColor: '#ffffff' },
   'laranja': { name: 'Laranja', bodyColor: '#ea580c', stripeColor: '#ffffff' },
   'amarelo': { name: 'Amarelo', bodyColor: '#eab308', stripeColor: '#ffffff' },
-  'verde': { name: 'Verde', bodyColor: '#16a34a', stripeColor: '#ffffff' }
+  'verde': { name: 'Verde', bodyColor: '#16a34a', stripeColor: '#ffffff' },
+  'branco': { name: 'Branco', bodyColor: '#16a34a', stripeColor: '#ffffff' },
+ 
 };
 
 function getLinesDatabase() {
@@ -713,12 +715,14 @@ mapBanner.id = 'mapInstructionBanner';
 mapBanner.style.display = 'none';
 document.body.appendChild(mapBanner);
 
+// BARRA SUPERIOR MOBILE COM CRONÓMETRO, KM E VELOCIDADE INTEGRADOS
 const mobileTopBar = document.createElement('div');
 mobileTopBar.className = 'mobile-top-bar';
 mobileTopBar.id = 'mobileTopBar';
 mobileTopBar.innerHTML = `
   <span>⏱️ <strong id="miniTimerDisplay" style="color:#10b981; font-family:monospace;">00:00</strong></span>
   <span>📍 <strong id="miniKmDisplay" style="color:#38bdf8;">0.00 km</strong></span>
+  <span>🚀 <strong id="miniSpeedDisplay" style="color:#fbbf24;">0</strong> km/h</span>
   <button class="btn-toggle-hud" id="btnToggleHud">📊 Menu</button>
 `;
 document.body.appendChild(mobileTopBar);
@@ -766,6 +770,7 @@ hudContainer.innerHTML = `
   <button class="btn-exit-game" id="btnExitGame">🚪 Sair do Jogo</button>
 `;
 
+// VELOCÍMETRO PARA DESKTOP
 let speedBox = document.createElement('div');
 speedBox.className = 'speedometer-container';
 speedBox.style.display = 'none';
@@ -1144,6 +1149,7 @@ function exitGame() {
   document.getElementById('miniTimerDisplay').textContent = '00:00';
   document.getElementById('kmCoveredDisplay').textContent = '0.00 km';
   document.getElementById('miniKmDisplay').textContent = '0.00 km';
+  document.getElementById('miniSpeedDisplay').textContent = '0';
 
   hudContainer.style.display = 'none';
   speedBox.style.display = 'none';
@@ -1159,7 +1165,6 @@ function exitGame() {
 
 document.getElementById('btnExitGame').addEventListener('click', exitGame);
 
-// FUNÇÃO PARA EXIBIR O RELATÓRIO FINAL DA VIAGEM
 function mostrarRelatorioFinal() {
   stopTripTimer();
   isTripActive = false;
@@ -1328,7 +1333,6 @@ function handleAccelerate() {
     isTripActive = true;
     startTripTimer();
   }
-  // Liberta o autocarro da paragem ao acelerar manualmente
   if (isAtBusStop && !isHoldingAtStop) {
     isAtBusStop = false;
     mapBanner.style.display = 'none';
@@ -1547,9 +1551,12 @@ function gameLoop(now) {
   }
 
   const distFormatted = `${distanceCoveredKm.toFixed(2)} km`;
+  const speedRounded = Math.round(currentSpeedKmh);
+
   document.getElementById('kmCoveredDisplay').textContent = distFormatted;
   document.getElementById('miniKmDisplay').textContent = distFormatted;
-  document.getElementById('speedValue').textContent = Math.round(currentSpeedKmh);
+  document.getElementById('speedValue').textContent = speedRounded;
+  document.getElementById('miniSpeedDisplay').textContent = speedRounded;
 
   const currentCoords = [busLng, busLat];
   if (busMarker) {
