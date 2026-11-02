@@ -1,6 +1,6 @@
 // ============================================================
 // ARQUIVO: script.js
-// MOTOR DE SIMULAÇÃO - CORREÇÃO DE ACELERAÇÃO E HUD MOBILE
+// MOTOR DE SIMULAÇÃO - ATUALIZADO (RODOVIÁRIO / URBANO)
 // ============================================================
 
 const cssStyles = `
@@ -156,7 +156,6 @@ const cssStyles = `
     max-width: 90vw !important;
   }
 
-  /* BARRA SUPERIOR MOBILE COM TEMPO, KM E VELOCIDADE */
   .mobile-top-bar {
     position: absolute;
     top: 12px;
@@ -170,7 +169,7 @@ const cssStyles = `
     padding: 6px 14px;
     display: none;
     align-items: center;
-    gap: 10px;
+    gap: 12px;
     z-index: 999999;
     color: #ffffff;
     font-size: 0.78rem;
@@ -189,7 +188,6 @@ const cssStyles = `
     cursor: pointer;
   }
 
-  /* MENU HUD OCULTO POR DEFEITO NO MOBILE (ABRE PELO BOTÃO) */
   .hud {
     position: absolute !important;
     top: 60px !important;
@@ -360,7 +358,6 @@ const cssStyles = `
     text-align: center;
   }
 
-  /* VELOCÍMETRO APENAS PARA DESKTOP (NO MOBILE FICA NA BARRA SUPERIOR) */
   .speedometer-container {
     position: absolute !important;
     bottom: 20px !important;
@@ -442,6 +439,10 @@ const cssStyles = `
   .btn-drive-touch.btn-brake {
     border-color: #ef4444;
     background: rgba(239, 68, 68, 0.5);
+  }
+
+  .btn-drive-touch.btn-brake:active {
+    background: rgba(239, 68, 68, 0.9);
   }
 
   .alert-toast {
@@ -552,8 +553,8 @@ const cssStyles = `
   }
 
   .bus-marker-img {
-    width: 24px !important;
-    height: 52px !important;
+    width: 28px !important;
+    height: 64px !important;
     display: block !important;
     filter: drop-shadow(0px 3px 6px rgba(0, 0, 0, 0.95));
   }
@@ -646,7 +647,7 @@ setupModal.innerHTML = `
     </div>
     <div class="form-group">
       <label>Pesquisar Local / Cidade:</label>
-      <input type="text" id="inputFreeLocation" value="Ibirité, MG" />
+      <input type="text" id="inputFreeLocation" value="Belo Horizonte, MG" />
     </div>
     <button class="btn-start-sim" id="btnStartFreeMode">Iniciar</button>
     <button class="btn-back-menu" id="btnBackFree">Voltar</button>
@@ -688,7 +689,6 @@ mapBanner.id = 'mapInstructionBanner';
 mapBanner.style.display = 'none';
 document.body.appendChild(mapBanner);
 
-// BARRA SUPERIOR MOBILE (OCULTA NO MENU INICIAL)
 const mobileTopBar = document.createElement('div');
 mobileTopBar.className = 'mobile-top-bar';
 mobileTopBar.id = 'mobileTopBar';
@@ -713,7 +713,7 @@ hudContainer.innerHTML = `
   <div class="pax-status-card" id="cardPaxStatus">
     <div class="pax-status-main">
       Passageiros a Bordo:<br>
-      <strong id="paxCountDisplay">0</strong> / <span id="maxPaxDisplay">70</span>
+      <strong id="paxCountDisplay">0</strong> / <span id="maxPaxDisplay">42</span>
     </div>
     <div style="text-align: right; font-size: 0.75rem; color: #94a3b8;">
       Ocupação:<br>
@@ -775,8 +775,8 @@ let currentVisibleMarker = null;
 
 let currentGameMode = 'line'; 
 let busLabelText = '';
-let passengerCount = 10;
-let maxPassengers = 70;
+let passengerCount = 42;
+let maxPassengers = 42;
 let activePresetKey = 'vermelho';
 
 let activePath = [];
@@ -788,13 +788,13 @@ let busLat = 0;
 let currentSpeedKmh = 0;
 let isAutopilotMoving = false;
 
-// VELOCIDADE MÁXIMA DE 90 KM/H
-let cruiseSpeedKmh = 90;
-let boostSpeedKmh = 90;
+let cruiseSpeedKmh = 120;
+let boostSpeedKmh = 150;
 
 let targetHeading = 0;
 let smoothHeading = 0;
 let distanceCoveredKm = 0;
+let totalPassengersTransported = 0;
 
 let currentSegIndex = 0;
 let segProgressMeters = 0;
@@ -806,9 +806,7 @@ let isTripActive = false;
 
 let tripStartTime = null;
 let tripTimerInterval = null;
-
-let stopHoldTimer = null;
-let isHoldingAtStop = false;
+let tripStartRealTimeStr = "";
 
 const keysPressed = { Up: false, Down: false, Left: false, Right: false };
 
@@ -843,6 +841,9 @@ function getMetersBetween(coord1, coord2) {
 
 function startTripTimer() {
   tripStartTime = Date.now();
+  const nowObj = new Date();
+  tripStartRealTimeStr = String(nowObj.getHours()).padStart(2, '0') + ":" + String(nowObj.getMinutes()).padStart(2, '0');
+
   if (tripTimerInterval) clearInterval(tripTimerInterval);
   tripTimerInterval = setInterval(() => {
     if (!tripStartTime) return;
@@ -932,7 +933,7 @@ document.getElementById('btnStartLineMode').addEventListener('click', () => {
   currentGameMode = 'line';
   const selectedKey = document.getElementById('selectLine').value;
   activePresetKey = document.getElementById('selectColorLine').value || 'vermelho';
-  busLabelText = '29435';
+  busLabelText = 'RODOVIÁRIO';
 
   const db = getLinesDatabase();
   const lineData = db[selectedKey] || Object.values(db)[0];
@@ -942,15 +943,25 @@ document.getElementById('btnStartLineMode').addEventListener('click', () => {
   }
 
   const isRodoviario = lineData.tipo === 'rodoviario';
-  maxPassengers = isRodoviario ? 42 : 70;
-  passengerCount = Math.floor(maxPassengers * 0.15);
+  maxPassengers = 42;
+  // Nunca sai vazio da rodoviária de BH (mínimo de 30 passageiros iniciais)
+  passengerCount = Math.floor(Math.random() * 13) + 30;
+  totalPassengersTransported = passengerCount;
 
   document.getElementById('maxPaxDisplay').textContent = maxPassengers;
+
+  if (isRodoviario) {
+    cruiseSpeedKmh = 120;
+    boostSpeedKmh = 150;
+  } else {
+    cruiseSpeedKmh = 75;
+    boostSpeedKmh = 90;
+  }
 
   activePath = extractCoordinates(lineData.trajeto);
   
   currentStopIndex = 0; 
-  activeStops = (lineData.pontos || []).map((s, idx) => {
+  activeStops = (lineData.pontos || []).map((s) => {
     let closestIndex = 0;
     let minDistance = Infinity;
     for (let i = 0; i < activePath.length; i++) {
@@ -982,7 +993,6 @@ document.getElementById('btnStartLineMode').addEventListener('click', () => {
   isAutopilotMoving = false;
   currentSpeedKmh = 0;
   distanceCoveredKm = 0;
-  isHoldingAtStop = false;
 
   targetHeading = calculateBearing(activePath[0], activePath[1]);
   smoothHeading = targetHeading;
@@ -993,7 +1003,7 @@ document.getElementById('btnStartLineMode').addEventListener('click', () => {
 
 document.getElementById('btnStartFreeMode').addEventListener('click', async () => {
   currentGameMode = 'free';
-  busLabelText = 'ÔNIBUS';
+  busLabelText = 'RODOVIÁRIO';
   activePresetKey = document.getElementById('selectColorFree').value || 'vermelho';
   const locationQuery = document.getElementById('inputFreeLocation').value.trim();
 
@@ -1002,6 +1012,8 @@ document.getElementById('btnStartFreeMode').addEventListener('click', async () =
   currentSpeedKmh = 0;
   isAutopilotMoving = false;
   distanceCoveredKm = 0;
+  cruiseSpeedKmh = 120;
+  boostSpeedKmh = 150;
   updateTripStatus();
   startTripTimer();
 
@@ -1011,17 +1023,16 @@ document.getElementById('btnStartFreeMode').addEventListener('click', async () =
     if (data && data.length > 0) {
       startSimulation([parseFloat(data[0].lon), parseFloat(data[0].lat)]);
     } else {
-      startSimulation([-44.06661, -20.01744]);
+      startSimulation([-43.941879, -19.913783]);
     }
   } catch (err) {
-    startSimulation([-44.06661, -20.01744]);
+    startSimulation([-43.941879, -19.913783]);
   }
 });
 
 function startSimulation(startCoords) {
   setupModal.style.display = 'none';
   
-  // EXIBE OS ELEMENTOS DE INTERFACE DE JOGO APÓS INICIAR
   mobileTopBar.style.display = 'flex';
   rightControlsContainer.style.display = 'flex';
   speedBox.style.display = 'flex';
@@ -1071,7 +1082,7 @@ function atualizarMarcadorProximoPonto(busCoords) {
 
   const distToStop = getMetersBetween(busCoords, nextStop.coords);
 
-  if (distToStop <= 200.0) {
+  if (distToStop <= 250.0) {
     if (!currentVisibleMarker || currentVisibleMarker._stopId !== nextStop.id) {
       if (currentVisibleMarker) currentVisibleMarker.remove();
 
@@ -1094,7 +1105,6 @@ function atualizarMarcadorProximoPonto(busCoords) {
 
 function exitGame() {
   stopTripTimer();
-  if (stopHoldTimer) clearTimeout(stopHoldTimer);
   if (animationFrameId) {
     cancelAnimationFrame(animationFrameId);
     animationFrameId = null;
@@ -1114,11 +1124,11 @@ function exitGame() {
   currentSpeedKmh = 0;
   isAutopilotMoving = false;
   isTripActive = false;
-  isHoldingAtStop = false;
   targetHeading = 0;
   smoothHeading = 0;
   distanceCoveredKm = 0;
   currentStopIndex = 0;
+  totalPassengersTransported = 0;
   document.getElementById('tripTimerDisplay').textContent = '00:00';
   document.getElementById('miniTimerDisplay').textContent = '00:00';
   document.getElementById('kmCoveredDisplay').textContent = '0.00 km';
@@ -1150,20 +1160,24 @@ function mostrarRelatorioFinal() {
   const tempoStr = document.getElementById('tripTimerDisplay').textContent;
   const kmStr = document.getElementById('kmCoveredDisplay').textContent;
   const nomeLinha = document.getElementById('lineBadgeDisplay').textContent;
+  
+  const nowObj = new Date();
+  const chegadaStr = String(nowObj.getHours()).padStart(2, '0') + ":" + String(nowObj.getMinutes()).padStart(2, '0');
 
   const reportOverlay = document.createElement('div');
   reportOverlay.className = 'report-modal-overlay';
   reportOverlay.innerHTML = `
     <div class="report-card">
       <h2>🏆 Viagem Concluída!</h2>
-      <p style="color: #94a3b8; font-size: 0.9rem;">Relatório Oficial de Operação</p>
+      <p style="color: #94a3b8; font-size: 0.9rem;">Relatório Oficial de Operação Rodoviária</p>
       
       <div class="report-stats">
         <span>Linha: <strong>${nomeLinha}</strong></span>
-        <span>Tempo Total: <strong>${tempoStr}</strong></span>
-        <span>Distância Percorrida: <strong>${kmStr}</strong></span>
-        <span>Paragens Atendidas: <strong>${activeStops.length} de ${activeStops.length}</strong></span>
-        <span>Estado Final: <strong style="color: #10b981;">Sucesso Total</strong></span>
+        <span>Horário de Saída: <strong>${tripStartRealTimeStr || "00:00"}</strong></span>
+        <span>Horário de Chegada: <strong>${chegadaStr}</strong></span>
+        <span>Tempo da Viagem: <strong>${tempoStr}</strong></span>
+        <span>Km Rodados: <strong>${kmStr}</strong></span>
+        <span>Passageiros Transportados: <strong>${totalPassengersTransported}</strong></span>
       </div>
 
       <button class="btn-close-report" id="btnCloseReport">Voltar ao Menu Principal</button>
@@ -1177,38 +1191,33 @@ function mostrarRelatorioFinal() {
   });
 }
 
+// Layout Rodoviário Atualizado (Ônibus Rodoviário de Longa Distância / Executivo)
 function getBusSvg(bodyColor, stripeColor, isDD, label) {
   return 'data:image/svg+xml;utf8,' + encodeURIComponent(`
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 260" width="120" height="260">
-      <rect x="2" y="10" width="116" height="246" rx="14" fill="rgba(0,0,0,0.4)" filter="blur(4px)" />
-      <rect x="6" y="6" width="108" height="248" rx="14" fill="#1e293b" stroke="#0f172a" stroke-width="3"/>
-      <path d="M 8,20 C 8,10 20,8 60,8 C 100,8 112,10 112,20 L 112,238 C 112,246 100,252 60,252 C 20,252 8,246 8,238 Z" fill="${bodyColor}" />
-      <path d="M 8,110 L 112,110 L 112,240 C 112,246 100,250 60,250 C 20,250 8,246 8,240 Z" fill="#1d3557" />
-      <path d="M 8,140 L 112,140 L 112,240 C 112,246 100,250 60,250 C 20,250 8,246 8,240 Z" fill="#eaeaea" />
-      <path d="M 8,8 L 112,8 L 112,24 C 112,24 60,18 8,24 Z" fill="#ffb703" />
-      <rect x="28" y="30" width="64" height="200" rx="8" fill="#eaeaea" stroke="#cbd5e1" stroke-width="1.5" />
-      <rect x="42" y="125" width="36" height="42" rx="4" fill="#cbd5e1" stroke="#94a3b8" stroke-width="2" />
-      <rect x="46" y="132" width="28" height="20" rx="2" fill="#475569" />
-      <line x1="50" y1="138" x2="70" y2="138" stroke="#ffffff" stroke-width="1" />
-      <line x1="50" y1="144" x2="70" y2="144" stroke="#ffffff" stroke-width="1" />
-      <rect x="48" y="55" width="24" height="20" rx="3" fill="#eaeaea" stroke="#94a3b8" stroke-width="2" />
-      <rect x="48" y="185" width="24" height="20" rx="3" fill="#eaeaea" stroke="#94a3b8" stroke-width="2" />
-      <rect x="10" y="82" width="8" height="152" rx="2" fill="#0f172a" />
-      <rect x="102" y="82" width="8" height="152" rx="2" fill="#0f172a" />
-      <path d="M 12,10 L 108,10 L 102,40 L 18,40 Z" fill="#0f172a" stroke="#eaeaea" stroke-width="1" />
-      <rect x="32" y="15" width="56" height="10" rx="2" fill="#334155" />
-      <text x="60" y="23" fill="#fbbf24" font-size="8" font-family="monospace" font-weight="900" text-anchor="middle">RODAP</text>
-      <path d="M 45,4 L 75,4 L 72,12 L 48,12 Z" fill="#0f172a" />
-      <rect x="2" y="28" width="5" height="14" rx="1.5" fill="#000000" />
-      <rect x="113" y="28" width="5" height="14" rx="1.5" fill="#000000" />
-      <line x1="7" y1="35" x2="15" y2="35" stroke="#000000" stroke-width="2" />
-      <line x1="113" y1="35" x2="105" y2="35" stroke="#000000" stroke-width="2" />
-      <path d="M 14,46 L 106,46 L 102,64 L 18,64 Z" fill="#1e293b" />
-      <path d="M 22,50 L 98,50 L 94,62 L 26,62 Z" fill="#ff7a00" />
-      <circle cx="60" cy="56" r="3.5" fill="#000000" stroke="#eaeaea" stroke-width="1" />
-      <rect x="16" y="246" width="14" height="6" fill="#ef4444" rx="1" />
-      <rect x="90" y="246" width="14" height="6" fill="#ef4444" rx="1" />
-      <text x="60" y="98" fill="#1d3557" font-size="8" font-weight="900" font-family="Arial" text-anchor="middle">29435</text>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 130 280" width="130" height="280">
+      <rect x="2" y="10" width="126" height="262" rx="16" fill="rgba(0,0,0,0.5)" filter="blur(5px)" />
+      <rect x="6" y="6" width="118" height="268" rx="16" fill="#0f172a" stroke="#1e293b" stroke-width="3"/>
+      <!-- Carroceria Principal Rodoviária -->
+      <path d="M 8,22 C 8,10 22,8 65,8 C 108,8 122,10 122,22 L 122,258 C 122,268 108,274 65,274 C 22,274 8,268 8,258 Z" fill="${bodyColor}" />
+      <!-- Faixas Decorativas Estilo Executivo / Rodoviário -->
+      <path d="M 8,100 L 122,100 L 122,180 L 8,190 Z" fill="${stripeColor}" opacity="0.9" />
+      <path d="M 8,185 L 122,175 L 122,260 C 122,268 108,272 65,272 C 22,272 8,268 8,260 Z" fill="#1e293b" />
+      <!-- Para-brisa Panorâmico Dianteiro (Rodoviário) -->
+      <path d="M 12,12 L 118,12 L 112,50 L 18,50 Z" fill="#0f172a" stroke="#cbd5e1" stroke-width="2" />
+      <path d="M 16,16 L 114,16 L 109,46 L 21,46 Z" fill="#38bdf8" opacity="0.6" />
+      <!-- Janelas Laterais Escuras Passageiros -->
+      <rect x="12" y="65" width="12" height="110" rx="3" fill="#0f172a" />
+      <rect x="106" y="65" width="12" height="110" rx="3" fill="#0f172a" />
+      <!-- Teto / Climatizador de Ar Rodoviário -->
+      <rect x="42" y="20" width="46" height="140" rx="6" fill="#334155" />
+      <text x="65" y="95" fill="#fbbf24" font-size="9" font-family="monospace" font-weight="900" text-anchor="middle">EXECUTIVO</text>
+      <!-- Faróis e Grade -->
+      <rect x="12" y="6" width="18" height="6" rx="2" fill="#fbbf24" />
+      <rect x="100" y="6" width="18" height="6" rx="2" fill="#fbbf24" />
+      <rect x="35" y="4" width="60" height="4" rx="1" fill="#cbd5e1" />
+      <!-- Lanternas Traseiras -->
+      <rect x="14" y="268" width="16" height="4" fill="#ef4444" rx="1" />
+      <rect x="100" y="268" width="16" height="4" fill="#ef4444" rx="1" />
     </svg>
   `);
 }
@@ -1288,7 +1297,7 @@ function updateTripStatus() {
     btnTripToggle.textContent = '▶️ Dar Entrada na Viagem';
   } else if (isAtBusStop) {
     badge.className = 'trip-status-badge stopped';
-    badge.textContent = 'Parada Atendida';
+    badge.textContent = 'Parada Atendida (Acelere p/ Partir)';
     btnTripToggle.className = 'btn-trip-toggle stop';
     btnTripToggle.textContent = '🛑 Encerrar Viagem';
   } else if (isLineFinished) {
@@ -1310,13 +1319,7 @@ function handleAccelerate() {
     startTripTimer();
   }
   
-  // LIMPA O ESTADO DE PARAGEM E PERMITE ACELERAR IMEDIATAMENTE
   isAtBusStop = false;
-  isHoldingAtStop = false;
-  if (stopHoldTimer) {
-    clearTimeout(stopHoldTimer);
-    stopHoldTimer = null;
-  }
   mapBanner.style.display = 'none';
 
   isAutopilotMoving = true;
@@ -1331,70 +1334,28 @@ function processStop(stop) {
     currentVisibleMarker = null;
   }
 
-  const nomePonto = (stop.nome || "").toLowerCase();
+  // Embarques e desembarques aleatórios nos pontos intermediários
+  const desembarcados = Math.min(passengerCount, Math.floor(Math.random() * 6));
+  passengerCount -= desembarcados;
 
-  // 1. SENAC: Esvaziar o ônibus 100% e aguardar aceleração manual
-  if (nomePonto.includes("senac")) {
-    passengerCount = 0;
-    showAlert("🚏 SENAC: Desembarque total. Acelere para continuar.");
-    pararEaguardarAceleracaoManual();
-    return;
-  }
-
-  // 2. Olegário Maciel: Paragem de 90s ou até acelerar manualmente
-  if (nomePonto.includes("olegario")) {
-    passengerCount = 0; 
-    const embarqueRetorno = Math.floor(Math.random() * 20) + 10;
-    passengerCount = Math.min(maxPassengers, embarqueRetorno);
-    showAlert("🚏 Olegário Maciel: Retorno. Paragem de 1m30s (ou acelere para partir).");
-    pararEaguardarAceleracaoManual(90000); 
-    return;
-  }
-
-  // 3. Terminais de Início / Fim
-  if (nomePonto.includes("terminal")) {
-    if (currentStopIndex >= activeStops.length) {
-      isLineFinished = true;
-      mostrarRelatorioFinal();
-      return;
-    }
-    passengerCount = nomePonto.includes("inicio") ? Math.floor(maxPassengers * 0.2) : 0;
-    showAlert("🚏 Terminal. Acelere para prosseguir.");
-    pararEaguardarAceleracaoManual();
-    return;
-  }
-
-  // 4. Demais pontos cadastrados: Paragem obrigatória que aguarda o jogador acelerar
-  const espaco = maxPassengers - passengerCount;
-  const emb = Math.min(espaco, Math.floor(Math.random() * 5) + 1);
-  const des = passengerCount > 0 ? Math.floor(Math.random() * 2) : 0;
-  passengerCount = Math.max(0, Math.min(maxPassengers, passengerCount - des + emb));
+  const vagasLivres = maxPassengers - passengerCount;
+  const embarcados = Math.min(vagasLivres, Math.floor(Math.random() * 8) + 1);
+  passengerCount += embarcados;
   
-  showAlert(`🚏 ${stop.nome}. Acelere para prosseguir.`);
-  pararEaguardarAceleracaoManual(); 
+  if (embarcados > 0) {
+    totalPassengersTransported += embarcados;
+  }
+
+  showAlert(`🚏 Parada: ${stop.nome} (-${desembarcados} / +${embarcados} pax). Acelere para prosseguir.`);
+  pararEaguardarAceleracaoManual();
 }
 
-function pararEaguardarAceleracaoManual(tempoMaximoMs = null) {
+function pararEaguardarAceleracaoManual() {
   currentSpeedKmh = 0;
   isAutopilotMoving = false;
   isAtBusStop = true;
-  isHoldingAtStop = true;
   updateTripStatus();
   updateStopInfoDisplay();
-
-  if (stopHoldTimer) clearTimeout(stopHoldTimer);
-
-  if (tempoMaximoMs) {
-    stopHoldTimer = setTimeout(() => {
-      if (isAtBusStop) {
-        isHoldingAtStop = false;
-        isAtBusStop = false;
-        isAutopilotMoving = true;
-        updateTripStatus();
-        updateStopInfoDisplay();
-      }
-    }, tempoMaximoMs);
-  }
 }
 
 let lastFrameTime = performance.now();
@@ -1410,19 +1371,13 @@ function gameLoop(now) {
   if (currentGameMode === 'line') {
     let desiredSpeed = 0;
 
-    // SE O JOGADOR ESTIVER A CARREGAR NO ACELERADOR (BOTÃO OU TECLA)
     if (keysPressed.Up) {
       if (!isTripActive && currentGameMode === 'line') {
         isTripActive = true;
         startTripTimer();
       }
-      if (isAtBusStop || isHoldingAtStop) {
+      if (isAtBusStop) {
         isAtBusStop = false;
-        isHoldingAtStop = false;
-        if (stopHoldTimer) {
-          clearTimeout(stopHoldTimer);
-          stopHoldTimer = null;
-        }
         mapBanner.style.display = 'none';
       }
       isAutopilotMoving = true;
@@ -1432,21 +1387,21 @@ function gameLoop(now) {
     if (isTripActive && isAutopilotMoving && !isAtBusStop && !isLineFinished) {
       if (keysPressed.Down) {
         desiredSpeed = 0;
-        currentSpeedKmh = Math.max(currentSpeedKmh - 50 * deltaTime, 0);
+        currentSpeedKmh = Math.max(currentSpeedKmh - 60 * deltaTime, 0);
         if (currentSpeedKmh <= 2) {
           isAutopilotMoving = false;
         }
       } else if (keysPressed.Up) {
-        desiredSpeed = boostSpeedKmh;
+        desiredSpeed = boostSpeedKmh; // 150 km/h Rodoviário / 90 km/h Urbano
       } else {
-        desiredSpeed = cruiseSpeedKmh;
+        desiredSpeed = cruiseSpeedKmh; // 120 km/h Rodoviário / 75 km/h Urbano
       }
     }
 
     if (currentSpeedKmh < desiredSpeed) {
-      currentSpeedKmh = Math.min(currentSpeedKmh + 45 * deltaTime, desiredSpeed);
+      currentSpeedKmh = Math.min(currentSpeedKmh + 50 * deltaTime, desiredSpeed);
     } else if (currentSpeedKmh > desiredSpeed) {
-      currentSpeedKmh = Math.max(currentSpeedKmh - 30 * deltaTime, desiredSpeed);
+      currentSpeedKmh = Math.max(currentSpeedKmh - 40 * deltaTime, desiredSpeed);
     }
 
     if (currentSpeedKmh > 0 && !isAtBusStop && !isLineFinished && isTripActive) {
@@ -1514,7 +1469,7 @@ function gameLoop(now) {
   } else {
     let desiredSpeed = 0;
     if (keysPressed.Down) {
-      currentSpeedKmh = Math.max(currentSpeedKmh - 50 * deltaTime, 0);
+      currentSpeedKmh = Math.max(currentSpeedKmh - 60 * deltaTime, 0);
       desiredSpeed = 0;
     } else if (keysPressed.Up) {
       desiredSpeed = boostSpeedKmh;
@@ -1522,8 +1477,8 @@ function gameLoop(now) {
       desiredSpeed = cruiseSpeedKmh;
     }
 
-    if (currentSpeedKmh < desiredSpeed) currentSpeedKmh = Math.min(currentSpeedKmh + 40 * deltaTime, desiredSpeed);
-    else if (currentSpeedKmh > desiredSpeed && desiredSpeed > 0) currentSpeedKmh = Math.max(currentSpeedKmh - 30 * deltaTime, desiredSpeed);
+    if (currentSpeedKmh < desiredSpeed) currentSpeedKmh = Math.min(currentSpeedKmh + 50 * deltaTime, desiredSpeed);
+    else if (currentSpeedKmh > desiredSpeed && desiredSpeed > 0) currentSpeedKmh = Math.max(currentSpeedKmh - 40 * deltaTime, desiredSpeed);
 
     if (currentSpeedKmh < 0.1) {
       currentSpeedKmh = 0;
