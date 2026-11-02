@@ -5,7 +5,7 @@
 window.linesDatabase = window.linesDatabase || {};
 
 // ============================================================
-// LINHA: 3450 - Bosque (Mantida 100% inalterada)
+// LINHA: 3450 - Terminal Ibirité x Bosque
 // ============================================================
 window.linesDatabase["3450"] = {
   nome: "3450 - Terminal Ibirité x Bosque de Ibirité",
@@ -141,7 +141,7 @@ window.linesDatabase["3450"] = {
 // LINHA: BH x Congonhas (Substituta da 301C)
 // ============================================================
 window.linesDatabase["BH_CONGONHAS"] = {
-  nome: "BH x Congonhas",
+  nome: "Viação São Luiz  - BH x Congonhas",
   tipo: "rodoviario",
   extensaoKm: 89.6,
   pontos: [
