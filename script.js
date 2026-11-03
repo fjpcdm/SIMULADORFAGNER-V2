@@ -1,6 +1,6 @@
 // ============================================================
 // ARQUIVO: script.js
-// MOTOR DE SIMULAÇÃO - ATUALIZADO (RODOVIÁRIO / URBANO)
+// MOTOR DE SIMULAÇÃO - DURAÇÃO AJUSTADA PARA 20 MINUTOS
 // ============================================================
 
 const cssStyles = `
@@ -807,6 +807,7 @@ let isTripActive = false;
 let tripStartTime = null;
 let tripTimerInterval = null;
 let tripStartRealTimeStr = "";
+let speedMultiplier = 1.0;
 
 const keysPressed = { Up: false, Down: false, Left: false, Right: false };
 
@@ -960,6 +961,20 @@ document.getElementById('btnStartLineMode').addEventListener('click', () => {
 
   activePath = extractCoordinates(lineData.trajeto);
   
+  // Cálculo exato para que a rota "BH_CONGONHAS" dure exatamente 20 minutos (1200 segundos) em velocidade de cruzeiro
+  if (selectedKey === "BH_CONGONHAS") {
+    let totalDistMeters = 0;
+    for (let i = 0; i < activePath.length - 1; i++) {
+      totalDistMeters += getMetersBetween(activePath[i], activePath[i + 1]);
+    }
+    const targetTimeSeconds = 20 * 60; 
+    const requiredAvgSpeedMps = totalDistMeters / targetTimeSeconds;
+    const requiredAvgSpeedKmh = requiredAvgSpeedMps * 3.6;
+    speedMultiplier = Math.max(1.0, requiredAvgSpeedKmh / cruiseSpeedKmh);
+  } else {
+    speedMultiplier = 1.0;
+  }
+
   currentStopIndex = 0; 
   activeStops = (lineData.pontos || []).map((s) => {
     let closestIndex = 0;
@@ -1014,6 +1029,7 @@ document.getElementById('btnStartFreeMode').addEventListener('click', async () =
   distanceCoveredKm = 0;
   cruiseSpeedKmh = 120;
   boostSpeedKmh = 150;
+  speedMultiplier = 1.0;
   updateTripStatus();
   startTripTimer();
 
@@ -1129,6 +1145,7 @@ function exitGame() {
   distanceCoveredKm = 0;
   currentStopIndex = 0;
   totalPassengersTransported = 0;
+  speedMultiplier = 1.0;
   document.getElementById('tripTimerDisplay').textContent = '00:00';
   document.getElementById('miniTimerDisplay').textContent = '00:00';
   document.getElementById('kmCoveredDisplay').textContent = '0.00 km';
@@ -1169,7 +1186,7 @@ function mostrarRelatorioFinal() {
   reportOverlay.innerHTML = `
     <div class="report-card">
       <h2>🏆 Viagem Concluída!</h2>
-      <p style="color: #94a3b8; font-size: 0.9rem;">Relatório Oficial de Operação Rodoviária</p>
+      <p style="color: #94a3b8; font-size: 0.9rem;">Relatório Oficial de Operação</p>
       
       <div class="report-stats">
         <span>Linha: <strong>${nomeLinha}</strong></span>
@@ -1191,31 +1208,23 @@ function mostrarRelatorioFinal() {
   });
 }
 
-// Layout Rodoviário Atualizado (Ônibus Rodoviário de Longa Distância / Executivo)
 function getBusSvg(bodyColor, stripeColor, isDD, label) {
   return 'data:image/svg+xml;utf8,' + encodeURIComponent(`
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 130 280" width="130" height="280">
       <rect x="2" y="10" width="126" height="262" rx="16" fill="rgba(0,0,0,0.5)" filter="blur(5px)" />
       <rect x="6" y="6" width="118" height="268" rx="16" fill="#0f172a" stroke="#1e293b" stroke-width="3"/>
-      <!-- Carroceria Principal Rodoviária -->
       <path d="M 8,22 C 8,10 22,8 65,8 C 108,8 122,10 122,22 L 122,258 C 122,268 108,274 65,274 C 22,274 8,268 8,258 Z" fill="${bodyColor}" />
-      <!-- Faixas Decorativas Estilo Executivo / Rodoviário -->
       <path d="M 8,100 L 122,100 L 122,180 L 8,190 Z" fill="${stripeColor}" opacity="0.9" />
       <path d="M 8,185 L 122,175 L 122,260 C 122,268 108,272 65,272 C 22,272 8,268 8,260 Z" fill="#1e293b" />
-      <!-- Para-brisa Panorâmico Dianteiro (Rodoviário) -->
       <path d="M 12,12 L 118,12 L 112,50 L 18,50 Z" fill="#0f172a" stroke="#cbd5e1" stroke-width="2" />
       <path d="M 16,16 L 114,16 L 109,46 L 21,46 Z" fill="#38bdf8" opacity="0.6" />
-      <!-- Janelas Laterais Escuras Passageiros -->
       <rect x="12" y="65" width="12" height="110" rx="3" fill="#0f172a" />
       <rect x="106" y="65" width="12" height="110" rx="3" fill="#0f172a" />
-      <!-- Teto / Climatizador de Ar Rodoviário -->
       <rect x="42" y="20" width="46" height="140" rx="6" fill="#334155" />
       <text x="65" y="95" fill="#fbbf24" font-size="9" font-family="monospace" font-weight="900" text-anchor="middle">EXECUTIVO</text>
-      <!-- Faróis e Grade -->
       <rect x="12" y="6" width="18" height="6" rx="2" fill="#fbbf24" />
       <rect x="100" y="6" width="18" height="6" rx="2" fill="#fbbf24" />
       <rect x="35" y="4" width="60" height="4" rx="1" fill="#cbd5e1" />
-      <!-- Lanternas Traseiras -->
       <rect x="14" y="268" width="16" height="4" fill="#ef4444" rx="1" />
       <rect x="100" y="268" width="16" height="4" fill="#ef4444" rx="1" />
     </svg>
@@ -1334,7 +1343,6 @@ function processStop(stop) {
     currentVisibleMarker = null;
   }
 
-  // Embarques e desembarques aleatórios nos pontos intermediários
   const desembarcados = Math.min(passengerCount, Math.floor(Math.random() * 6));
   passengerCount -= desembarcados;
 
@@ -1392,9 +1400,9 @@ function gameLoop(now) {
           isAutopilotMoving = false;
         }
       } else if (keysPressed.Up) {
-        desiredSpeed = boostSpeedKmh; // 150 km/h Rodoviário / 90 km/h Urbano
+        desiredSpeed = boostSpeedKmh;
       } else {
-        desiredSpeed = cruiseSpeedKmh; // 120 km/h Rodoviário / 75 km/h Urbano
+        desiredSpeed = cruiseSpeedKmh;
       }
     }
 
@@ -1405,7 +1413,7 @@ function gameLoop(now) {
     }
 
     if (currentSpeedKmh > 0 && !isAtBusStop && !isLineFinished && isTripActive) {
-      const speedMps = currentSpeedKmh / 3.6;
+      const speedMps = (currentSpeedKmh / 3.6) * speedMultiplier;
       let remainingDistance = speedMps * deltaTime;
 
       while (remainingDistance > 0 && currentSegIndex < activePath.length - 1) {
@@ -1490,7 +1498,7 @@ function gameLoop(now) {
     }
 
     if (currentSpeedKmh > 0) {
-      const speedMps = currentSpeedKmh / 3.6;
+      const speedMps = (currentSpeedKmh / 3.6) * speedMultiplier;
       const metersToMove = speedMps * deltaTime;
       const metersPerDegreeLat = 111320;
       const metersPerDegreeLng = 111320 * Math.cos(busLat * (Math.PI / 180));
