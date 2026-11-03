@@ -146,9 +146,9 @@ window.linesDatabase["BH_CONGONHAS"] = {
   extensaoKm: 89.6,
   pontos: [
     { id: 1, nome: "Terminal Rodoviário Governador Israel Pinheiro", coords: [-43.941879, -19.913783] },
-    { id: 2, nome: "Avenida Afonso Pena 1734 - Igreja Boa Viagem", coords: [-43.933672, -19.927409] },
-    { id: 3, nome: "BH SHOPPING - Rod BR Trezentos e Cinquenta e Seis 3110", coords: [-43.946857, -19.975239] },
-    { id: 4, nome: "Olhos D'agua - Br-356 Belvedere Belo Horizonte", coords: [-43.965365, -20.002557] },
+    { id: 2, nome: "Avenida Afonso Pena 1734 - Igreja Boa Viagem", coords: [ -43.9337528,-19.9272394] },
+    { id: 3, nome: "BH SHOPPING - Rod BR Trezentos e Cinquenta e Seis 3110", coords: [-43.9466117,-19.9742351] },
+    { id: 4, nome: "Olhos D'agua - Br-356 Belvedere Belo Horizonte", coords: [ -43.9653254,-20.0028572] },
     { id: 5, nome: "Posto Chefão - Avenida Br 040 Nova Lima", coords: [-43.978111, -20.061473] },
     { id: 6, nome: "Coca Cola", coords: [-43.968272, -20.233508] },
     { id: 7, nome: "Patio restaurante da Celinha", coords: [-43.912026, -20.353473] },
