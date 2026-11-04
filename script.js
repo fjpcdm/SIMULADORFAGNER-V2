@@ -1,6 +1,6 @@
 // ============================================================
 // ARQUIVO: script.js
-// MOTOR DE SIMULAÇÃO - CORRIGIDO
+// MOTOR DE SIMULAÇÃO - COMPLETO E CORRIGIDO
 // ============================================================
 
 const cssStyles = `
