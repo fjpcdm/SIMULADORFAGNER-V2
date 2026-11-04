@@ -1,6 +1,6 @@
 // ============================================================
 // ARQUIVO: script.js
-// MOTOR DE SIMULAÇÃO - COM PROJEÇÃO PRECISA DE PARAGENS
+// MOTOR DE SIMULAÇÃO - CORRIGIDO
 // ============================================================
 
 const cssStyles = `
@@ -840,9 +840,6 @@ function getMetersBetween(coord1, coord2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-// ============================================================
-// FUNÇÃO DE PROJEÇÃO GEOMÉTRICA PRECISA PARA PARAGENS
-// ============================================================
 function projectPointOnSegment(p, a, b) {
   const [x, y] = p;
   const [x1, y1] = a;
@@ -875,7 +872,7 @@ function projectPointOnSegment(p, a, b) {
   return [xx, yy];
 }
 
-function pre calcularProjecaoParagens(path, stops) {
+function preCalcularProjecaoParagens(path, stops) {
   let acumuladoMeters = 0;
   const segmentDistances = [];
   for (let i = 0; i < path.length - 1; i++) {
@@ -1050,7 +1047,7 @@ document.getElementById('btnStartLineMode').addEventListener('click', () => {
 
   currentStopIndex = 0; 
   const rawStops = lineData.pontos || [];
-  activeStops = pre calcularProjecaoParagens(activePath, rawStops);
+  activeStops = preCalcularProjecaoParagens(activePath, rawStops);
 
   if (activePath.length < 2) {
     showAlert("A linha selecionada não possui coordenadas de trajeto válidas.");
@@ -1268,7 +1265,7 @@ function mostrarRelatorioFinal() {
 }
 
 function getBusSvg(bodyColor, stripeColor, isDD, label) {
-  return 'data:image/svg+xml;utf8,+encodeURIComponent(`
+  return 'data:image/svg+xml;utf8,' + encodeURIComponent(`
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 130 280" width="130" height="280">
       <rect x="2" y="10" width="126" height="262" rx="16" fill="rgba(0,0,0,0.5)" filter="blur(5px)" />
       <rect x="6" y="6" width="118" height="268" rx="16" fill="#0f172a" stroke="#1e293b" stroke-width="3"/>
