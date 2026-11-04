@@ -1,6 +1,6 @@
 // ============================================================
 // ARQUIVO: script.js
-// MOTOR DE SIMULAÇÃO - DURAÇÃO AJUSTADA PARA 20 MINUTOS
+// MOTOR DE SIMULAÇÃO - COM PROJEÇÃO PRECISA DE PARAGENS
 // ============================================================
 
 const cssStyles = `
@@ -840,6 +840,81 @@ function getMetersBetween(coord1, coord2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+// ============================================================
+// FUNÇÃO DE PROJEÇÃO GEOMÉTRICA PRECISA PARA PARAGENS
+// ============================================================
+function projectPointOnSegment(p, a, b) {
+  const [x, y] = p;
+  const [x1, y1] = a;
+  const [x2, y2] = b;
+
+  const A = x - x1;
+  const B = y - y1;
+  const C = x2 - x1;
+  const D = y2 - y1;
+
+  const dot = A * C + B * D;
+  const lenSq = C * C + D * D;
+  let param = -1;
+  if (lenSq !== 0) {
+    param = dot / lenSq;
+  }
+
+  let xx, yy;
+  if (param < 0) {
+    xx = x1;
+    yy = y1;
+  } else if (param > 1) {
+    xx = x2;
+    yy = y2;
+  } else {
+    xx = x1 + param * C;
+    yy = y1 + param * D;
+  }
+
+  return [xx, yy];
+}
+
+function pre calcularProjecaoParagens(path, stops) {
+  let acumuladoMeters = 0;
+  const segmentDistances = [];
+  for (let i = 0; i < path.length - 1; i++) {
+    const d = getMetersBetween(path[i], path[i+1]);
+    segmentDistances.push(d);
+  }
+
+  return stops.map((stop) => {
+    let minProjDist = Infinity;
+    let bestSegIdx = 0;
+    let bestProjCoord = stop.coords;
+    let distAlongRoute = 0;
+
+    let currentRouteDist = 0;
+    for (let i = 0; i < path.length - 1; i++) {
+      const a = path[i];
+      const b = path[i+1];
+      const proj = projectPointOnSegment(stop.coords, a, b);
+      const dProj = getMetersBetween(stop.coords, proj);
+
+      if (dProj < minProjDist) {
+        minProjDist = dProj;
+        bestSegIdx = i;
+        bestProjCoord = proj;
+        distAlongRoute = currentRouteDist + getMetersBetween(a, proj);
+      }
+      currentRouteDist += segmentDistances[i];
+    }
+
+    return {
+      ...stop,
+      targetSegmentIndex: bestSegIdx,
+      projectedCoords: bestProjCoord,
+      distanceAlongRoute: distAlongRoute,
+      visited: false
+    };
+  });
+}
+
 function startTripTimer() {
   tripStartTime = Date.now();
   const nowObj = new Date();
@@ -945,7 +1020,6 @@ document.getElementById('btnStartLineMode').addEventListener('click', () => {
 
   const isRodoviario = lineData.tipo === 'rodoviario';
   maxPassengers = 42;
-  // Nunca sai vazio da rodoviária de BH (mínimo de 30 passageiros iniciais)
   passengerCount = Math.floor(Math.random() * 13) + 30;
   totalPassengersTransported = passengerCount;
 
@@ -961,7 +1035,6 @@ document.getElementById('btnStartLineMode').addEventListener('click', () => {
 
   activePath = extractCoordinates(lineData.trajeto);
   
-  // Cálculo exato para que a rota "BH_CONGONHAS" dure exatamente 20 minutos (1200 segundos) em velocidade de cruzeiro
   if (selectedKey === "BH_CONGONHAS") {
     let totalDistMeters = 0;
     for (let i = 0; i < activePath.length - 1; i++) {
@@ -976,22 +1049,8 @@ document.getElementById('btnStartLineMode').addEventListener('click', () => {
   }
 
   currentStopIndex = 0; 
-  activeStops = (lineData.pontos || []).map((s) => {
-    let closestIndex = 0;
-    let minDistance = Infinity;
-    for (let i = 0; i < activePath.length; i++) {
-      const d = getMetersBetween(s.coords, activePath[i]);
-      if (d < minDistance) {
-        minDistance = d;
-        closestIndex = i;
-      }
-    }
-    return {
-      ...s,
-      targetPathIndex: closestIndex,
-      visited: false
-    };
-  });
+  const rawStops = lineData.pontos || [];
+  activeStops = pre calcularProjecaoParagens(activePath, rawStops);
 
   if (activePath.length < 2) {
     showAlert("A linha selecionada não possui coordenadas de trajeto válidas.");
@@ -1096,7 +1155,7 @@ function atualizarMarcadorProximoPonto(busCoords) {
     return;
   }
 
-  const distToStop = getMetersBetween(busCoords, nextStop.coords);
+  const distToStop = getMetersBetween(busCoords, nextStop.projectedCoords);
 
   if (distToStop <= 250.0) {
     if (!currentVisibleMarker || currentVisibleMarker._stopId !== nextStop.id) {
@@ -1107,7 +1166,7 @@ function atualizarMarcadorProximoPonto(busCoords) {
       el.innerHTML = `<div class="stop-marker-label">🚏 ${nextStop.nome}</div>`;
 
       currentVisibleMarker = new maplibregl.Marker({ element: el, anchor: 'bottom' })
-        .setLngLat(nextStop.coords)
+        .setLngLat(nextStop.projectedCoords)
         .addTo(map);
       currentVisibleMarker._stopId = nextStop.id;
     }
@@ -1209,7 +1268,7 @@ function mostrarRelatorioFinal() {
 }
 
 function getBusSvg(bodyColor, stripeColor, isDD, label) {
-  return 'data:image/svg+xml;utf8,' + encodeURIComponent(`
+  return 'data:image/svg+xml;utf8,+encodeURIComponent(`
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 130 280" width="130" height="280">
       <rect x="2" y="10" width="126" height="262" rx="16" fill="rgba(0,0,0,0.5)" filter="blur(5px)" />
       <rect x="6" y="6" width="118" height="268" rx="16" fill="#0f172a" stroke="#1e293b" stroke-width="3"/>
@@ -1460,9 +1519,9 @@ function gameLoop(now) {
       if (currentStopIndex < activeStops.length) {
         const nextStop = activeStops[currentStopIndex];
         if (!nextStop.visited) {
-          const distToStop = getMetersBetween([busLng, busLat], nextStop.coords);
+          const distToStop = getMetersBetween([busLng, busLat], nextStop.projectedCoords);
           
-          if (distToStop < 150.0 || currentSegIndex >= nextStop.targetPathIndex) {
+          if (distToStop < 10.0 || currentSegIndex >= nextStop.targetSegmentIndex) {
             currentStopIndex++; 
             processStop(nextStop);
           }
