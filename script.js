@@ -1,6 +1,6 @@
 // ============================================================
 // ARQUIVO: script.js
-// MOTOR DE SIMULAÇÃO - AJUSTES DE TAMANHO, VELOCIDADE E PARAGENS
+// MOTOR DE SIMULAÇÃO - FARÓIS, CLIMA ALEATÓRIO E TAMANHO COMPACTO
 // ============================================================
 
 const cssStyles = `
@@ -31,6 +31,33 @@ const cssStyles = `
     top: 0;
     left: 0;
     z-index: 1;
+  }
+
+  /* Overlay de Clima Dinâmico */
+  .weather-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    pointer-events: none;
+    z-index: 99999;
+    transition: background 1s ease;
+  }
+  .weather-overlay.chuva {
+    background: rgba(15, 23, 42, 0.35);
+    box-shadow: inset 0 0 100px rgba(0,0,0,0.6);
+  }
+  .weather-overlay.neblina {
+    background: rgba(203, 213, 225, 0.25);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+  }
+  .weather-overlay.noite {
+    background: rgba(2, 6, 23, 0.65);
+  }
+  .weather-overlay.ensolarado {
+    background: transparent;
   }
 
   .setup-modal-overlay {
@@ -225,6 +252,18 @@ const cssStyles = `
     border-radius: 6px;
     font-weight: bold;
     font-size: 0.8rem;
+    text-align: center;
+    margin-bottom: 8px;
+  }
+
+  .weather-badge {
+    background: rgba(245, 158, 11, 0.2);
+    border: 1px solid #f59e0b;
+    color: #fbbf24;
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-weight: bold;
+    font-size: 0.75rem;
     text-align: center;
     margin-bottom: 8px;
   }
@@ -554,7 +593,7 @@ const cssStyles = `
 
   .bus-marker-img {
     width: 22px !important;
-    height: 48px !important;
+    height: 44px !important;
     display: block !important;
     filter: drop-shadow(0px 3px 6px rgba(0, 0, 0, 0.95));
   }
@@ -569,6 +608,10 @@ const cssStyles = `
 const styleElement = document.createElement('style');
 styleElement.innerHTML = cssStyles;
 document.head.appendChild(styleElement);
+
+const weatherOverlay = document.createElement('div');
+weatherOverlay.className = 'weather-overlay ensolarado';
+document.body.appendChild(weatherOverlay);
 
 const alertToast = document.createElement('div');
 alertToast.className = 'alert-toast';
@@ -591,6 +634,21 @@ const COLOR_PRESETS = {
   'trem_azul': { name: 'Trem Azul', bodyColor: '#1C4485', stripeColor: '#ffffff' },
   'trem_laranja': { name: 'Trem Laranja', bodyColor: '#E76F43', stripeColor: '#ffffff' }
 };
+
+const WEATHER_TYPES = [
+  { id: 'ensolarado', name: '☀️ Ensolarado' },
+  { id: 'chuva', name: '🌧️ Chuva Moderada' },
+  { id: 'neblina', name: '🌫️ Neblina Matinal' },
+  { id: 'noite', name: '🌙 Noite Estrelada' }
+];
+
+let currentActiveWeather = WEATHER_TYPES[0];
+
+function sortearClimaAleatorio() {
+  const randomIndex = Math.floor(Math.random() * WEATHER_TYPES.length);
+  currentActiveWeather = WEATHER_TYPES[randomIndex];
+  weatherOverlay.className = `weather-overlay ${currentActiveWeather.id}`;
+}
 
 function getLinesDatabase() {
   return window.linesDatabase || {};
@@ -709,6 +767,7 @@ document.body.appendChild(hudContainer);
 hudContainer.innerHTML = `
   <h2>🚍 Linha Operacional</h2>
   <div class="line-badge" id="lineBadgeDisplay">---</div>
+  <div class="weather-badge" id="weatherBadgeDisplay">🌤️ Clima: Ensolarado</div>
 
   <div class="pax-status-card" id="cardPaxStatus">
     <div class="pax-status-main">
@@ -788,7 +847,7 @@ let busLat = 0;
 let currentSpeedKmh = 0;
 let isAutopilotMoving = false;
 
-let cruiseSpeedKmh = 120;
+let cruiseSpeedKmh = 100;
 let boostSpeedKmh = 200;
 
 let targetHeading = 0;
@@ -1001,6 +1060,9 @@ btnTripToggle.addEventListener('click', () => {
 });
 
 document.getElementById('btnStartLineMode').addEventListener('click', () => {
+  sortearClimaAleatorio();
+  document.getElementById('weatherBadgeDisplay').textContent = `Clima: ${currentActiveWeather.name}`;
+
   currentGameMode = 'line';
   const selectedKey = document.getElementById('selectLine').value;
   activePresetKey = document.getElementById('selectColorLine').value || 'vermelho';
@@ -1071,6 +1133,9 @@ document.getElementById('btnStartLineMode').addEventListener('click', () => {
 });
 
 document.getElementById('btnStartFreeMode').addEventListener('click', async () => {
+  sortearClimaAleatorio();
+  document.getElementById('weatherBadgeDisplay').textContent = `Clima: ${currentActiveWeather.name}`;
+
   currentGameMode = 'free';
   busLabelText = 'RODOVIÁRIO';
   activePresetKey = document.getElementById('selectColorFree').value || 'vermelho';
@@ -1206,6 +1271,8 @@ function exitGame() {
   document.getElementById('miniKmDisplay').textContent = '0.00 km';
   document.getElementById('miniSpeedDisplay').textContent = '0';
 
+  weatherOverlay.className = 'weather-overlay ensolarado';
+
   hudContainer.style.display = 'none';
   hudContainer.classList.remove('mobile-visible');
   speedBox.style.display = 'none';
@@ -1263,24 +1330,31 @@ function mostrarRelatorioFinal() {
 }
 
 function getBusSvg(bodyColor, stripeColor, isDD, label) {
+  // Ícone compacto com faróis dianteiros destacados
   return 'data:image/svg+xml;utf8,' + encodeURIComponent(`
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 130 280" width="130" height="280">
-      <rect x="2" y="10" width="126" height="262" rx="16" fill="rgba(0,0,0,0.5)" filter="blur(5px)" />
-      <rect x="6" y="6" width="118" height="268" rx="16" fill="#0f172a" stroke="#1e293b" stroke-width="3"/>
-      <path d="M 8,22 C 8,10 22,8 65,8 C 108,8 122,10 122,22 L 122,258 C 122,268 108,274 65,274 C 22,274 8,268 8,258 Z" fill="${bodyColor}" />
-      <path d="M 8,100 L 122,100 L 122,180 L 8,190 Z" fill="${stripeColor}" opacity="0.9" />
-      <path d="M 8,185 L 122,175 L 122,260 C 122,268 108,272 65,272 C 22,272 8,268 8,260 Z" fill="#1e293b" />
-      <path d="M 12,12 L 118,12 L 112,50 L 18,50 Z" fill="#0f172a" stroke="#cbd5e1" stroke-width="2" />
-      <path d="M 16,16 L 114,16 L 109,46 L 21,46 Z" fill="#38bdf8" opacity="0.6" />
-      <rect x="12" y="65" width="12" height="110" rx="3" fill="#0f172a" />
-      <rect x="106" y="65" width="12" height="110" rx="3" fill="#0f172a" />
-      <rect x="42" y="20" width="46" height="140" rx="6" fill="#334155" />
-      <text x="65" y="95" fill="#fbbf24" font-size="9" font-family="monospace" font-weight="900" text-anchor="middle">EXECUTIVO</text>
-      <rect x="12" y="6" width="18" height="6" rx="2" fill="#fbbf24" />
-      <rect x="100" y="6" width="18" height="6" rx="2" fill="#fbbf24" />
-      <rect x="35" y="4" width="60" height="4" rx="1" fill="#cbd5e1" />
-      <rect x="14" y="268" width="16" height="4" fill="#ef4444" rx="1" />
-      <rect x="100" y="268" width="16" height="4" fill="#ef4444" rx="1" />
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 200" width="100" height="200">
+      <!-- Faróis dianteiros iluminados (projetados à frente) -->
+      <path d="M 8,-15 L 30,10 L 15,10 Z" fill="#fef08a" opacity="0.8" filter="blur(2px)"/>
+      <path d="M 92,-15 L 70,10 L 85,10 Z" fill="#fef08a" opacity="0.8" filter="blur(2px)"/>
+
+      <!-- Sombra e Carroçaria Compacta -->
+      <rect x="2" y="8" width="96" height="184" rx="12" fill="rgba(0,0,0,0.5)" filter="blur(4px)" />
+      <rect x="6" y="4" width="88" height="192" rx="12" fill="#0f172a" stroke="#1e293b" stroke-width="2"/>
+      <path d="M 6,18 C 6,8 16,6 50,6 C 84,6 94,8 94,18 L 94,182 C 94,192 84,196 50,196 C 16,196 6,192 6,182 Z" fill="${bodyColor}" />
+      
+      <!-- Faixa e Janelas -->
+      <path d="M 6,75 L 94,75 L 94,135 L 6,140 Z" fill="${stripeColor}" opacity="0.9" />
+      <path d="M 6,135 L 94,130 L 94,188 C 94,194 84,196 50,196 C 16,196 6,194 6,188 Z" fill="#1e293b" />
+      <path d="M 10,10 L 90,10 L 84,40 L 16,40 Z" fill="#0f172a" stroke="#cbd5e1" stroke-width="1.5" />
+      <path d="M 14,13 L 86,13 L 82,37 L 18,37 Z" fill="#38bdf8" opacity="0.6" />
+      
+      <!-- Faróis físicos dianteiros -->
+      <rect x="10" y="2" width="14" height="5" rx="2" fill="#fef08a" />
+      <rect x="76" y="2" width="14" height="5" rx="2" fill="#fef08a" />
+
+      <!-- Lanternas traseiras -->
+      <rect x="12" y="193" width="12" height="3" fill="#ef4444" rx="1" />
+      <rect x="76" y="193" width="12" height="3" fill="#ef4444" rx="1" />
     </svg>
   `);
 }
