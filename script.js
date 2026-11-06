@@ -1,6 +1,6 @@
 // ============================================================
 // ARQUIVO: script.js
-// MOTOR DE SIMULAÇÃO - CORREÇÃO DEFINITIVA DE PARAGENS
+// MOTOR DE SIMULAÇÃO - AJUSTES DE TAMANHO, VELOCIDADE E PARAGENS
 // ============================================================
 
 const cssStyles = `
@@ -553,8 +553,8 @@ const cssStyles = `
   }
 
   .bus-marker-img {
-    width: 28px !important;
-    height: 64px !important;
+    width: 22px !important;
+    height: 48px !important;
     display: block !important;
     filter: drop-shadow(0px 3px 6px rgba(0, 0, 0, 0.95));
   }
@@ -789,7 +789,7 @@ let currentSpeedKmh = 0;
 let isAutopilotMoving = false;
 
 let cruiseSpeedKmh = 120;
-let boostSpeedKmh = 150;
+let boostSpeedKmh = 200;
 
 let targetHeading = 0;
 let smoothHeading = 0;
@@ -799,7 +799,6 @@ let totalPassengersTransported = 0;
 let currentSegIndex = 0;
 let segProgressMeters = 0;
 let currentSegLength = 0;
-let totalRouteTraveledMeters = 0;
 
 let isAtBusStop = false;
 let isLineFinished = false;
@@ -881,6 +880,7 @@ function preCalcularProjecaoParagens(path, stops) {
 
   return stops.map((stop) => {
     let minProjDist = Infinity;
+    let bestSegIdx = 0;
     let bestProjCoord = stop.coords;
     let distAlongRoute = 0;
 
@@ -893,6 +893,7 @@ function preCalcularProjecaoParagens(path, stops) {
 
       if (dProj < minProjDist) {
         minProjDist = dProj;
+        bestSegIdx = i;
         bestProjCoord = proj;
         distAlongRoute = currentRouteDist + getMetersBetween(a, proj);
       }
@@ -901,6 +902,7 @@ function preCalcularProjecaoParagens(path, stops) {
 
     return {
       ...stop,
+      targetSegmentIndex: bestSegIdx,
       projectedCoords: bestProjCoord,
       distanceAlongRoute: distAlongRoute,
       visited: false
@@ -1019,8 +1021,8 @@ document.getElementById('btnStartLineMode').addEventListener('click', () => {
   document.getElementById('maxPaxDisplay').textContent = maxPassengers;
 
   if (isRodoviario) {
-    cruiseSpeedKmh = 120;
-    boostSpeedKmh = 150;
+    cruiseSpeedKmh = 100;
+    boostSpeedKmh = 200;
   } else {
     cruiseSpeedKmh = 75;
     boostSpeedKmh = 90;
@@ -1053,7 +1055,6 @@ document.getElementById('btnStartLineMode').addEventListener('click', () => {
   document.getElementById('lineBadgeDisplay').textContent = `${lineData.nome}`;
   currentSegIndex = 0;
   segProgressMeters = 0;
-  totalRouteTraveledMeters = 0;
   currentSegLength = getMetersBetween(activePath[0], activePath[1]);
   isAtBusStop = false;
   isLineFinished = false;
@@ -1080,8 +1081,8 @@ document.getElementById('btnStartFreeMode').addEventListener('click', async () =
   currentSpeedKmh = 0;
   isAutopilotMoving = false;
   distanceCoveredKm = 0;
-  cruiseSpeedKmh = 120;
-  boostSpeedKmh = 150;
+  cruiseSpeedKmh = 100;
+  boostSpeedKmh = 200;
   speedMultiplier = 1.0;
   updateTripStatus();
   startTripTimer();
@@ -1481,7 +1482,6 @@ function gameLoop(now) {
 
         if (remainingDistance < distanceLeftInSeg) {
           segProgressMeters += remainingDistance;
-          totalRouteTraveledMeters += remainingDistance;
           remainingDistance = 0;
 
           const ratio = currentSegLength > 0 ? (segProgressMeters / currentSegLength) : 0;
@@ -1491,7 +1491,6 @@ function gameLoop(now) {
           targetHeading = calculateBearing(p1, p2);
         } else {
           remainingDistance -= distanceLeftInSeg;
-          totalRouteTraveledMeters += distanceLeftInSeg;
           currentSegIndex++;
           segProgressMeters = 0;
 
@@ -1515,7 +1514,9 @@ function gameLoop(now) {
       if (currentStopIndex < activeStops.length) {
         const nextStop = activeStops[currentStopIndex];
         if (!nextStop.visited) {
-          if (totalRouteTraveledMeters >= nextStop.distanceAlongRoute) {
+          const distToStop = getMetersBetween([busLng, busLat], nextStop.projectedCoords);
+          
+          if (distToStop < 35.0 || currentSegIndex >= nextStop.targetSegmentIndex) {
             currentStopIndex++; 
             processStop(nextStop);
           }
