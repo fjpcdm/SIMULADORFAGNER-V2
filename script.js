@@ -1,6 +1,6 @@
 // ============================================================
 // ARQUIVO: script.js
-// MOTOR DE SIMULAÇÃO - CORREÇÃO DE PARAGENS E ESTABILIDADE
+// MOTOR DE SIMULAÇÃO - CORREÇÃO DE TELA PRETA E PARAGENS
 // ============================================================
 
 const cssStyles = `
@@ -799,6 +799,7 @@ let totalPassengersTransported = 0;
 let currentSegIndex = 0;
 let segProgressMeters = 0;
 let currentSegLength = 0;
+let totalRouteTraveledMeters = 0;
 
 let isAtBusStop = false;
 let isLineFinished = false;
@@ -878,9 +879,8 @@ function preCalcularProjecaoParagens(path, stops) {
     segmentDistances.push(getMetersBetween(path[i], path[i+1]));
   }
 
-  return stops.map((stop) => {
+  const processedStops = stops.map((stop) => {
     let minProjDist = Infinity;
-    let bestSegIdx = 0;
     let bestProjCoord = stop.coords;
     let distAlongRoute = 0;
 
@@ -893,7 +893,6 @@ function preCalcularProjecaoParagens(path, stops) {
 
       if (dProj < minProjDist) {
         minProjDist = dProj;
-        bestSegIdx = i;
         bestProjCoord = proj;
         distAlongRoute = currentRouteDist + getMetersBetween(a, proj);
       }
@@ -902,12 +901,14 @@ function preCalcularProjecaoParagens(path, stops) {
 
     return {
       ...stop,
-      targetSegmentIndex: bestSegIdx,
       projectedCoords: bestProjCoord,
       distanceAlongRoute: distAlongRoute,
       visited: false
     };
   });
+
+  processedStops.sort((a, b) => a.distanceAlongRoute - b.distanceAlongRoute);
+  return processedStops;
 }
 
 function startTripTimer() {
@@ -1055,6 +1056,7 @@ document.getElementById('btnStartLineMode').addEventListener('click', () => {
   document.getElementById('lineBadgeDisplay').textContent = `${lineData.nome}`;
   currentSegIndex = 0;
   segProgressMeters = 0;
+  totalRouteTraveledMeters = 0;
   currentSegLength = getMetersBetween(activePath[0], activePath[1]);
   isAtBusStop = false;
   isLineFinished = false;
@@ -1125,6 +1127,9 @@ function startSimulation(startCoords) {
   busLat = startCoords[1];
 
   initMap(startCoords);
+  setTimeout(() => {
+    if (map) map.resize();
+  }, 200);
 }
 
 function updateStopInfoDisplay() {
@@ -1328,6 +1333,7 @@ function initMap(startCoords) {
 
   map.on('load', () => {
     map.resize();
+    setTimeout(() => { if (map) map.resize(); }, 150);
     busMarker.setLngLat(startCoords);
     lastFrameTime = performance.now();
     if (animationFrameId) cancelAnimationFrame(animationFrameId);
@@ -1477,6 +1483,7 @@ function gameLoop(now) {
 
         if (remainingDistance < distanceLeftInSeg) {
           segProgressMeters += remainingDistance;
+          totalRouteTraveledMeters += remainingDistance;
           remainingDistance = 0;
 
           const ratio = currentSegLength > 0 ? (segProgressMeters / currentSegLength) : 0;
@@ -1486,6 +1493,7 @@ function gameLoop(now) {
           targetHeading = calculateBearing(p1, p2);
         } else {
           remainingDistance -= distanceLeftInSeg;
+          totalRouteTraveledMeters += distanceLeftInSeg;
           currentSegIndex++;
           segProgressMeters = 0;
 
@@ -1509,9 +1517,7 @@ function gameLoop(now) {
       if (currentStopIndex < activeStops.length) {
         const nextStop = activeStops[currentStopIndex];
         if (!nextStop.visited) {
-          const distToStop = getMetersBetween([busLng, busLat], nextStop.projectedCoords);
-          
-          if (distToStop < 35.0 || currentSegIndex >= nextStop.targetSegmentIndex) {
+          if (totalRouteTraveledMeters >= nextStop.distanceAlongRoute) {
             currentStopIndex++; 
             processStop(nextStop);
           }
