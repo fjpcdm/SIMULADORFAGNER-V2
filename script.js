@@ -1,6 +1,6 @@
 // ============================================================
 // ARQUIVO: script.js
-// MOTOR DE SIMULAÇÃO - FIDELIDADE ABSOLUTA DE PARAGENS (IDA/VOLTA)
+// MOTOR DE SIMULAÇÃO - CORREÇÃO DA LINHA 306R E NOVOS PARÂMETROS
 // ============================================================
 
 const cssStyles = `
@@ -713,7 +713,7 @@ hudContainer.innerHTML = `
   <div class="pax-status-card" id="cardPaxStatus">
     <div class="pax-status-main">
       Passageiros a Bordo:<br>
-      <strong id="paxCountDisplay">0</strong> / <span id="maxPaxDisplay">42</span>
+      <strong id="paxCountDisplay">0</strong> / <span id="maxPaxDisplay">75</span>
     </div>
     <div style="text-align: right; font-size: 0.75rem; color: #94a3b8;">
       Ocupação:<br>
@@ -775,8 +775,8 @@ let currentVisibleMarker = null;
 
 let currentGameMode = 'line'; 
 let busLabelText = '';
-let passengerCount = 42;
-let maxPassengers = 42;
+let passengerCount = 75;
+let maxPassengers = 75;
 let activePresetKey = 'vermelho';
 
 let activePath = [];
@@ -788,8 +788,8 @@ let busLat = 0;
 let currentSpeedKmh = 0;
 let isAutopilotMoving = false;
 
-let cruiseSpeedKmh = 100;
-let boostSpeedKmh = 200;
+let cruiseSpeedKmh = 90;
+let boostSpeedKmh = 140;
 
 let targetHeading = 0;
 let smoothHeading = 0;
@@ -878,8 +878,8 @@ function preCalcularProjecaoParagens(path, stops) {
     segmentDistances.push(getMetersBetween(path[i], path[i+1]));
   }
 
-  // Mapeia cada ponto na ordem exata em que o usuário os cadastrou no array de pontos,
-  // ligando cada um ao segmento mais próximo e registrando a distância exata ao longo da rota.
+  // Mapeia estritamente pela ordem de cadastro dos pontos no array,
+  // validando o segmento mais próximo ao longo do trajeto progressivo.
   return stops.map((stop, index) => {
     let minProjDist = Infinity;
     let bestSegIdx = 0;
@@ -904,7 +904,7 @@ function preCalcularProjecaoParagens(path, stops) {
 
     return {
       ...stop,
-      originalIndex: index,
+      stopOrderIndex: index,
       targetSegmentIndex: bestSegIdx,
       projectedCoords: bestProjCoord,
       distanceAlongRoute: distAlongRoute,
@@ -1007,7 +1007,7 @@ document.getElementById('btnStartLineMode').addEventListener('click', () => {
   currentGameMode = 'line';
   const selectedKey = document.getElementById('selectLine').value;
   activePresetKey = document.getElementById('selectColorLine').value || 'vermelho';
-  busLabelText = 'RODOVIÁRIO';
+  busLabelText = 'EXECUTIVO';
 
   const db = getLinesDatabase();
   const lineData = db[selectedKey] || Object.values(db)[0];
@@ -1017,8 +1017,8 @@ document.getElementById('btnStartLineMode').addEventListener('click', () => {
   }
 
   const isRodoviario = lineData.tipo === 'rodoviario';
-  maxPassengers = 42;
-  passengerCount = Math.floor(Math.random() * 13) + 30;
+  maxPassengers = 75;
+  passengerCount = Math.floor(Math.random() * 20) + 40;
   totalPassengersTransported = passengerCount;
 
   document.getElementById('maxPaxDisplay').textContent = maxPassengers;
@@ -1027,8 +1027,8 @@ document.getElementById('btnStartLineMode').addEventListener('click', () => {
     cruiseSpeedKmh = 100;
     boostSpeedKmh = 200;
   } else {
-    cruiseSpeedKmh = 75;
-    boostSpeedKmh = 90;
+    cruiseSpeedKmh = 90;
+    boostSpeedKmh = 140;
   }
 
   activePath = extractCoordinates(lineData.trajeto);
@@ -1075,7 +1075,7 @@ document.getElementById('btnStartLineMode').addEventListener('click', () => {
 
 document.getElementById('btnStartFreeMode').addEventListener('click', async () => {
   currentGameMode = 'free';
-  busLabelText = 'RODOVIÁRIO';
+  busLabelText = 'EXECUTIVO';
   activePresetKey = document.getElementById('selectColorFree').value || 'vermelho';
   const locationQuery = document.getElementById('inputFreeLocation').value.trim();
 
@@ -1084,8 +1084,8 @@ document.getElementById('btnStartFreeMode').addEventListener('click', async () =
   currentSpeedKmh = 0;
   isAutopilotMoving = false;
   distanceCoveredKm = 0;
-  cruiseSpeedKmh = 100;
-  boostSpeedKmh = 200;
+  cruiseSpeedKmh = 90;
+  boostSpeedKmh = 140;
   speedMultiplier = 1.0;
   updateTripStatus();
   startTripTimer();
@@ -1513,14 +1513,15 @@ function gameLoop(now) {
 
       smoothHeading = lerpHeading(smoothHeading, targetHeading, 8.0 * deltaTime);
 
-      // Validação estrita por ordem de cadastro e proximidade física exata (raio de 25 metros)
+      // Verificação rigorosa: exige que o segmento do trajeto atual tenha alcançado o ponto
+      // E que a distância física até ele seja inferior a 20 metros para garantir fidelidade absoluta na ida e na volta.
       if (currentStopIndex < activeStops.length) {
         const nextStop = activeStops[currentStopIndex];
         if (!nextStop.visited) {
           const distToStop = getMetersBetween([busLng, busLat], nextStop.projectedCoords);
           const hasReachedSegment = currentSegIndex >= nextStop.targetSegmentIndex;
 
-          if (distToStop <= 25.0 || (hasReachedSegment && distToStop <= 60.0)) {
+          if (hasReachedSegment && distToStop <= 20.0) {
             currentStopIndex++; 
             processStop(nextStop);
           }
