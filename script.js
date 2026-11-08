@@ -1,6 +1,6 @@
 // ============================================================
 // ARQUIVO: script.js
-// MOTOR DE SIMULAÇÃO - CORREÇÃO DE TELA PRETA E PARAGENS
+// MOTOR DE SIMULAÇÃO - FIDELIDADE ABSOLUTA DE PARAGENS (IDA/VOLTA)
 // ============================================================
 
 const cssStyles = `
@@ -799,7 +799,6 @@ let totalPassengersTransported = 0;
 let currentSegIndex = 0;
 let segProgressMeters = 0;
 let currentSegLength = 0;
-let totalRouteTraveledMeters = 0;
 
 let isAtBusStop = false;
 let isLineFinished = false;
@@ -879,8 +878,11 @@ function preCalcularProjecaoParagens(path, stops) {
     segmentDistances.push(getMetersBetween(path[i], path[i+1]));
   }
 
-  const processedStops = stops.map((stop) => {
+  // Mapeia cada ponto na ordem exata em que o usuário os cadastrou no array de pontos,
+  // ligando cada um ao segmento mais próximo e registrando a distância exata ao longo da rota.
+  return stops.map((stop, index) => {
     let minProjDist = Infinity;
+    let bestSegIdx = 0;
     let bestProjCoord = stop.coords;
     let distAlongRoute = 0;
 
@@ -893,6 +895,7 @@ function preCalcularProjecaoParagens(path, stops) {
 
       if (dProj < minProjDist) {
         minProjDist = dProj;
+        bestSegIdx = i;
         bestProjCoord = proj;
         distAlongRoute = currentRouteDist + getMetersBetween(a, proj);
       }
@@ -901,14 +904,13 @@ function preCalcularProjecaoParagens(path, stops) {
 
     return {
       ...stop,
+      originalIndex: index,
+      targetSegmentIndex: bestSegIdx,
       projectedCoords: bestProjCoord,
       distanceAlongRoute: distAlongRoute,
       visited: false
     };
   });
-
-  processedStops.sort((a, b) => a.distanceAlongRoute - b.distanceAlongRoute);
-  return processedStops;
 }
 
 function startTripTimer() {
@@ -1056,7 +1058,6 @@ document.getElementById('btnStartLineMode').addEventListener('click', () => {
   document.getElementById('lineBadgeDisplay').textContent = `${lineData.nome}`;
   currentSegIndex = 0;
   segProgressMeters = 0;
-  totalRouteTraveledMeters = 0;
   currentSegLength = getMetersBetween(activePath[0], activePath[1]);
   isAtBusStop = false;
   isLineFinished = false;
@@ -1483,7 +1484,6 @@ function gameLoop(now) {
 
         if (remainingDistance < distanceLeftInSeg) {
           segProgressMeters += remainingDistance;
-          totalRouteTraveledMeters += remainingDistance;
           remainingDistance = 0;
 
           const ratio = currentSegLength > 0 ? (segProgressMeters / currentSegLength) : 0;
@@ -1493,7 +1493,6 @@ function gameLoop(now) {
           targetHeading = calculateBearing(p1, p2);
         } else {
           remainingDistance -= distanceLeftInSeg;
-          totalRouteTraveledMeters += distanceLeftInSeg;
           currentSegIndex++;
           segProgressMeters = 0;
 
@@ -1514,10 +1513,14 @@ function gameLoop(now) {
 
       smoothHeading = lerpHeading(smoothHeading, targetHeading, 8.0 * deltaTime);
 
+      // Validação estrita por ordem de cadastro e proximidade física exata (raio de 25 metros)
       if (currentStopIndex < activeStops.length) {
         const nextStop = activeStops[currentStopIndex];
         if (!nextStop.visited) {
-          if (totalRouteTraveledMeters >= nextStop.distanceAlongRoute) {
+          const distToStop = getMetersBetween([busLng, busLat], nextStop.projectedCoords);
+          const hasReachedSegment = currentSegIndex >= nextStop.targetSegmentIndex;
+
+          if (distToStop <= 25.0 || (hasReachedSegment && distToStop <= 60.0)) {
             currentStopIndex++; 
             processStop(nextStop);
           }
