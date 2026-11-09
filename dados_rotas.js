@@ -1908,6 +1908,4 @@ window.linesDatabase["301C"] = {
     }
   ],
  
-
-
 };
