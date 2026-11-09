@@ -1,3 +1,5 @@
+window.linesDatabase = window.linesDatabase || {};
+
 window.linesDatabase["303M"] = {
   nome: "303M - Terminal Ibirité x Estação Metrô Eldorado",
   tipo: "metropolitano",
