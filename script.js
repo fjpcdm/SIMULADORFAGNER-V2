@@ -878,8 +878,6 @@ function preCalcularProjecaoParagens(path, stops) {
     segmentDistances.push(getMetersBetween(path[i], path[i+1]));
   }
 
-  // Mapeia estritamente pela ordem de cadastro dos pontos no array,
-  // validando o segmento mais próximo ao longo do trajeto progressivo.
   return stops.map((stop, index) => {
     let minProjDist = Infinity;
     let bestSegIdx = 0;
@@ -1513,15 +1511,13 @@ function gameLoop(now) {
 
       smoothHeading = lerpHeading(smoothHeading, targetHeading, 8.0 * deltaTime);
 
-      // Verificação rigorosa: exige que o segmento do trajeto atual tenha alcançado o ponto
-      // E que a distância física até ele seja inferior a 20 metros para garantir fidelidade absoluta na ida e na volta.
       if (currentStopIndex < activeStops.length) {
         const nextStop = activeStops[currentStopIndex];
         if (!nextStop.visited) {
           const distToStop = getMetersBetween([busLng, busLat], nextStop.projectedCoords);
           const hasReachedSegment = currentSegIndex >= nextStop.targetSegmentIndex;
 
-          if (hasReachedSegment && distToStop <= 20.0) {
+          if (hasReachedSegment && distToStop <= 25.0) {
             currentStopIndex++; 
             processStop(nextStop);
           }
