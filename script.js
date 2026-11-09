@@ -1,6 +1,6 @@
 // ============================================================
 // ARQUIVO: script.js
-// MOTOR DE SIMULAÇÃO - CORREÇÃO DA LINHA 306R E NOVOS PARÂMETROS
+// MOTOR DE SIMULAÇÃO - COMPATIBILIDADE MULTI-PLATAFORMA (LINUX/WINDOWS)
 // ============================================================
 
 const cssStyles = `
@@ -1128,7 +1128,7 @@ function startSimulation(startCoords) {
   initMap(startCoords);
   setTimeout(() => {
     if (map) map.resize();
-  }, 200);
+  }, 250);
 }
 
 function updateStopInfoDisplay() {
@@ -1332,7 +1332,7 @@ function initMap(startCoords) {
 
   map.on('load', () => {
     map.resize();
-    setTimeout(() => { if (map) map.resize(); }, 150);
+    setTimeout(() => { if (map) map.resize(); }, 250);
     busMarker.setLngLat(startCoords);
     lastFrameTime = performance.now();
     if (animationFrameId) cancelAnimationFrame(animationFrameId);
