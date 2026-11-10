@@ -1,7 +1,7 @@
 window.linesDatabase = window.linesDatabase || {};
 
 window.linesDatabase["303M"] = {
-  nome: "303M - Terminal Ibirité x Estação Eldorado",
+  nome: "303M - Terminal Ibirité x Estação Eldorado(IDA)",
   tipo: "metropolitano",
   pontos: [
     { id: 1, nome: "Terminal Ibirité - Inicio", coords: [-44.0659919, -20.017422] },
