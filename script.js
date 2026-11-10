@@ -583,13 +583,13 @@ function showAlert(message) {
 }
 
 const COLOR_PRESETS = {
-  'vermelho': { name: 'Vermelho', bodyColor: '#dc2626', stripeColor: '#ffffff' },
-  'azul': { name: 'Azul', bodyColor: '#2563eb', stripeColor: '#ffffff' },
-  'laranja': { name: 'Laranja', bodyColor: '#ea580c', stripeColor: '#ffffff' },
-  'amarelo': { name: 'Amarelo', bodyColor: '#eab308', stripeColor: '#ffffff' },
-  'verde': { name: 'Verde', bodyColor: '#16a34a', stripeColor: '#ffffff' },
-  'trem_azul': { name: 'Trem Azul', bodyColor: '#1C4485', stripeColor: '#ffffff' },
-  'trem_laranja': { name: 'Trem Laranja', bodyColor: '#E76F43', stripeColor: '#ffffff' }
+  'vermelho': { name: 'Vermelho', bodyColor: '#ff0000', stripeColor: '#ff0000' },
+  'azul': { name: 'Azul', bodyColor: '#0000ff', stripeColor: '#0000ff' },
+  'azul': { name: 'Branco', bodyColor: '#ffffff', stripeColor: '#ffffff' },
+  'laranja': { name: 'Laranja', bodyColor: '#FFA500', stripeColor: '#FFA500' },
+  'amarelo': { name: 'Amarelo', bodyColor: '#ffff00', stripeColor: '#ffff00' },
+  'verde': { name: 'Verde', bodyColor: '#16a34a', stripeColor: '#006633' },
+  'trem': { name: 'Trem Laranja', bodyColor: '#2A1974,#EA7302,#FFCB70', stripeColor: '#ffffff' }
 };
 
 function getLinesDatabase() {
@@ -775,7 +775,7 @@ let currentVisibleMarker = null;
 
 let currentGameMode = 'line'; 
 let busLabelText = '';
-let passengerCount = 75;
+let passengerCount = 0;
 let maxPassengers = 75;
 let activePresetKey = 'vermelho';
 
@@ -1016,6 +1016,7 @@ document.getElementById('btnStartLineMode').addEventListener('click', () => {
 
   const isRodoviario = lineData.tipo === 'rodoviario';
   maxPassengers = 75;
+  // Lógica inicial: sai do terminal com passageiros embarcados
   passengerCount = Math.floor(Math.random() * 20) + 40;
   totalPassengersTransported = passengerCount;
 
@@ -1031,18 +1032,7 @@ document.getElementById('btnStartLineMode').addEventListener('click', () => {
 
   activePath = extractCoordinates(lineData.trajeto);
   
-  if (selectedKey === "BH_CONGONHAS") {
-    let totalDistMeters = 0;
-    for (let i = 0; i < activePath.length - 1; i++) {
-      totalDistMeters += getMetersBetween(activePath[i], activePath[i + 1]);
-    }
-    const targetTimeSeconds = 20 * 60; 
-    const requiredAvgSpeedMps = totalDistMeters / targetTimeSeconds;
-    const requiredAvgSpeedKmh = requiredAvgSpeedMps * 3.6;
-    speedMultiplier = Math.max(1.0, requiredAvgSpeedKmh / cruiseSpeedKmh);
-  } else {
-    speedMultiplier = 1.0;
-  }
+  speedMultiplier = 1.0;
 
   currentStopIndex = 0; 
   const rawStops = lineData.pontos || [];
@@ -1116,7 +1106,7 @@ function startSimulation(startCoords) {
     btnTripToggle.style.display = 'none';
     if (cardPax) cardPax.style.display = 'none';
   } else {
-    leftControlsContainer.style.display = 'none';
+    leftControlsContainer.style.display = 'flex';
     btnTripToggle.style.display = 'block';
     if (cardPax) cardPax.style.display = 'flex';
     updateStopInfoDisplay();
@@ -1231,6 +1221,10 @@ function mostrarRelatorioFinal() {
   isTripActive = false;
   isAutopilotMoving = false;
   currentSpeedKmh = 0;
+
+  // Ao chegar ao destino final, o autocarro esvazia totalmente
+  passengerCount = 0;
+  updateTripStatus();
 
   const tempoStr = document.getElementById('tripTimerDisplay').textContent;
   const kmStr = document.getElementById('kmCoveredDisplay').textContent;
@@ -1398,15 +1392,26 @@ function processStop(stop) {
     currentVisibleMarker = null;
   }
 
-  const desembarcados = Math.min(passengerCount, Math.floor(Math.random() * 6));
-  passengerCount -= desembarcados;
+  // Verifica se é a última paragem (Estação Eldorado) para esvaziar totalmente
+  const isFinalStop = (currentStopIndex >= activeStops.length);
 
-  const vagasLivres = maxPassengers - passengerCount;
-  const embarcados = Math.min(vagasLivres, Math.floor(Math.random() * 8) + 1);
-  passengerCount += embarcados;
-  
-  if (embarcados > 0) {
-    totalPassengersTransported += embarcados;
+  let desembarcados = 0;
+  let embarcados = 0;
+
+  if (isFinalStop) {
+    desembarcados = passengerCount;
+    passengerCount = 0;
+  } else {
+    desembarcados = Math.min(passengerCount, Math.floor(Math.random() * 6));
+    passengerCount -= desembarcados;
+
+    const vagasLivres = maxPassengers - passengerCount;
+    embarcados = Math.min(vagasLivres, Math.floor(Math.random() * 8) + 1);
+    passengerCount += embarcados;
+    
+    if (embarcados > 0) {
+      totalPassengersTransported += embarcados;
+    }
   }
 
   showAlert(`🚏 Parada: ${stop.nome} (-${desembarcados} / +${embarcados} pax). Acelere para prosseguir.`);
@@ -1510,7 +1515,6 @@ function gameLoop(now) {
         }
       }
 
-      // Suavização rigorosa do ângulo para eliminar tremor de câmara (jitter)
       smoothHeading = lerpHeading(smoothHeading, targetHeading, 4.0 * deltaTime);
 
       if (currentStopIndex < activeStops.length) {
@@ -1519,7 +1523,6 @@ function gameLoop(now) {
           const distToStop = getMetersBetween([busLng, busLat], nextStop.projectedCoords);
           const hasReachedSegment = currentSegIndex >= nextStop.targetSegmentIndex;
 
-          // Tolerância exata e restrita de 8 metros para não antecipar
           if (hasReachedSegment && distToStop <= 8.0) {
             currentStopIndex++; 
             processStop(nextStop);
@@ -1551,11 +1554,11 @@ function gameLoop(now) {
     }
 
     if (currentSpeedKmh > 1) {
-      if (keysPressed.Left) smoothHeading = (smoothHeading - 60 * deltaTime + 360) % 360;
-      if (keysPressed.Right) smoothHeading = (smoothHeading + 60 * deltaTime) % 360;
+      if (keysPressed.Left) smoothHeading = (smoothHeading - 80 * deltaTime + 360) % 360;
+      if (keysPressed.Right) smoothHeading = (smoothHeading + 80 * deltaTime) % 360;
     }
 
-    if (currentSpeedKmh > 0) {
+    if (currentSpeedKmh > 0 || keysPressed.Up || keysPressed.Down) {
       const speedMps = (currentSpeedKmh / 3.6) * speedMultiplier;
       const metersToMove = speedMps * deltaTime;
       const metersPerDegreeLat = 111320;
@@ -1587,7 +1590,6 @@ function gameLoop(now) {
 
   atualizarMarcadorProximoPonto(currentCoords);
 
-  // jumpTo estabilizado sem trepidação em curvas ou trechos densos
   map.jumpTo({
     center: currentCoords,
     bearing: smoothHeading
