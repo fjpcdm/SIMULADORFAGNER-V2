@@ -1312,7 +1312,8 @@ function initMap(startCoords) {
     center: startCoords,
     zoom: 19.0,
     pitch: 0,
-    bearing: smoothHeading
+    bearing: smoothHeading,
+    renderWorldCopies: false
   });
 
   const preset = COLOR_PRESETS[activePresetKey] || COLOR_PRESETS['vermelho'];
@@ -1509,7 +1510,8 @@ function gameLoop(now) {
         }
       }
 
-      smoothHeading = lerpHeading(smoothHeading, targetHeading, 8.0 * deltaTime);
+      // Suavização rigorosa do ângulo para eliminar tremor de câmara (jitter)
+      smoothHeading = lerpHeading(smoothHeading, targetHeading, 4.0 * deltaTime);
 
       if (currentStopIndex < activeStops.length) {
         const nextStop = activeStops[currentStopIndex];
@@ -1517,7 +1519,8 @@ function gameLoop(now) {
           const distToStop = getMetersBetween([busLng, busLat], nextStop.projectedCoords);
           const hasReachedSegment = currentSegIndex >= nextStop.targetSegmentIndex;
 
-          if (hasReachedSegment && distToStop <= 25.0) {
+          // Tolerância exata e restrita de 8 metros para não antecipar
+          if (hasReachedSegment && distToStop <= 8.0) {
             currentStopIndex++; 
             processStop(nextStop);
           }
@@ -1584,6 +1587,7 @@ function gameLoop(now) {
 
   atualizarMarcadorProximoPonto(currentCoords);
 
+  // jumpTo estabilizado sem trepidação em curvas ou trechos densos
   map.jumpTo({
     center: currentCoords,
     bearing: smoothHeading
