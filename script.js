@@ -583,13 +583,13 @@ function showAlert(message) {
 }
 
 const COLOR_PRESETS = {
-  'vermelho': { name: 'Vermelho', bodyColor: '#ff0000', stripeColor: '#ff0000' },
-  'azul': { name: 'Azul', bodyColor: '#0000ff', stripeColor: '#0000ff' },
-  'azul': { name: 'Branco', bodyColor: '#ffffff', stripeColor: '#ffffff' },
-  'laranja': { name: 'Laranja', bodyColor: '#FFA500', stripeColor: '#FFA500' },
-  'amarelo': { name: 'Amarelo', bodyColor: '#ffff00', stripeColor: '#ffff00' },
-  'verde': { name: 'Verde', bodyColor: '#16a34a', stripeColor: '#006633' },
-  'trem': { name: 'Trem Laranja', bodyColor: '#2A1974,#EA7302,#FFCB70', stripeColor: '#ffffff' }
+  'vermelho': { name: 'Vermelho', bodyColor: '#dc2626', stripeColor: '#ffffff' },
+  'azul': { name: 'Azul', bodyColor: '#2563eb', stripeColor: '#ffffff' },
+  'laranja': { name: 'Laranja', bodyColor: '#ea580c', stripeColor: '#ffffff' },
+  'amarelo': { name: 'Amarelo', bodyColor: '#eab308', stripeColor: '#ffffff' },
+  'verde': { name: 'Verde', bodyColor: '#16a34a', stripeColor: '#ffffff' },
+  'trem_azul': { name: 'Trem Azul', bodyColor: '#1C4485', stripeColor: '#ffffff' },
+  'trem_laranja': { name: 'Trem Laranja', bodyColor: '#E76F43', stripeColor: '#ffffff' }
 };
 
 function getLinesDatabase() {
@@ -1016,7 +1016,6 @@ document.getElementById('btnStartLineMode').addEventListener('click', () => {
 
   const isRodoviario = lineData.tipo === 'rodoviario';
   maxPassengers = 75;
-  // Lógica inicial: sai do terminal com passageiros embarcados
   passengerCount = Math.floor(Math.random() * 20) + 40;
   totalPassengersTransported = passengerCount;
 
@@ -1222,7 +1221,6 @@ function mostrarRelatorioFinal() {
   isAutopilotMoving = false;
   currentSpeedKmh = 0;
 
-  // Ao chegar ao destino final, o autocarro esvazia totalmente
   passengerCount = 0;
   updateTripStatus();
 
@@ -1392,7 +1390,6 @@ function processStop(stop) {
     currentVisibleMarker = null;
   }
 
-  // Verifica se é a última paragem (Estação Eldorado) para esvaziar totalmente
   const isFinalStop = (currentStopIndex >= activeStops.length);
 
   let desembarcados = 0;
@@ -1521,9 +1518,10 @@ function gameLoop(now) {
         const nextStop = activeStops[currentStopIndex];
         if (!nextStop.visited) {
           const distToStop = getMetersBetween([busLng, busLat], nextStop.projectedCoords);
-          const hasReachedSegment = currentSegIndex >= nextStop.targetSegmentIndex;
+          // Tolerância ajustada com verificação estrita para impedir saltos de segmentos no trajeto
+          const hasReachedSegment = currentSegIndex >= Math.max(0, nextStop.targetSegmentIndex - 2);
 
-          if (hasReachedSegment && distToStop <= 8.0) {
+          if (hasReachedSegment && distToStop <= 10.0) {
             currentStopIndex++; 
             processStop(nextStop);
           }
@@ -1536,26 +1534,30 @@ function gameLoop(now) {
       }
     }
   } else {
+    // CORREÇÃO MODO LIVRE: Tratamento rigoroso de aceleração e direção
     let desiredSpeed = 0;
     if (keysPressed.Down) {
       currentSpeedKmh = Math.max(currentSpeedKmh - 60 * deltaTime, 0);
       desiredSpeed = 0;
     } else if (keysPressed.Up) {
       desiredSpeed = boostSpeedKmh;
-    } else if (currentSpeedKmh > 0) {
+    } else if (keysPressed.Left || keysPressed.Right || currentSpeedKmh > 0) {
       desiredSpeed = cruiseSpeedKmh;
     }
 
-    if (currentSpeedKmh < desiredSpeed) currentSpeedKmh = Math.min(currentSpeedKmh + 50 * deltaTime, desiredSpeed);
-    else if (currentSpeedKmh > desiredSpeed && desiredSpeed > 0) currentSpeedKmh = Math.max(currentSpeedKmh - 40 * deltaTime, desiredSpeed);
-
-    if (currentSpeedKmh < 0.1) {
-      currentSpeedKmh = 0;
+    if (currentSpeedKmh < desiredSpeed) {
+      currentSpeedKmh = Math.min(currentSpeedKmh + 50 * deltaTime, desiredSpeed);
+    } else if (currentSpeedKmh > desiredSpeed) {
+      currentSpeedKmh = Math.max(currentSpeedKmh - 40 * deltaTime, desiredSpeed);
     }
 
-    if (currentSpeedKmh > 1) {
-      if (keysPressed.Left) smoothHeading = (smoothHeading - 80 * deltaTime + 360) % 360;
-      if (keysPressed.Right) smoothHeading = (smoothHeading + 80 * deltaTime) % 360;
+    if (keysPressed.Left) {
+      smoothHeading = (smoothHeading - 90 * deltaTime + 360) % 360;
+      targetHeading = smoothHeading;
+    }
+    if (keysPressed.Right) {
+      smoothHeading = (smoothHeading + 90 * deltaTime) % 360;
+      targetHeading = smoothHeading;
     }
 
     if (currentSpeedKmh > 0 || keysPressed.Up || keysPressed.Down) {
