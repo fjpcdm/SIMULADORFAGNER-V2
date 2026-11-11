@@ -450,15 +450,17 @@ const cssStyles = `
     top: 70px;
     left: 50%;
     transform: translateX(-50%);
-    background: #ef4444;
+    background: #3b82f6;
     color: #ffffff;
-    padding: 12px 20px;
-    border-radius: 8px;
+    padding: 10px 18px;
+    border-radius: 20px;
     font-weight: bold;
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     z-index: 10000000;
     text-align: center;
     display: none;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+    border: 2px solid #ffffff;
   }
 
   .report-modal-overlay {
@@ -579,7 +581,7 @@ function showAlert(message) {
   alertToast.style.display = 'block';
   setTimeout(() => {
     alertToast.style.display = 'none';
-  }, 4000);
+  }, 2200);
 }
 
 const COLOR_PRESETS = {
@@ -630,6 +632,13 @@ setupModal.innerHTML = `
     <div class="form-group">
       <label>Linha de Operação:</label>
       <select id="selectLine"></select>
+    </div>
+    <div class="form-group">
+      <label>Sentido:</label>
+      <select id="selectDirection">
+        <option value="ida">Ida (Terminal Ibirité ➔ Estação Eldorado)</option>
+        <option value="volta">Volta (Estação Eldorado ➔ Terminal Ibirité)</option>
+      </select>
     </div>
     <div class="form-group">
       <label>Cor do Veículo:</label>
@@ -1004,6 +1013,7 @@ btnTripToggle.addEventListener('click', () => {
 document.getElementById('btnStartLineMode').addEventListener('click', () => {
   currentGameMode = 'line';
   const selectedKey = document.getElementById('selectLine').value;
+  const selectedDirection = document.getElementById('selectDirection').value;
   activePresetKey = document.getElementById('selectColorLine').value || 'vermelho';
   busLabelText = 'EXECUTIVO';
 
@@ -1014,27 +1024,27 @@ document.getElementById('btnStartLineMode').addEventListener('click', () => {
     return;
   }
 
-  const isRodoviario = lineData.tipo === 'rodoviario';
+  // Suporte a rotas estruturadas com sentidos (ida/volta) ou padrão antigo
+  let targetRouteData = lineData;
+  if (lineData.sentidos && lineData.sentidos[selectedDirection]) {
+    targetRouteData = lineData.sentidos[selectedDirection];
+  }
+
   maxPassengers = 75;
-  passengerCount = Math.floor(Math.random() * 20) + 40;
+  // Exatamente 60% de ocupação ao iniciar no terminal (75 * 0.6 = 45 passageiros)
+  passengerCount = Math.round(maxPassengers * 0.6);
   totalPassengersTransported = passengerCount;
 
   document.getElementById('maxPaxDisplay').textContent = maxPassengers;
 
-  if (isRodoviario) {
-    cruiseSpeedKmh = 100;
-    boostSpeedKmh = 200;
-  } else {
-    cruiseSpeedKmh = 90;
-    boostSpeedKmh = 140;
-  }
+  cruiseSpeedKmh = 90;
+  boostSpeedKmh = 140;
 
-  activePath = extractCoordinates(lineData.trajeto);
-  
+  activePath = extractCoordinates(targetRouteData.trajeto);
   speedMultiplier = 1.0;
 
   currentStopIndex = 0; 
-  const rawStops = lineData.pontos || [];
+  const rawStops = targetRouteData.pontos || [];
   activeStops = preCalcularProjecaoParagens(activePath, rawStops);
 
   if (activePath.length < 2) {
@@ -1042,7 +1052,7 @@ document.getElementById('btnStartLineMode').addEventListener('click', () => {
     return;
   }
 
-  document.getElementById('lineBadgeDisplay').textContent = `${lineData.nome}`;
+  document.getElementById('lineBadgeDisplay').textContent = `${targetRouteData.nome || lineData.nome}`;
   currentSegIndex = 0;
   segProgressMeters = 0;
   currentSegLength = getMetersBetween(activePath[0], activePath[1]);
@@ -1221,6 +1231,7 @@ function mostrarRelatorioFinal() {
   isAutopilotMoving = false;
   currentSpeedKmh = 0;
 
+  // Garante que ao chegar ao destino final o autocarro fica com 0 passageiros
   passengerCount = 0;
   updateTripStatus();
 
@@ -1399,11 +1410,12 @@ function processStop(stop) {
     desembarcados = passengerCount;
     passengerCount = 0;
   } else {
-    desembarcados = Math.min(passengerCount, Math.floor(Math.random() * 6));
+    // Variação aleatória realista de passageiros embarcando e desembarcando
+    desembarcados = Math.min(passengerCount, Math.floor(Math.random() * 8));
     passengerCount -= desembarcados;
 
     const vagasLivres = maxPassengers - passengerCount;
-    embarcados = Math.min(vagasLivres, Math.floor(Math.random() * 8) + 1);
+    embarcados = Math.min(vagasLivres, Math.floor(Math.random() * 10) + 1);
     passengerCount += embarcados;
     
     if (embarcados > 0) {
@@ -1411,7 +1423,8 @@ function processStop(stop) {
     }
   }
 
-  showAlert(`🚏 Parada: ${stop.nome} (-${desembarcados} / +${embarcados} pax). Acelere para prosseguir.`);
+  // ATUALIZAÇÃO SOLICITADA: Removida a contagem da mensagem e exibido apenas o próximo ponto com apagamento imediato (toast rápido)
+  showAlert(`🚏 Próxima Parada: ${stop.nome}`);
   pararEaguardarAceleracaoManual();
 }
 
@@ -1518,8 +1531,7 @@ function gameLoop(now) {
         const nextStop = activeStops[currentStopIndex];
         if (!nextStop.visited) {
           const distToStop = getMetersBetween([busLng, busLat], nextStop.projectedCoords);
-          // Tolerância ajustada com verificação estrita para impedir saltos de segmentos no trajeto
-          const hasReachedSegment = currentSegIndex >= Math.max(0, nextStop.targetSegmentIndex - 2);
+          const hasReachedSegment = currentSegIndex >= Math.max(0, nextStop.targetSegmentIndex - 1);
 
           if (hasReachedSegment && distToStop <= 10.0) {
             currentStopIndex++; 
@@ -1534,7 +1546,7 @@ function gameLoop(now) {
       }
     }
   } else {
-    // CORREÇÃO MODO LIVRE: Tratamento rigoroso de aceleração e direção
+    // CORREÇÃO MODO LIVRE: Lógica robusta e totalmente reativada para digitação e controle tátil
     let desiredSpeed = 0;
     if (keysPressed.Down) {
       currentSpeedKmh = Math.max(currentSpeedKmh - 60 * deltaTime, 0);
@@ -1560,7 +1572,7 @@ function gameLoop(now) {
       targetHeading = smoothHeading;
     }
 
-    if (currentSpeedKmh > 0 || keysPressed.Up || keysPressed.Down) {
+    if (currentSpeedKmh > 0 || keysPressed.Up || keysPressed.Down || keysPressed.Left || keysPressed.Right) {
       const speedMps = (currentSpeedKmh / 3.6) * speedMultiplier;
       const metersToMove = speedMps * deltaTime;
       const metersPerDegreeLat = 111320;
