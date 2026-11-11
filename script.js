@@ -618,6 +618,7 @@ for (const key in COLOR_PRESETS) {
   colorOptionsHtml += `<option value="${key}">${COLOR_PRESETS[key].name}</option>`;
 }
 
+// Menu limpo sem seletor de sentido
 setupModal.innerHTML = `
   <div class="setup-card" id="cardMainMenu">
     <h2>🚍 Simulador de Ônibus & Trem</h2>
@@ -630,7 +631,7 @@ setupModal.innerHTML = `
   <div class="setup-card" id="cardLineMode" style="display: none;">
     <h2>🚍 Modo Linha</h2>
     <div class="form-group">
-      <label>Linha de Operação:</label>
+      <label>Linha e Sentido:</label>
       <select id="selectLine"></select>
     </div>
     <div class="form-group">
@@ -1016,12 +1017,6 @@ document.getElementById('btnStartLineMode').addEventListener('click', () => {
     return;
   }
 
-  // Verifica se a linha possui sentidos (ida/volta) e seleciona automaticamente o primeiro sentido (Ida)
-  let targetRouteData = lineData;
-  if (lineData.sentidos && lineData.sentidos.ida) {
-    targetRouteData = lineData.sentidos.ida;
-  }
-
   maxPassengers = 75;
   // Exatamente 60% de ocupação ao iniciar na partida (75 * 0.6 = 45 passageiros)
   passengerCount = Math.round(maxPassengers * 0.6);
@@ -1032,11 +1027,11 @@ document.getElementById('btnStartLineMode').addEventListener('click', () => {
   cruiseSpeedKmh = 90;
   boostSpeedKmh = 140;
 
-  activePath = extractCoordinates(targetRouteData.trajeto);
+  activePath = extractCoordinates(lineData.trajeto);
   speedMultiplier = 1.0;
 
   currentStopIndex = 0; 
-  const rawStops = targetRouteData.pontos || [];
+  const rawStops = lineData.pontos || [];
   activeStops = preCalcularProjecaoParagens(activePath, rawStops);
 
   if (activePath.length < 2) {
@@ -1044,7 +1039,7 @@ document.getElementById('btnStartLineMode').addEventListener('click', () => {
     return;
   }
 
-  document.getElementById('lineBadgeDisplay').textContent = `${targetRouteData.nome || lineData.nome}`;
+  document.getElementById('lineBadgeDisplay').textContent = `${lineData.nome}`;
   currentSegIndex = 0;
   segProgressMeters = 0;
   currentSegLength = getMetersBetween(activePath[0], activePath[1]);
@@ -1402,7 +1397,6 @@ function processStop(stop) {
     desembarcados = passengerCount;
     passengerCount = 0;
   } else {
-    // Variação aleatória para embarque e desembarque dinâmico durante o percurso
     desembarcados = Math.min(passengerCount, Math.floor(Math.random() * 8));
     passengerCount -= desembarcados;
 
@@ -1415,7 +1409,6 @@ function processStop(stop) {
     }
   }
 
-  // Exibe apenas a próxima parada de forma imediata e limpa
   showAlert(`🚏 Próxima Parada: ${stop.nome}`);
   pararEaguardarAceleracaoManual();
 }
@@ -1538,7 +1531,6 @@ function gameLoop(now) {
       }
     }
   } else {
-    // MODO LIVRE ATIVO E FUNCIONAL
     let desiredSpeed = 0;
     if (keysPressed.Down) {
       currentSpeedKmh = Math.max(currentSpeedKmh - 60 * deltaTime, 0);
