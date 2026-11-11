@@ -283,22 +283,23 @@ window.linesDatabase["BH_LAFAIETE"] = {
   nome: "Belo Horizonte x Conselheiro Lafaiete",
   tipo: "rodoviario",
   pontos: [
-    { id: 1, nome: "Terminal Rodoviário de Belo Horizonte - Início", coords: [-43.9452, -19.9213] },
-    { id: 2, nome: "Avenida do Contorno (Saída Sul)", coords: [-43.9385, -19.9350] },
-    { id: 3, nome: "Rodovia BR-040 - Trevo do Belvedere", coords: [-43.9512, -19.9824] },
-    { id: 4, nome: "Nova Lima / Ponte dos Cabritos", coords: [-43.9240, -20.0610] },
-    { id: 5, nome: "Itabirito (Acesso Norte)", coords: [-43.8050, -20.2450] },
-    { id: 6, nome: "Moeda / Passarela BR-040", coords: [-43.9100, -20.3520] },
-    { id: 7, nome: "Congonhas (Acesso Principal)", coords: [-43.8520, -20.5010] },
-    { id: 8, nome: "Conselheiro Lafaiete - Rodoviária (Destino Final)", coords: [-43.7915, -20.6580] }
+    { id: 1, nome: "Terminal Rodoviário de Belo Horizonte - Início", coords: [-43.945228, -19.921315] },
+    { id: 2, nome: "Avenida do Contorno / Saída Sul", coords: [-43.938512, -19.935024] },
+    { id: 3, nome: "Trevo do Belvedere / BR-040", coords: [-43.951233, -19.982411] },
+    { id: 4, nome: "Jardim Canadá / Nova Lima", coords: [-43.955412, -20.021033] },
+    { id: 5, nome: "Parque Estadual da Serra do Rola Moça", coords: [-43.931022, -20.089412] },
+    { id: 6, nome: "Itabirito (Acesso BR-040)", coords: [-43.865122, -20.214511] },
+    { id: 7, nome: "Moeda / Passarela BR-040", coords: [-43.901233, -20.345122] },
+    { id: 8, nome: "Congonhas (Acesso Principal)", coords: [-43.845122, -20.498122] },
+    { id: 9, nome: "Conselheiro Lafaiete - Rodoviária (Destino Final)", coords: [-43.791512, -20.658022] }
   ],
   trajeto: [
-    [-43.9452, -19.9213], [-43.9440, -19.9250], [-43.9410, -19.9300],
-    [-43.9385, -19.9350], [-43.9420, -19.9550], [-43.9480, -19.9700],
-    [-43.9512, -19.9824], [-43.9500, -20.0050], [-43.9350, -20.0350],
-    [-43.9240, -20.0610], [-43.8900, -20.1200], [-43.8500, -20.1800],
-    [-43.8050, -20.2450], [-43.8300, -20.3000], [-43.9100, -20.3520],
-    [-43.8800, -20.4200], [-43.8520, -20.5010], [-43.8200, -20.5800],
-    [-43.7915, -20.6580]
+    [-43.945228, -19.921315], [-43.944112, -19.925012], [-43.941022, -19.930012],
+    [-43.938512, -19.935024], [-43.940122, -19.945012], [-43.943012, -19.960012],
+    [-43.951233, -19.982411], [-43.954012, -20.000112], [-43.955412, -20.021033],
+    [-43.945012, -20.050012], [-43.931022, -20.089412], [-43.910012, -20.140012],
+    [-43.885012, -20.180012], [-43.865122, -20.214511], [-43.880012, -20.280012],
+    [-43.901233, -20.345122], [-43.875012, -20.410012], [-43.845122, -20.498122],
+    [-43.820012, -20.580012], [-43.791512, -20.658022]
   ]
-};
+}
