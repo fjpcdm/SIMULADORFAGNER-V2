@@ -278,3 +278,27 @@ window.linesDatabase["303M_VOLTA"] = {
     [-44.06547, -20.02039], [-44.06599, -20.01742]
   ]
 };
+
+window.linesDatabase["BH_LAFAIETE"] = {
+  nome: "Belo Horizonte x Conselheiro Lafaiete",
+  tipo: "rodoviario",
+  pontos: [
+    { id: 1, nome: "Terminal Rodoviário de Belo Horizonte - Início", coords: [-43.9452, -19.9213] },
+    { id: 2, nome: "Avenida do Contorno (Saída Sul)", coords: [-43.9385, -19.9350] },
+    { id: 3, nome: "Rodovia BR-040 - Trevo do Belvedere", coords: [-43.9512, -19.9824] },
+    { id: 4, nome: "Nova Lima / Ponte dos Cabritos", coords: [-43.9240, -20.0610] },
+    { id: 5, nome: "Itabirito (Acesso Norte)", coords: [-43.8050, -20.2450] },
+    { id: 6, nome: "Moeda / Passarela BR-040", coords: [-43.9100, -20.3520] },
+    { id: 7, nome: "Congonhas (Acesso Principal)", coords: [-43.8520, -20.5010] },
+    { id: 8, nome: "Conselheiro Lafaiete - Rodoviária (Destino Final)", coords: [-43.7915, -20.6580] }
+  ],
+  trajeto: [
+    [-43.9452, -19.9213], [-43.9440, -19.9250], [-43.9410, -19.9300],
+    [-43.9385, -19.9350], [-43.9420, -19.9550], [-43.9480, -19.9700],
+    [-43.9512, -19.9824], [-43.9500, -20.0050], [-43.9350, -20.0350],
+    [-43.9240, -20.0610], [-43.8900, -20.1200], [-43.8500, -20.1800],
+    [-43.8050, -20.2450], [-43.8300, -20.3000], [-43.9100, -20.3520],
+    [-43.8800, -20.4200], [-43.8520, -20.5010], [-43.8200, -20.5800],
+    [-43.7915, -20.6580]
+  ]
+};
