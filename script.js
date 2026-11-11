@@ -581,7 +581,7 @@ function showAlert(message) {
   alertToast.style.display = 'block';
   setTimeout(() => {
     alertToast.style.display = 'none';
-  }, 2200);
+  }, 1800);
 }
 
 const COLOR_PRESETS = {
@@ -632,13 +632,6 @@ setupModal.innerHTML = `
     <div class="form-group">
       <label>Linha de Operação:</label>
       <select id="selectLine"></select>
-    </div>
-    <div class="form-group">
-      <label>Sentido:</label>
-      <select id="selectDirection">
-        <option value="ida">Ida (Terminal Ibirité ➔ Estação Eldorado)</option>
-        <option value="volta">Volta (Estação Eldorado ➔ Terminal Ibirité)</option>
-      </select>
     </div>
     <div class="form-group">
       <label>Cor do Veículo:</label>
@@ -1013,7 +1006,6 @@ btnTripToggle.addEventListener('click', () => {
 document.getElementById('btnStartLineMode').addEventListener('click', () => {
   currentGameMode = 'line';
   const selectedKey = document.getElementById('selectLine').value;
-  const selectedDirection = document.getElementById('selectDirection').value;
   activePresetKey = document.getElementById('selectColorLine').value || 'vermelho';
   busLabelText = 'EXECUTIVO';
 
@@ -1024,14 +1016,14 @@ document.getElementById('btnStartLineMode').addEventListener('click', () => {
     return;
   }
 
-  // Suporte a rotas estruturadas com sentidos (ida/volta) ou padrão antigo
+  // Verifica se a linha possui sentidos (ida/volta) e seleciona automaticamente o primeiro sentido (Ida)
   let targetRouteData = lineData;
-  if (lineData.sentidos && lineData.sentidos[selectedDirection]) {
-    targetRouteData = lineData.sentidos[selectedDirection];
+  if (lineData.sentidos && lineData.sentidos.ida) {
+    targetRouteData = lineData.sentidos.ida;
   }
 
   maxPassengers = 75;
-  // Exatamente 60% de ocupação ao iniciar no terminal (75 * 0.6 = 45 passageiros)
+  // Exatamente 60% de ocupação ao iniciar na partida (75 * 0.6 = 45 passageiros)
   passengerCount = Math.round(maxPassengers * 0.6);
   totalPassengersTransported = passengerCount;
 
@@ -1231,7 +1223,7 @@ function mostrarRelatorioFinal() {
   isAutopilotMoving = false;
   currentSpeedKmh = 0;
 
-  // Garante que ao chegar ao destino final o autocarro fica com 0 passageiros
+  // Ao chegar ao destino final, o autocarro esvazia totalmente (fica com 0 passageiros)
   passengerCount = 0;
   updateTripStatus();
 
@@ -1410,7 +1402,7 @@ function processStop(stop) {
     desembarcados = passengerCount;
     passengerCount = 0;
   } else {
-    // Variação aleatória realista de passageiros embarcando e desembarcando
+    // Variação aleatória para embarque e desembarque dinâmico durante o percurso
     desembarcados = Math.min(passengerCount, Math.floor(Math.random() * 8));
     passengerCount -= desembarcados;
 
@@ -1423,7 +1415,7 @@ function processStop(stop) {
     }
   }
 
-  // ATUALIZAÇÃO SOLICITADA: Removida a contagem da mensagem e exibido apenas o próximo ponto com apagamento imediato (toast rápido)
+  // Exibe apenas a próxima parada de forma imediata e limpa
   showAlert(`🚏 Próxima Parada: ${stop.nome}`);
   pararEaguardarAceleracaoManual();
 }
@@ -1546,7 +1538,7 @@ function gameLoop(now) {
       }
     }
   } else {
-    // CORREÇÃO MODO LIVRE: Lógica robusta e totalmente reativada para digitação e controle tátil
+    // MODO LIVRE ATIVO E FUNCIONAL
     let desiredSpeed = 0;
     if (keysPressed.Down) {
       currentSpeedKmh = Math.max(currentSpeedKmh - 60 * deltaTime, 0);
