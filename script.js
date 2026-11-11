@@ -529,26 +529,6 @@ const cssStyles = `
     margin-top: 10px;
   }
 
-  .stop-marker-container {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    pointer-events: none;
-    transition: opacity 0.3s ease;
-  }
-
-  .stop-marker-label {
-    background: #f59e0b;
-    color: #0f172a;
-    font-weight: bold;
-    font-size: 0.72rem;
-    padding: 4px 8px;
-    border-radius: 6px;
-    border: 1px solid #ffffff;
-    white-space: nowrap;
-    box-shadow: 0 3px 8px rgba(0,0,0,0.7);
-  }
-
   .maplibregl-marker {
     z-index: 9999999 !important;
     pointer-events: none !important;
@@ -618,7 +598,6 @@ for (const key in COLOR_PRESETS) {
   colorOptionsHtml += `<option value="${key}">${COLOR_PRESETS[key].name}</option>`;
 }
 
-// Menu limpo sem seletor de sentido
 setupModal.innerHTML = `
   <div class="setup-card" id="cardMainMenu">
     <h2>🚍 Simulador de Ônibus & Trem</h2>
@@ -631,7 +610,7 @@ setupModal.innerHTML = `
   <div class="setup-card" id="cardLineMode" style="display: none;">
     <h2>🚍 Modo Linha</h2>
     <div class="form-group">
-      <label>Linha e Sentido:</label>
+      <label>Linha de Operação:</label>
       <select id="selectLine"></select>
     </div>
     <div class="form-group">
@@ -733,7 +712,6 @@ hudContainer.innerHTML = `
       <span>Percorrido:</span>
       <span class="trip-km-val" id="kmCoveredDisplay">0.00 km</span>
     </div>
-    <div id="stopInfoDynamic"></div>
   </div>
 
   <div class="trip-status-badge stopped" id="tripStatusBadge">Aguardando Partida</div>
@@ -774,7 +752,6 @@ document.body.appendChild(rightControlsContainer);
 let map = null;
 let busMarker = null;
 let animationFrameId = null;
-let currentVisibleMarker = null;
 
 let currentGameMode = 'line'; 
 let busLabelText = '';
@@ -783,8 +760,6 @@ let maxPassengers = 75;
 let activePresetKey = 'vermelho';
 
 let activePath = [];
-let activeStops = [];
-let currentStopIndex = 0; 
 let busLng = 0;
 let busLat = 0;
 
@@ -803,7 +778,6 @@ let currentSegIndex = 0;
 let segProgressMeters = 0;
 let currentSegLength = 0;
 
-let isAtBusStop = false;
 let isLineFinished = false;
 let isTripActive = false;
 
@@ -841,77 +815,6 @@ function getMetersBetween(coord1, coord2) {
   const Δλ = (lon2 - lon1) * Math.PI / 180;
   const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
-function projectPointOnSegment(p, a, b) {
-  const [x, y] = p;
-  const [x1, y1] = a;
-  const [x2, y2] = b;
-
-  const A = x - x1;
-  const B = y - y1;
-  const C = x2 - x1;
-  const D = y2 - y1;
-
-  const dot = A * C + B * D;
-  const lenSq = C * C + D * D;
-  let param = -1;
-  if (lenSq !== 0) {
-    param = dot / lenSq;
-  }
-
-  let xx, yy;
-  if (param < 0) {
-    xx = x1;
-    yy = y1;
-  } else if (param > 1) {
-    xx = x2;
-    yy = y2;
-  } else {
-    xx = x1 + param * C;
-    yy = y1 + param * D;
-  }
-
-  return [xx, yy];
-}
-
-function preCalcularProjecaoParagens(path, stops) {
-  const segmentDistances = [];
-  for (let i = 0; i < path.length - 1; i++) {
-    segmentDistances.push(getMetersBetween(path[i], path[i+1]));
-  }
-
-  return stops.map((stop, index) => {
-    let minProjDist = Infinity;
-    let bestSegIdx = 0;
-    let bestProjCoord = stop.coords;
-    let distAlongRoute = 0;
-
-    let currentRouteDist = 0;
-    for (let i = 0; i < path.length - 1; i++) {
-      const a = path[i];
-      const b = path[i+1];
-      const proj = projectPointOnSegment(stop.coords, a, b);
-      const dProj = getMetersBetween(stop.coords, proj);
-
-      if (dProj < minProjDist) {
-        minProjDist = dProj;
-        bestSegIdx = i;
-        bestProjCoord = proj;
-        distAlongRoute = currentRouteDist + getMetersBetween(a, proj);
-      }
-      currentRouteDist += segmentDistances[i];
-    }
-
-    return {
-      ...stop,
-      stopOrderIndex: index,
-      targetSegmentIndex: bestSegIdx,
-      projectedCoords: bestProjCoord,
-      distanceAlongRoute: distAlongRoute,
-      visited: false
-    };
-  });
 }
 
 function startTripTimer() {
@@ -991,7 +894,6 @@ btnTripToggle.addEventListener('click', () => {
   if (!isTripActive) {
     isTripActive = true;
     isLineFinished = false;
-    isAtBusStop = false;
     isAutopilotMoving = true;
     startTripTimer();
     updateTripStatus();
@@ -1017,22 +919,25 @@ document.getElementById('btnStartLineMode').addEventListener('click', () => {
     return;
   }
 
+  const isRodoviario = lineData.tipo === 'rodoviario';
   maxPassengers = 75;
-  // Exatamente 60% de ocupação ao iniciar na partida (75 * 0.6 = 45 passageiros)
+  // Ocupação inicial exata de 60% (45 passageiros)
   passengerCount = Math.round(maxPassengers * 0.6);
   totalPassengersTransported = passengerCount;
 
   document.getElementById('maxPaxDisplay').textContent = maxPassengers;
 
-  cruiseSpeedKmh = 90;
-  boostSpeedKmh = 140;
+  // VELOCIDADES MÁXIMAS SOLICITADAS: 100 km/h para urbanas, 180 km/h para rodoviárias
+  if (isRodoviario) {
+    cruiseSpeedKmh = 140;
+    boostSpeedKmh = 180;
+  } else {
+    cruiseSpeedKmh = 80;
+    boostSpeedKmh = 100;
+  }
 
   activePath = extractCoordinates(lineData.trajeto);
   speedMultiplier = 1.0;
-
-  currentStopIndex = 0; 
-  const rawStops = lineData.pontos || [];
-  activeStops = preCalcularProjecaoParagens(activePath, rawStops);
 
   if (activePath.length < 2) {
     showAlert("A linha selecionada não possui coordenadas de trajeto válidas.");
@@ -1043,7 +948,6 @@ document.getElementById('btnStartLineMode').addEventListener('click', () => {
   currentSegIndex = 0;
   segProgressMeters = 0;
   currentSegLength = getMetersBetween(activePath[0], activePath[1]);
-  isAtBusStop = false;
   isLineFinished = false;
   isTripActive = false;
   isAutopilotMoving = false;
@@ -1098,14 +1002,12 @@ function startSimulation(startCoords) {
 
   if (currentGameMode === 'free') {
     leftControlsContainer.style.display = 'flex';
-    document.getElementById('stopInfoDynamic').innerHTML = '';
     btnTripToggle.style.display = 'none';
     if (cardPax) cardPax.style.display = 'none';
   } else {
     leftControlsContainer.style.display = 'flex';
     btnTripToggle.style.display = 'block';
     if (cardPax) cardPax.style.display = 'flex';
-    updateStopInfoDisplay();
   }
 
   busLng = startCoords[0];
@@ -1117,61 +1019,11 @@ function startSimulation(startCoords) {
   }, 250);
 }
 
-function updateStopInfoDisplay() {
-  const nextStop = activeStops[currentStopIndex];
-  const nextName = nextStop ? nextStop.nome : "Fim da Linha";
-  document.getElementById('stopInfoDynamic').innerHTML = `
-    <div style="margin-top: 4px; padding-top: 4px; border-top: 1px solid rgba(255,255,255,0.1);">
-      <span style="color: #94a3b8;">Próxima Parada:</span><br>
-      <strong style="color: #f59e0b;">🚏 ${nextName}</strong>
-    </div>
-  `;
-}
-
-function atualizarMarcadorProximoPonto(busCoords) {
-  if (currentGameMode !== 'line' || !map) return;
-
-  const nextStop = activeStops[currentStopIndex];
-  if (!nextStop || nextStop.visited) {
-    if (currentVisibleMarker) {
-      currentVisibleMarker.remove();
-      currentVisibleMarker = null;
-    }
-    return;
-  }
-
-  const distToStop = getMetersBetween(busCoords, nextStop.projectedCoords);
-
-  if (distToStop <= 300.0) {
-    if (!currentVisibleMarker || currentVisibleMarker._stopId !== nextStop.id) {
-      if (currentVisibleMarker) currentVisibleMarker.remove();
-
-      const el = document.createElement('div');
-      el.className = 'stop-marker-container';
-      el.innerHTML = `<div class="stop-marker-label">🚏 ${nextStop.nome}</div>`;
-
-      currentVisibleMarker = new maplibregl.Marker({ element: el, anchor: 'bottom' })
-        .setLngLat(nextStop.projectedCoords)
-        .addTo(map);
-      currentVisibleMarker._stopId = nextStop.id;
-    }
-  } else {
-    if (currentVisibleMarker) {
-      currentVisibleMarker.remove();
-      currentVisibleMarker = null;
-    }
-  }
-}
-
 function exitGame() {
   stopTripTimer();
   if (animationFrameId) {
     cancelAnimationFrame(animationFrameId);
     animationFrameId = null;
-  }
-  if (currentVisibleMarker) {
-    currentVisibleMarker.remove();
-    currentVisibleMarker = null;
   }
   if (busMarker) {
     busMarker.remove();
@@ -1187,7 +1039,6 @@ function exitGame() {
   targetHeading = 0;
   smoothHeading = 0;
   distanceCoveredKm = 0;
-  currentStopIndex = 0;
   totalPassengersTransported = 0;
   speedMultiplier = 1.0;
   document.getElementById('tripTimerDisplay').textContent = '00:00';
@@ -1218,7 +1069,7 @@ function mostrarRelatorioFinal() {
   isAutopilotMoving = false;
   currentSpeedKmh = 0;
 
-  // Ao chegar ao destino final, o autocarro esvazia totalmente (fica com 0 passageiros)
+  // Destino final: autocarro fica praticamente vazio (0 passageiros)
   passengerCount = 0;
   updateTripStatus();
 
@@ -1308,11 +1159,6 @@ function initMap(startCoords) {
 
   const preset = COLOR_PRESETS[activePresetKey] || COLOR_PRESETS['vermelho'];
 
-  if (currentVisibleMarker) {
-    currentVisibleMarker.remove();
-    currentVisibleMarker = null;
-  }
-
   const busImg = document.createElement('img');
   busImg.className = 'bus-marker-img';
   busImg.src = getBusSvg(preset.bodyColor, preset.stripeColor, currentGameMode === 'free', busLabelText);
@@ -1349,11 +1195,6 @@ function updateTripStatus() {
     badge.textContent = 'Aguardando Início';
     btnTripToggle.className = 'btn-trip-toggle start';
     btnTripToggle.textContent = '▶️ Dar Entrada na Viagem';
-  } else if (isAtBusStop) {
-    badge.className = 'trip-status-badge stopped';
-    badge.textContent = 'Parada Atendida (Acelere p/ Partir)';
-    btnTripToggle.className = 'btn-trip-toggle stop';
-    btnTripToggle.textContent = '🛑 Encerrar Viagem';
   } else if (isLineFinished) {
     badge.className = 'trip-status-badge stopped';
     badge.textContent = 'Viagem Concluída';
@@ -1372,53 +1213,9 @@ function handleAccelerate() {
     isTripActive = true;
     startTripTimer();
   }
-  
-  isAtBusStop = false;
   mapBanner.style.display = 'none';
-
   isAutopilotMoving = true;
   updateTripStatus();
-}
-
-function processStop(stop) {
-  stop.visited = true;
-
-  if (currentVisibleMarker) {
-    currentVisibleMarker.remove();
-    currentVisibleMarker = null;
-  }
-
-  const isFinalStop = (currentStopIndex >= activeStops.length);
-
-  let desembarcados = 0;
-  let embarcados = 0;
-
-  if (isFinalStop) {
-    desembarcados = passengerCount;
-    passengerCount = 0;
-  } else {
-    desembarcados = Math.min(passengerCount, Math.floor(Math.random() * 8));
-    passengerCount -= desembarcados;
-
-    const vagasLivres = maxPassengers - passengerCount;
-    embarcados = Math.min(vagasLivres, Math.floor(Math.random() * 10) + 1);
-    passengerCount += embarcados;
-    
-    if (embarcados > 0) {
-      totalPassengersTransported += embarcados;
-    }
-  }
-
-  showAlert(`🚏 Próxima Parada: ${stop.nome}`);
-  pararEaguardarAceleracaoManual();
-}
-
-function pararEaguardarAceleracaoManual() {
-  currentSpeedKmh = 0;
-  isAutopilotMoving = false;
-  isAtBusStop = true;
-  updateTripStatus();
-  updateStopInfoDisplay();
 }
 
 let lastFrameTime = performance.now();
@@ -1439,15 +1236,12 @@ function gameLoop(now) {
         isTripActive = true;
         startTripTimer();
       }
-      if (isAtBusStop) {
-        isAtBusStop = false;
-        mapBanner.style.display = 'none';
-      }
+      mapBanner.style.display = 'none';
       isAutopilotMoving = true;
       updateTripStatus();
     }
 
-    if (isTripActive && isAutopilotMoving && !isAtBusStop && !isLineFinished) {
+    if (isTripActive && isAutopilotMoving && !isLineFinished) {
       if (keysPressed.Down) {
         desiredSpeed = 0;
         currentSpeedKmh = Math.max(currentSpeedKmh - 60 * deltaTime, 0);
@@ -1467,7 +1261,7 @@ function gameLoop(now) {
       currentSpeedKmh = Math.max(currentSpeedKmh - 40 * deltaTime, desiredSpeed);
     }
 
-    if (currentSpeedKmh > 0 && !isAtBusStop && !isLineFinished && isTripActive) {
+    if (currentSpeedKmh > 0 && !isLineFinished && isTripActive) {
       const speedMps = (currentSpeedKmh / 3.6) * speedMultiplier;
       let remainingDistance = speedMps * deltaTime;
 
@@ -1512,25 +1306,19 @@ function gameLoop(now) {
 
       smoothHeading = lerpHeading(smoothHeading, targetHeading, 4.0 * deltaTime);
 
-      if (currentStopIndex < activeStops.length) {
-        const nextStop = activeStops[currentStopIndex];
-        if (!nextStop.visited) {
-          const distToStop = getMetersBetween([busLng, busLat], nextStop.projectedCoords);
-          const hasReachedSegment = currentSegIndex >= Math.max(0, nextStop.targetSegmentIndex - 1);
-
-          if (hasReachedSegment && distToStop <= 10.0) {
-            currentStopIndex++; 
-            processStop(nextStop);
-          }
-        }
-      } else {
-        if (!isLineFinished) {
-          isLineFinished = true;
-          mostrarRelatorioFinal();
-        }
+      // Lógica de variação aleatória de passageiros durante o trajeto
+      if (Math.random() < 0.02) {
+        const desembarcados = Math.min(passengerCount, Math.floor(Math.random() * 5));
+        passengerCount -= desembarcados;
+        const vagasLivres = maxPassengers - passengerCount;
+        const embarcados = Math.min(vagasLivres, Math.floor(Math.random() * 6));
+        passengerCount += embarcados;
+        if (embarcados > 0) totalPassengersTransported += embarcados;
+        updateTripStatus();
       }
     }
   } else {
+    // MODO LIVRE
     let desiredSpeed = 0;
     if (keysPressed.Down) {
       currentSpeedKmh = Math.max(currentSpeedKmh - 60 * deltaTime, 0);
@@ -1585,8 +1373,6 @@ function gameLoop(now) {
   if (busMarker) {
     busMarker.setLngLat(currentCoords);
   }
-
-  atualizarMarcadorProximoPonto(currentCoords);
 
   map.jumpTo({
     center: currentCoords,
