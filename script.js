@@ -229,27 +229,6 @@ const cssStyles = `
     margin-bottom: 8px;
   }
 
-  .pax-status-card {
-    background: #0f172a;
-    border: 1px solid #334155;
-    border-radius: 8px;
-    padding: 8px 10px;
-    margin-bottom: 8px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-
-  .pax-status-main {
-    font-size: 0.8rem;
-    color: #cbd5e1;
-  }
-
-  .pax-status-main strong {
-    font-size: 1.15rem;
-    color: #38bdf8;
-  }
-
   .trip-info-box {
     padding: 8px 10px;
     background: rgba(15, 23, 42, 0.6);
@@ -318,6 +297,25 @@ const cssStyles = `
   .btn-trip-toggle.stop {
     background: #f59e0b;
     color: #0f172a;
+  }
+
+  .btn-headlight {
+    width: 100%;
+    padding: 8px;
+    border-radius: 8px;
+    font-weight: bold;
+    font-size: 0.8rem;
+    cursor: pointer;
+    border: 1px solid #38bdf8;
+    background: #334155;
+    color: #ffffff;
+    margin-bottom: 8px;
+  }
+
+  .btn-headlight.active {
+    background: #fbbf24;
+    color: #0f172a;
+    border-color: #f59e0b;
   }
 
   .zoom-controls {
@@ -692,17 +690,6 @@ hudContainer.innerHTML = `
   <h2>🚍 Linha Operacional</h2>
   <div class="line-badge" id="lineBadgeDisplay">---</div>
 
-  <div class="pax-status-card" id="cardPaxStatus">
-    <div class="pax-status-main">
-      Passageiros a Bordo:<br>
-      <strong id="paxCountDisplay">0</strong> / <span id="maxPaxDisplay">75</span>
-    </div>
-    <div style="text-align: right; font-size: 0.75rem; color: #94a3b8;">
-      Ocupação:<br>
-      <strong id="paxPercentDisplay" style="color: #10b981; font-size: 0.95rem;">0%</strong>
-    </div>
-  </div>
-
   <div class="trip-info-box">
     <div class="trip-km-row">
       <span>Tempo de Viagem:</span>
@@ -714,6 +701,7 @@ hudContainer.innerHTML = `
     </div>
   </div>
 
+  <button class="btn-headlight" id="btnHeadlightToggle">🔦 Farol: Desligado</button>
   <div class="trip-status-badge stopped" id="tripStatusBadge">Aguardando Partida</div>
   <button class="btn-trip-toggle start" id="btnTripToggle">▶️ Dar Entrada na Viagem</button>
 
@@ -755,9 +743,8 @@ let animationFrameId = null;
 
 let currentGameMode = 'line'; 
 let busLabelText = '';
-let passengerCount = 0;
-let maxPassengers = 75;
 let activePresetKey = 'vermelho';
+let isHeadlightOn = false;
 
 let activePath = [];
 let busLng = 0;
@@ -772,7 +759,6 @@ let boostSpeedKmh = 140;
 let targetHeading = 0;
 let smoothHeading = 0;
 let distanceCoveredKm = 0;
-let totalPassengersTransported = 0;
 
 let currentSegIndex = 0;
 let segProgressMeters = 0;
@@ -844,6 +830,22 @@ function stopTripTimer() {
 document.getElementById('btnToggleHud').addEventListener('pointerdown', (e) => {
   e.stopPropagation();
   hudContainer.classList.toggle('mobile-visible');
+});
+
+const btnHeadlightToggle = document.getElementById('btnHeadlightToggle');
+btnHeadlightToggle.addEventListener('click', () => {
+  isHeadlightOn = !isHeadlightOn;
+  if (isHeadlightOn) {
+    btnHeadlightToggle.className = 'btn-headlight active';
+    btnHeadlightToggle.textContent = '🔦 Farol: Ligado';
+  } else {
+    btnHeadlightToggle.className = 'btn-headlight';
+    btnHeadlightToggle.textContent = '🔦 Farol: Desligado';
+  }
+  if (busMarker) {
+    const preset = COLOR_PRESETS[activePresetKey] || COLOR_PRESETS['vermelho'];
+    busMarker.getElement().src = getBusSvg(preset.bodyColor, preset.stripeColor, isHeadlightOn);
+  }
 });
 
 function bindTouch(elementId, keyName) {
@@ -920,14 +922,8 @@ document.getElementById('btnStartLineMode').addEventListener('click', () => {
   }
 
   const isRodoviario = lineData.tipo === 'rodoviario';
-  maxPassengers = 75;
-  // Ocupação inicial exata de 60% (45 passageiros)
-  passengerCount = Math.round(maxPassengers * 0.6);
-  totalPassengersTransported = passengerCount;
 
-  document.getElementById('maxPaxDisplay').textContent = maxPassengers;
-
-  // VELOCIDADES MÁXIMAS SOLICITADAS: 100 km/h para urbanas, 180 km/h para rodoviárias
+  // VELOCIDADES MÁXIMAS: 100 km/h para urbanas, 180 km/h para rodoviárias
   if (isRodoviario) {
     cruiseSpeedKmh = 140;
     boostSpeedKmh = 180;
@@ -998,16 +994,13 @@ function startSimulation(startCoords) {
   rightControlsContainer.style.display = 'flex';
   speedBox.style.display = 'flex';
 
-  const cardPax = document.getElementById('cardPaxStatus');
-
   if (currentGameMode === 'free') {
     leftControlsContainer.style.display = 'flex';
     btnTripToggle.style.display = 'none';
-    if (cardPax) cardPax.style.display = 'none';
   } else {
-    leftControlsContainer.style.display = 'flex';
+    // REMOVIDO BOTÃO ESQUERDA/DIREITA NA VERSÃO AUTOMÁTICA/LINHA
+    leftControlsContainer.style.display = 'none';
     btnTripToggle.style.display = 'block';
-    if (cardPax) cardPax.style.display = 'flex';
   }
 
   busLng = startCoords[0];
@@ -1039,7 +1032,6 @@ function exitGame() {
   targetHeading = 0;
   smoothHeading = 0;
   distanceCoveredKm = 0;
-  totalPassengersTransported = 0;
   speedMultiplier = 1.0;
   document.getElementById('tripTimerDisplay').textContent = '00:00';
   document.getElementById('miniTimerDisplay').textContent = '00:00';
@@ -1069,10 +1061,6 @@ function mostrarRelatorioFinal() {
   isAutopilotMoving = false;
   currentSpeedKmh = 0;
 
-  // Destino final: autocarro fica praticamente vazio (0 passageiros)
-  passengerCount = 0;
-  updateTripStatus();
-
   const tempoStr = document.getElementById('tripTimerDisplay').textContent;
   const kmStr = document.getElementById('kmCoveredDisplay').textContent;
   const nomeLinha = document.getElementById('lineBadgeDisplay').textContent;
@@ -1093,7 +1081,6 @@ function mostrarRelatorioFinal() {
         <span>Horário de Chegada: <strong>${chegadaStr}</strong></span>
         <span>Tempo da Viagem: <strong>${tempoStr}</strong></span>
         <span>Km Rodados: <strong>${kmStr}</strong></span>
-        <span>Passageiros Transportados: <strong>${totalPassengersTransported}</strong></span>
       </div>
 
       <button class="btn-close-report" id="btnCloseReport">Voltar ao Menu Principal</button>
@@ -1107,9 +1094,14 @@ function mostrarRelatorioFinal() {
   });
 }
 
-function getBusSvg(bodyColor, stripeColor, isDD, label) {
+function getBusSvg(bodyColor, stripeColor, headlightOn) {
+  const headlightGlow = headlightOn ? '<circle cx="50" cy="2" r="12" fill="#fbbf24" opacity="0.8" filter="blur(3px)" />' : '';
+  const headlightBeams = headlightOn ? '<rect x="10" y="-15" width="14" height="20" fill="#fef08a" opacity="0.5" filter="blur(4px)" /><rect x="76" y="-15" width="14" height="20" fill="#fef08a" opacity="0.5" filter="blur(4px)" />' : '';
+  
   return 'data:image/svg+xml;utf8,' + encodeURIComponent(`
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 200" width="100" height="200">
+      ${headlightGlow}
+      ${headlightBeams}
       <rect x="2" y="8" width="96" height="184" rx="12" fill="rgba(0,0,0,0.5)" filter="blur(4px)" />
       <rect x="6" y="4" width="88" height="192" rx="12" fill="#0f172a" stroke="#1e293b" stroke-width="2"/>
       <path d="M 6,18 C 6,8 16,6 50,6 C 84,6 94,8 94,18 L 94,182 C 94,192 84,196 50,196 C 16,196 6,192 6,182 Z" fill="${bodyColor}" />
@@ -1117,8 +1109,8 @@ function getBusSvg(bodyColor, stripeColor, isDD, label) {
       <path d="M 6,135 L 94,130 L 94,188 C 94,194 84,196 50,196 C 16,196 6,194 6,188 Z" fill="#1e293b" />
       <path d="M 10,10 L 90,10 L 84,40 L 16,40 Z" fill="#0f172a" stroke="#cbd5e1" stroke-width="1.5" />
       <path d="M 14,13 L 86,13 L 82,37 L 18,37 Z" fill="#38bdf8" opacity="0.6" />
-      <rect x="10" y="2" width="14" height="5" rx="2" fill="#fbbf24" />
-      <rect x="76" y="2" width="14" height="5" rx="2" fill="#fbbf24" />
+      <rect x="10" y="2" width="14" height="5" rx="2" fill="${headlightOn ? '#fef08a' : '#fbbf24'}" />
+      <rect x="76" y="2" width="14" height="5" rx="2" fill="${headlightOn ? '#fef08a' : '#fbbf24'}" />
       <rect x="12" y="193" width="12" height="3" fill="#ef4444" rx="1" />
       <rect x="76" y="193" width="12" height="3" fill="#ef4444" rx="1" />
     </svg>
@@ -1161,7 +1153,7 @@ function initMap(startCoords) {
 
   const busImg = document.createElement('img');
   busImg.className = 'bus-marker-img';
-  busImg.src = getBusSvg(preset.bodyColor, preset.stripeColor, currentGameMode === 'free', busLabelText);
+  busImg.src = getBusSvg(preset.bodyColor, preset.stripeColor, isHeadlightOn);
 
   busMarker = new maplibregl.Marker({ element: busImg, anchor: 'center' })
     .setLngLat(startCoords)
@@ -1178,17 +1170,6 @@ function initMap(startCoords) {
 }
 
 function updateTripStatus() {
-  if (currentGameMode === 'line') {
-    document.getElementById('paxCountDisplay').textContent = passengerCount;
-    const percent = Math.round((passengerCount / maxPassengers) * 100);
-    const percentEl = document.getElementById('paxPercentDisplay');
-    percentEl.textContent = `${percent}%`;
-
-    if (percent > 85) percentEl.style.color = '#ef4444';
-    else if (percent > 50) percentEl.style.color = '#f59e0b';
-    else percentEl.style.color = '#10b981';
-  }
-
   const badge = document.getElementById('tripStatusBadge');
   if (!isTripActive && !isLineFinished) {
     badge.className = 'trip-status-badge stopped';
@@ -1305,20 +1286,9 @@ function gameLoop(now) {
       }
 
       smoothHeading = lerpHeading(smoothHeading, targetHeading, 4.0 * deltaTime);
-
-      // Lógica de variação aleatória de passageiros durante o trajeto
-      if (Math.random() < 0.02) {
-        const desembarcados = Math.min(passengerCount, Math.floor(Math.random() * 5));
-        passengerCount -= desembarcados;
-        const vagasLivres = maxPassengers - passengerCount;
-        const embarcados = Math.min(vagasLivres, Math.floor(Math.random() * 6));
-        passengerCount += embarcados;
-        if (embarcados > 0) totalPassengersTransported += embarcados;
-        updateTripStatus();
-      }
     }
   } else {
-    // MODO LIVRE
+    // MODO LIVRE (mantido inalterado com controlos completos)
     let desiredSpeed = 0;
     if (keysPressed.Down) {
       currentSpeedKmh = Math.max(currentSpeedKmh - 60 * deltaTime, 0);
