@@ -563,13 +563,14 @@ function showAlert(message) {
 }
 
 const COLOR_PRESETS = {
-  'vermelho': { name: 'Vermelho', bodyColor: '#dc2626', stripeColor: '#ffffff' },
-  'azul': { name: 'Azul', bodyColor: '#2563eb', stripeColor: '#ffffff' },
-  'laranja': { name: 'Laranja', bodyColor: '#ea580c', stripeColor: '#ffffff' },
+  'vermelho': { name: 'Vermelho', bodyColor: '#ff2c2c', stripeColor: '#ff2c2c' },
+  'azul': { name: 'Azul', bodyColor: '#1883ff', stripeColor: '#1883ff' },
+  'laranja': { name: 'Laranja', bodyColor: '#ea580c', stripeColor: '#ffff00' },
   'amarelo': { name: 'Amarelo', bodyColor: '#eab308', stripeColor: '#ffffff' },
   'verde': { name: 'Verde', bodyColor: '#16a34a', stripeColor: '#ffffff' },
-  'trem_azul': { name: 'Trem Azul', bodyColor: '#1C4485', stripeColor: '#ffffff' },
-  'trem_laranja': { name: 'Trem Laranja', bodyColor: '#E76F43', stripeColor: '#ffffff' }
+  'branco': { name: 'Branco', bodyColor: '#ffffff', stripeColor: '#ffffff' },
+  'preto': { name: 'Branco', bodyColor: '#000000', stripeColor: '#000000' },
+  'trem_laranja': { name: 'Trem Laranja', bodyColor: '#2A1974,#EA7302', stripeColor: '#ffffff' }
 };
 
 function getLinesDatabase() {
