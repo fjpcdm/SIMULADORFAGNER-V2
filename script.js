@@ -923,7 +923,6 @@ document.getElementById('btnStartLineMode').addEventListener('click', () => {
 
   const isRodoviario = lineData.tipo === 'rodoviario';
 
-  // VELOCIDADES MÁXIMAS: 100 km/h para urbanas, 180 km/h para rodoviárias
   if (isRodoviario) {
     cruiseSpeedKmh = 140;
     boostSpeedKmh = 180;
@@ -966,11 +965,12 @@ document.getElementById('btnStartFreeMode').addEventListener('click', async () =
   document.getElementById('lineBadgeDisplay').textContent = `Modo Livre`;
 
   currentSpeedKmh = 0;
-  isAutopilotMoving = false;
+  isAutopilotMoving = true; // Garante mobilidade imediata no modo livre
   distanceCoveredKm = 0;
   cruiseSpeedKmh = 90;
   boostSpeedKmh = 140;
   speedMultiplier = 1.0;
+  isTripActive = true;     // Ativa estado de viagem para o loop aceitar aceleração
   updateTripStatus();
   startTripTimer();
 
@@ -995,10 +995,9 @@ function startSimulation(startCoords) {
   speedBox.style.display = 'flex';
 
   if (currentGameMode === 'free') {
-    leftControlsContainer.style.display = 'flex';
+    leftControlsContainer.style.display = 'flex'; // Exibe as setas de direção esquerda/direita no modo livre em mobile
     btnTripToggle.style.display = 'none';
   } else {
-    // REMOVIDO BOTÃO ESQUERDA/DIREITA NA VERSÃO AUTOMÁTICA/LINHA
     leftControlsContainer.style.display = 'none';
     btnTripToggle.style.display = 'block';
   }
@@ -1288,7 +1287,7 @@ function gameLoop(now) {
       smoothHeading = lerpHeading(smoothHeading, targetHeading, 4.0 * deltaTime);
     }
   } else {
-    // MODO LIVRE (mantido inalterado com controlos completos)
+    // MODO LIVRE (com controlos completos de aceleração e setas de direção móveis/teclado)
     let desiredSpeed = 0;
     if (keysPressed.Down) {
       currentSpeedKmh = Math.max(currentSpeedKmh - 60 * deltaTime, 0);
