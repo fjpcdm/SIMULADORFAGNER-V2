@@ -632,10 +632,10 @@ setupModal.innerHTML = `
       <select id="selectColorFree">${colorOptionsHtml}</select>
     </div>
     <div class="form-group">
-      <label>Pesquisar Local / Cidade:</label>
-      <input type="text" id="inputFreeLocation" value="Belo Horizonte, MG" />
+      <label>Pesquisar Local / Rua:</label>
+      <input type="text" id="inputFreeLocation" value="Avenida Amazonas, Belo Horizonte" />
     </div>
-    <button class="btn-start-sim" id="btnStartFreeMode">Iniciar</button>
+    <button class="btn-start-sim" id="btnStartFreeMode">Iniciar na Rua</button>
     <button class="btn-back-menu" id="btnBackFree">Voltar</button>
   </div>
 `;
@@ -1319,6 +1319,7 @@ function gameLoop(now) {
       smoothHeading = lerpHeading(smoothHeading, targetHeading, 6.0 * deltaTime);
     }
   } else {
+    // MODO LIVRE: Atualiza perfeitamente a direção e o movimento do autocarro
     if (keysPressed.Left) {
       vehicleHeading = (vehicleHeading - 90 * deltaTime + 360) % 360;
     }
