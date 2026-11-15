@@ -770,7 +770,13 @@ let boostSpeedKmh = 140;
 let vehicleHeading = 0; 
 let distanceCoveredKm = 0;
 
+// Variáveis de controlo do Modo Linha (Seguir o Guia do Trajeto)
 let currentSegIndex = 0;
+let segProgressMeters = 0;
+let currentSegLength = 0;
+let targetHeading = 0;
+let smoothHeading = 0;
+
 let isLineFinished = false;
 let isTripActive = false;
 
@@ -783,6 +789,23 @@ let currentCameraMode = 'street';
 let currentZoomLevel = 19.8; 
 
 const keysPressed = { Up: false, Down: false, Left: false, Right: false };
+
+function calculateBearing(startCoord, endCoord) {
+  const [startLng, startLat] = startCoord;
+  const [endLng, endLat] = endCoord;
+
+  const y = Math.sin((endLng - startLng) * Math.PI / 180) * Math.cos(endLat * Math.PI / 180);
+  const x = Math.cos(startLat * Math.PI / 180) * Math.sin(endLat * Math.PI / 180) -
+            Math.sin(startLat * Math.PI / 180) * Math.cos(endLat * Math.PI / 180) * Math.cos((endLng - startLng) * Math.PI / 180);
+
+  return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+}
+
+function lerpHeading(current, target, factor) {
+  let diff = (target - current + 360) % 360;
+  if (diff > 180) diff -= 360;
+  return (current + diff * factor + 360) % 360;
+}
 
 function getMetersBetween(coord1, coord2) {
   const [lon1, lat1] = coord1;
@@ -941,17 +964,17 @@ document.getElementById('btnStartLineMode').addEventListener('click', () => {
 
   document.getElementById('lineBadgeDisplay').textContent = `${lineData.nome}`;
   currentSegIndex = 0;
+  segProgressMeters = 0;
+  currentSegLength = getMetersBetween(activePath[0], activePath[1]);
   isLineFinished = false;
   isTripActive = false;
   isAutopilotMoving = false;
   currentSpeedKmh = 0;
   distanceCoveredKm = 0;
 
-  const [lon1, lat1] = activePath[0];
-  const [lon2, lat2] = activePath[1];
-  const y = Math.sin((lon2 - lon1) * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180);
-  const x = Math.cos(lat1 * Math.PI / 180) * Math.sin(lat2 * Math.PI / 180) - Math.sin(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.cos((lon2 - lon1) * Math.PI / 180);
-  vehicleHeading = (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+  targetHeading = calculateBearing(activePath[0], activePath[1]);
+  smoothHeading = targetHeading;
+  vehicleHeading = targetHeading;
 
   updateTripStatus();
   startSimulation(activePath[0]);
@@ -1154,7 +1177,7 @@ function initMap(startCoords) {
     center: startCoords,
     zoom: currentZoomLevel,
     pitch: 70,
-    bearing: vehicleHeading,
+    bearing: currentGameMode === 'line' ? smoothHeading : vehicleHeading,
     renderWorldCopies: false
   });
 
@@ -1218,13 +1241,6 @@ function gameLoop(now) {
 
   const prev = [busLng, busLat];
 
-  if (keysPressed.Left) {
-    vehicleHeading = (vehicleHeading - 90 * deltaTime + 360) % 360;
-  }
-  if (keysPressed.Right) {
-    vehicleHeading = (vehicleHeading + 90 * deltaTime) % 360;
-  }
-
   let desiredSpeed = 0;
 
   if (keysPressed.Up) {
@@ -1257,23 +1273,72 @@ function gameLoop(now) {
     currentSpeedKmh = Math.max(currentSpeedKmh - 40 * deltaTime, desiredSpeed);
   }
 
-  if (currentSpeedKmh > 0 && !isLineFinished && isTripActive) {
-    const speedMps = (currentSpeedKmh / 3.6) * speedMultiplier;
-    const metersToMove = speedMps * deltaTime;
-    const metersPerDegreeLat = 111320;
-    const metersPerDegreeLng = 111320 * Math.cos(busLat * (Math.PI / 180));
+  // Comportamentos separados para garantir perfeição em ambos os modos
+  if (currentGameMode === 'line') {
+    // MODO LINHA: Segue estritamente o guia do trajeto programado do dados_rotas.js
+    if (currentSpeedKmh > 0 && !isLineFinished && isTripActive) {
+      const speedMps = (currentSpeedKmh / 3.6) * speedMultiplier;
+      let remainingDistance = speedMps * deltaTime;
 
-    const rad = (vehicleHeading * Math.PI) / 180;
-    busLng += (metersToMove * Math.sin(rad)) / metersPerDegreeLng;
-    busLat += (metersToMove * Math.cos(rad)) / metersPerDegreeLat;
+      while (remainingDistance > 0 && currentSegIndex < activePath.length - 1) {
+        const p1 = activePath[currentSegIndex];
+        const p2 = activePath[currentSegIndex + 1];
 
-    if (currentGameMode === 'line' && activePath.length > 0) {
-      const finalPoint = activePath[activePath.length - 1];
-      const distToDestination = getMetersBetween([busLng, busLat], finalPoint);
-      if (distToDestination < 25) {
-        isLineFinished = true;
-        mostrarRelatorioFinal();
+        if (currentSegLength <= 0) {
+          currentSegLength = getMetersBetween(p1, p2);
+        }
+
+        const distanceLeftInSeg = currentSegLength - segProgressMeters;
+
+        if (remainingDistance < distanceLeftInSeg) {
+          segProgressMeters += remainingDistance;
+          remainingDistance = 0;
+
+          const ratio = currentSegLength > 0 ? (segProgressMeters / currentSegLength) : 0;
+          busLng = p1[0] + (p2[0] - p1[0]) * ratio;
+          busLat = p1[1] + (p2[1] - p1[1]) * ratio;
+
+          targetHeading = calculateBearing(p1, p2);
+        } else {
+          remainingDistance -= distanceLeftInSeg;
+          currentSegIndex++;
+          segProgressMeters = 0;
+
+          if (currentSegIndex >= activePath.length - 1) {
+            busLng = activePath[activePath.length - 1][0];
+            busLat = activePath[activePath.length - 1][1];
+            isLineFinished = true;
+            mostrarRelatorioFinal();
+            break;
+          } else {
+            currentSegLength = getMetersBetween(activePath[currentSegIndex], activePath[currentSegIndex + 1]);
+            busLng = activePath[currentSegIndex][0];
+            busLat = activePath[currentSegIndex][1];
+            targetHeading = calculateBearing(activePath[currentSegIndex], activePath[currentSegIndex + 1]);
+          }
+        }
       }
+
+      smoothHeading = lerpHeading(smoothHeading, targetHeading, 6.0 * deltaTime);
+    }
+  } else {
+    // MODO LIVRE: Condução manual orgânica e livre comandada pelas setas do jogador
+    if (keysPressed.Left) {
+      vehicleHeading = (vehicleHeading - 90 * deltaTime + 360) % 360;
+    }
+    if (keysPressed.Right) {
+      vehicleHeading = (vehicleHeading + 90 * deltaTime) % 360;
+    }
+
+    if (currentSpeedKmh > 0 || keysPressed.Up || keysPressed.Down || keysPressed.Left || keysPressed.Right) {
+      const speedMps = (currentSpeedKmh / 3.6) * speedMultiplier;
+      const metersToMove = speedMps * deltaTime;
+      const metersPerDegreeLat = 111320;
+      const metersPerDegreeLng = 111320 * Math.cos(busLat * (Math.PI / 180));
+
+      const rad = (vehicleHeading * Math.PI) / 180;
+      busLng += (metersToMove * Math.sin(rad)) / metersPerDegreeLng;
+      busLat += (metersToMove * Math.cos(rad)) / metersPerDegreeLat;
     }
   }
 
@@ -1302,9 +1367,11 @@ function gameLoop(now) {
     targetPitch = 25; 
   }
 
+  const activeBearing = currentGameMode === 'line' ? smoothHeading : vehicleHeading;
+
   map.jumpTo({
     center: currentCoords,
-    bearing: vehicleHeading,
+    bearing: activeBearing,
     pitch: targetPitch,
     zoom: currentZoomLevel
   });
