@@ -156,6 +156,35 @@ const cssStyles = `
     max-width: 90vw !important;
   }
 
+  /* Faixa Dinâmica de Pontos de Referência */
+  .landmark-banner {
+    position: absolute !important;
+    top: 65px !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    z-index: 999998 !important;
+    background: rgba(15, 23, 42, 0.9) !important;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    color: #f59e0b !important;
+    padding: 6px 16px !important;
+    border-radius: 16px !important;
+    font-weight: bold !important;
+    font-size: 0.8rem !important;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.5) !important;
+    border: 1px solid rgba(245, 158, 11, 0.5) !important;
+    text-align: center !important;
+    display: none;
+    pointer-events: none;
+    white-space: nowrap;
+    animation: fadeInOut 0.5s ease;
+  }
+
+  @keyframes fadeInOut {
+    from { opacity: 0; transform: translate(-50%, -10px); }
+    to { opacity: 1; transform: translate(-50%, 0); }
+  }
+
   .mobile-top-bar {
     position: absolute;
     top: 12px;
@@ -190,7 +219,7 @@ const cssStyles = `
 
   .hud {
     position: absolute !important;
-    top: 60px !important;
+    top: 100px !important;
     left: 15px !important;
     z-index: 999999 !important;
     background: rgba(15, 23, 42, 0.92) !important;
@@ -567,6 +596,20 @@ function showAlert(message) {
   }, 1800);
 }
 
+// Banner de Pontos de Referência Dinâmicos
+const landmarkBanner = document.createElement('div');
+landmarkBanner.className = 'landmark-banner';
+landmarkBanner.id = 'landmarkBanner';
+document.body.appendChild(landmarkBanner);
+
+function showLandmark(text) {
+  landmarkBanner.textContent = `📍 Você está em: ${text}`;
+  landmarkBanner.style.display = 'block';
+  setTimeout(() => {
+    landmarkBanner.style.display = 'none';
+  }, 4000);
+}
+
 const COLOR_PRESETS = {
   'vermelho': { name: 'Vermelho', bodyColor: '#ff2c2c', stripeColor: '#ff2c2c' },
   'azul': { name: 'Azul', bodyColor: '#1883ff', stripeColor: '#1883ff' },
@@ -770,7 +813,6 @@ let boostSpeedKmh = 140;
 let vehicleHeading = 0; 
 let distanceCoveredKm = 0;
 
-// Variáveis de controlo do Modo Linha (Seguir o Guia do Trajeto)
 let currentSegIndex = 0;
 let segProgressMeters = 0;
 let currentSegLength = 0;
@@ -787,6 +829,8 @@ let speedMultiplier = 1.0;
 
 let currentCameraMode = 'street'; 
 let currentZoomLevel = 19.8; 
+
+let lastLandmarkCheckKm = 0;
 
 const keysPressed = { Up: false, Down: false, Left: false, Right: false };
 
@@ -971,6 +1015,7 @@ document.getElementById('btnStartLineMode').addEventListener('click', () => {
   isAutopilotMoving = false;
   currentSpeedKmh = 0;
   distanceCoveredKm = 0;
+  lastLandmarkCheckKm = 0;
 
   targetHeading = calculateBearing(activePath[0], activePath[1]);
   smoothHeading = targetHeading;
@@ -992,6 +1037,7 @@ document.getElementById('btnStartFreeMode').addEventListener('click', async () =
   currentSpeedKmh = 0;
   isAutopilotMoving = true;
   distanceCoveredKm = 0;
+  lastLandmarkCheckKm = 0;
   cruiseSpeedKmh = 90;
   boostSpeedKmh = 140;
   speedMultiplier = 1.0;
@@ -1007,11 +1053,14 @@ document.getElementById('btnStartFreeMode').addEventListener('click', async () =
       const lon = parseFloat(data[0].lon);
       const lat = parseFloat(data[0].lat);
       startSimulation([lon, lat]);
+      showLandmark(data[0].display_name.split(',')[0]);
     } else {
       startSimulation([-43.941879, -19.913783]);
+      showLandmark("Belo Horizonte - Centro");
     }
   } catch (err) {
     startSimulation([-43.941879, -19.913783]);
+    showLandmark("Belo Horizonte - Centro");
   }
 });
 
@@ -1071,6 +1120,7 @@ function exitGame() {
   leftControlsContainer.style.display = 'none';
   rightControlsContainer.style.display = 'none';
   mapBanner.style.display = 'none';
+  landmarkBanner.style.display = 'none';
 
   document.getElementById('cardLineMode').style.display = 'none';
   document.getElementById('cardFreeMode').style.display = 'none';
@@ -1124,7 +1174,7 @@ function getBusSvg(bodyColor, stripeColor, tipo = 'urbano', letreiroText = 'EXEC
     ? '<path d="M 8,20 C 8,10 18,6 50,6 C 82,6 92,10 92,20 L 94,185 C 94,194 84,196 50,196 C 16,196 6,194 6,185 Z" fill="' + bodyColor + '" />'
     : '<path d="M 6,15 C 6,6 14,4 50,4 C 86,4 94,6 94,15 L 94,185 C 94,195 84,196 50,196 C 16,196 6,195 6,185 Z" fill="' + bodyColor + '" />';
 
-  return 'data:image/svg+xml;utf8,' + encodeURIComponent(`
+  return 'data:image/svg+xml;utf8,+ encodeURIComponent(`
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 200" width="100" height="200">
       <rect x="2" y="8" width="96" height="184" rx="12" fill="rgba(0,0,0,0.6)" filter="blur(4px)" />
       ${bodyPath}
@@ -1273,9 +1323,7 @@ function gameLoop(now) {
     currentSpeedKmh = Math.max(currentSpeedKmh - 40 * deltaTime, desiredSpeed);
   }
 
-  // Comportamentos separados para garantir perfeição em ambos os modos
   if (currentGameMode === 'line') {
-    // MODO LINHA: Segue estritamente o guia do trajeto programado do dados_rotas.js
     if (currentSpeedKmh > 0 && !isLineFinished && isTripActive) {
       const speedMps = (currentSpeedKmh / 3.6) * speedMultiplier;
       let remainingDistance = speedMps * deltaTime;
@@ -1322,7 +1370,6 @@ function gameLoop(now) {
       smoothHeading = lerpHeading(smoothHeading, targetHeading, 6.0 * deltaTime);
     }
   } else {
-    // MODO LIVRE: Condução manual orgânica e livre comandada pelas setas do jogador
     if (keysPressed.Left) {
       vehicleHeading = (vehicleHeading - 90 * deltaTime + 360) % 360;
     }
@@ -1345,6 +1392,22 @@ function gameLoop(now) {
   const distStep = getMetersBetween(prev, [busLng, busLat]) / 1000;
   if (!isNaN(distStep)) {
     distanceCoveredKm += distStep;
+  }
+
+  // Gatilho para mostrar pontos de referência a cada 1.5 km percorridos
+  if (distanceCoveredKm - lastLandmarkCheckKm >= 1.5) {
+    lastLandmarkCheckKm = distanceCoveredKm;
+    const landmarks = [
+      "Centro / Área Comercial",
+      "Avenida Principal",
+      "Corredor Metropolitano",
+      "Trevo de Acesso Regional",
+      "Via de Contorno",
+      "Terminal de Integração",
+      "Área Residencial Norte"
+    ];
+    const randomLandmark = landmarks[Math.floor(Math.random() * landmarks.length)];
+    showLandmark(randomLandmark);
   }
 
   const distFormatted = `${distanceCoveredKm.toFixed(2)} km`;
