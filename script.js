@@ -156,7 +156,6 @@ const cssStyles = `
     max-width: 90vw !important;
   }
 
-  /* Faixa Dinâmica de Pontos de Referência */
   .landmark-banner {
     position: absolute !important;
     top: 65px !important;
@@ -596,7 +595,6 @@ function showAlert(message) {
   }, 1800);
 }
 
-// Banner de Pontos de Referência Dinâmicos
 const landmarkBanner = document.createElement('div');
 landmarkBanner.className = 'landmark-banner';
 landmarkBanner.id = 'landmarkBanner';
@@ -1174,7 +1172,7 @@ function getBusSvg(bodyColor, stripeColor, tipo = 'urbano', letreiroText = 'EXEC
     ? '<path d="M 8,20 C 8,10 18,6 50,6 C 82,6 92,10 92,20 L 94,185 C 94,194 84,196 50,196 C 16,196 6,194 6,185 Z" fill="' + bodyColor + '" />'
     : '<path d="M 6,15 C 6,6 14,4 50,4 C 86,4 94,6 94,15 L 94,185 C 94,195 84,196 50,196 C 16,196 6,195 6,185 Z" fill="' + bodyColor + '" />';
 
-  return 'data:image/svg+xml;utf8,+ encodeURIComponent(`
+  return 'data:image/svg+xml;utf8,' + encodeURIComponent(`
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 200" width="100" height="200">
       <rect x="2" y="8" width="96" height="184" rx="12" fill="rgba(0,0,0,0.6)" filter="blur(4px)" />
       ${bodyPath}
@@ -1394,7 +1392,6 @@ function gameLoop(now) {
     distanceCoveredKm += distStep;
   }
 
-  // Gatilho para mostrar pontos de referência a cada 1.5 km percorridos
   if (distanceCoveredKm - lastLandmarkCheckKm >= 1.5) {
     lastLandmarkCheckKm = distanceCoveredKm;
     const landmarks = [
