@@ -300,15 +300,15 @@ const cssStyles = `
   }
 
   .camera-controls {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
+    display: flex;
     gap: 6px;
     margin-bottom: 8px;
   }
 
   .btn-camera {
+    flex: 1;
     padding: 8px 4px;
-    font-size: 0.7rem;
+    font-size: 0.75rem;
     font-weight: bold;
     color: #ffffff;
     background: #334155;
@@ -710,7 +710,6 @@ hudContainer.innerHTML = `
   <div style="margin-bottom: 6px; font-size: 0.75rem; color: #94a3b8; font-weight: bold;">ESCOLHA DA CÂMERA</div>
   <div class="camera-controls">
     <button id="btnCamStreet" class="btn-camera active">🛣️ Visão Rua</button>
-    <button id="btnCamCockpit" class="btn-camera">💺 Para-brisa</button>
     <button id="btnCamTop" class="btn-camera">🌐 Visão Cima</button>
   </div>
 
@@ -770,7 +769,7 @@ let boostSpeedKmh = 140;
 
 let targetHeading = 0;
 let smoothHeading = 0;
-let manualHeadingOffset = 0; // Pequeno ajuste de direção manual suave
+let manualHeadingOffset = 0; 
 let distanceCoveredKm = 0;
 
 let currentSegIndex = 0;
@@ -785,7 +784,6 @@ let tripTimerInterval = null;
 let tripStartRealTimeStr = "";
 let speedMultiplier = 1.0;
 
-// Câmaras: 'street' (Rua imersiva), 'cockpit' (Para-brisa do motorista), 'top' (Cima próxima)
 let currentCameraMode = 'street'; 
 let currentZoomLevel = 19.8; 
 
@@ -849,26 +847,22 @@ document.getElementById('btnToggleHud').addEventListener('pointerdown', (e) => {
   hudContainer.classList.toggle('mobile-visible');
 });
 
-// Configuração dos botões de Câmera
+// Configuração dos botões de Câmera (Visão Rua vs Visão Cima)
 function setCameraMode(mode) {
   currentCameraMode = mode;
-  ['btnCamStreet', 'btnCamCockpit', 'btnCamTop'].forEach(id => {
+  ['btnCamStreet', 'btnCamTop'].forEach(id => {
     document.getElementById(id).classList.remove('active');
   });
   if (mode === 'street') {
     document.getElementById('btnCamStreet').classList.add('active');
     currentZoomLevel = 19.8;
-  } else if (mode === 'cockpit') {
-    document.getElementById('btnCamCockpit').classList.add('active');
-    currentZoomLevel = 20.2; // Bem próximo simulando a visão pelo para-brisa
   } else if (mode === 'top') {
     document.getElementById('btnCamTop').classList.add('active');
-    currentZoomLevel = 18.5; // Visão de cima mais próxima e detalhada
+    currentZoomLevel = 18.5; 
   }
 }
 
 document.getElementById('btnCamStreet').addEventListener('click', () => setCameraMode('street'));
-document.getElementById('btnCamCockpit').addEventListener('click', () => setCameraMode('cockpit'));
 document.getElementById('btnCamTop').addEventListener('click', () => setCameraMode('top'));
 
 function updateBusMarkerIcon() {
@@ -1025,7 +1019,7 @@ function startSimulation(startCoords) {
   mobileTopBar.style.display = 'flex';
   rightControlsContainer.style.display = 'flex';
   speedBox.style.display = 'flex';
-  leftControlsContainer.style.display = 'flex'; // Exibe as setas esquerda/direita em ambos os modos para correção de direção ou condução livre
+  leftControlsContainer.style.display = 'flex'; // Setas esquerda/direita ativas para ajuste suave de direção em ambos os modos
 
   if (currentGameMode === 'free') {
     btnTripToggle.style.display = 'none';
@@ -1251,6 +1245,17 @@ function gameLoop(now) {
 
   const prev = [busLng, busLat];
 
+  // Controlo de direção manual (Esquerda/Direita) para ambos os modos
+  if (keysPressed.Left) {
+    manualHeadingOffset -= 45 * deltaTime;
+  }
+  if (keysPressed.Right) {
+    manualHeadingOffset += 45 * deltaTime;
+  }
+  if (!keysPressed.Left && !keysPressed.Right) {
+    manualHeadingOffset *= 0.90; // Retorna suavemente ao eixo da rota
+  }
+
   if (currentGameMode === 'line') {
     let desiredSpeed = 0;
 
@@ -1262,18 +1267,6 @@ function gameLoop(now) {
       mapBanner.style.display = 'none';
       isAutopilotMoving = true;
       updateTripStatus();
-    }
-
-    // Pequeno ajuste de direção manual suave no Modo Linha
-    if (keysPressed.Left) {
-      manualHeadingOffset -= 25 * deltaTime;
-    }
-    if (keysPressed.Right) {
-      manualHeadingOffset += 25 * deltaTime;
-    }
-    // Retorna suavemente o offset para zero se não estiver a pressionar
-    if (!keysPressed.Left && !keysPressed.Right) {
-      manualHeadingOffset *= 0.92;
     }
 
     if (isTripActive && isAutopilotMoving && !isLineFinished) {
@@ -1339,7 +1332,18 @@ function gameLoop(now) {
         }
       }
 
-      smoothHeading = lerpHeading(smoothHeading, targetHeading, 4.0 * deltaTime);
+      smoothHeading = lerpHeading(smoothHeading, targetHeading, 5.0 * deltaTime);
+
+      // Movimentação livre baseada no vetor da rota + ajuste de direção do motorista (evita patinar e contramão)
+      const speedMpsTotal = (currentSpeedKmh / 3.6) * speedMultiplier;
+      const metersToMove = speedMpsTotal * deltaTime;
+      const metersPerDegreeLat = 111320;
+      const metersPerDegreeLng = 111320 * Math.cos(busLat * (Math.PI / 180));
+
+      const drivingAngle = smoothHeading + manualHeadingOffset;
+      const rad = (drivingAngle * Math.PI) / 180;
+      busLng += (metersToMove * Math.sin(rad)) / metersPerDegreeLng;
+      busLat += (metersToMove * Math.cos(rad)) / metersPerDegreeLat;
     }
   } else {
     // MODO LIVRE
@@ -1399,16 +1403,13 @@ function gameLoop(now) {
     busMarker.setLngLat(currentCoords);
   }
 
-  // Controlo das Câmaras: Rua, Para-brisa (Cockpit) ou Cima
   let targetPitch = 70;
   let effectiveBearing = smoothHeading + manualHeadingOffset;
 
   if (currentCameraMode === 'street') {
-    targetPitch = 74; // Rua imersiva
-  } else if (currentCameraMode === 'cockpit') {
-    targetPitch = 80; // Visão frontal pelo para-brisa do motorista
+    targetPitch = 74; 
   } else if (currentCameraMode === 'top') {
-    targetPitch = 25; // Visão de cima próxima
+    targetPitch = 25; 
   }
 
   map.jumpTo({
@@ -1426,7 +1427,6 @@ function gameLoop(now) {
 document.getElementById('btnZoomNear').addEventListener('pointerdown', (e) => {
   e.stopPropagation();
   if (currentCameraMode === 'street') currentZoomLevel = 20.2;
-  else if (currentCameraMode === 'cockpit') currentZoomLevel = 20.6;
   else currentZoomLevel = 19.2;
   document.getElementById('btnZoomNear').classList.add('active');
   document.getElementById('btnZoomFar').classList.remove('active');
@@ -1435,7 +1435,6 @@ document.getElementById('btnZoomNear').addEventListener('pointerdown', (e) => {
 document.getElementById('btnZoomFar').addEventListener('pointerdown', (e) => {
   e.stopPropagation();
   if (currentCameraMode === 'street') currentZoomLevel = 18.8;
-  else if (currentCameraMode === 'cockpit') currentZoomLevel = 19.5;
   else currentZoomLevel = 17.5;
   document.getElementById('btnZoomFar').classList.add('active');
   document.getElementById('btnZoomNear').classList.remove('active');
