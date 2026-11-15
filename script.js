@@ -569,8 +569,8 @@ const COLOR_PRESETS = {
   'amarelo': { name: 'Amarelo', bodyColor: '#eab308', stripeColor: '#ffffff' },
   'verde': { name: 'Verde', bodyColor: '#16a34a', stripeColor: '#ffffff' },
   'branco': { name: 'Branco', bodyColor: '#ffffff', stripeColor: '#ffffff' },
-  'preto': { name: 'Branco', bodyColor: '#000000', stripeColor: '#000000' },
-  'trem_laranja': { name: 'Trem Laranja', bodyColor: '#2A1974,#EA7302', stripeColor: '#ffffff' }
+  'preto': { name: 'Preto', bodyColor: '#000000', stripeColor: '#000000' },
+  'trem_laranja': { name: 'Trem Laranja', bodyColor: '#2A1974', stripeColor: '#EA7302' }
 };
 
 function getLinesDatabase() {
@@ -966,12 +966,12 @@ document.getElementById('btnStartFreeMode').addEventListener('click', async () =
   document.getElementById('lineBadgeDisplay').textContent = `Modo Livre`;
 
   currentSpeedKmh = 0;
-  isAutopilotMoving = true; // Garante mobilidade imediata no modo livre
+  isAutopilotMoving = true;
   distanceCoveredKm = 0;
   cruiseSpeedKmh = 90;
   boostSpeedKmh = 140;
   speedMultiplier = 1.0;
-  isTripActive = true;     // Ativa estado de viagem para o loop aceitar aceleração
+  isTripActive = true;
   updateTripStatus();
   startTripTimer();
 
@@ -996,7 +996,7 @@ function startSimulation(startCoords) {
   speedBox.style.display = 'flex';
 
   if (currentGameMode === 'free') {
-    leftControlsContainer.style.display = 'flex'; // Exibe as setas de direção esquerda/direita no modo livre em mobile
+    leftControlsContainer.style.display = 'flex';
     btnTripToggle.style.display = 'none';
   } else {
     leftControlsContainer.style.display = 'none';
@@ -1094,6 +1094,9 @@ function mostrarRelatorioFinal() {
   });
 }
 
+// ==========================================
+// NOVO SISTEMA DE ÍCONES DE AUTOCARRO (DETALHADO E REALISTA)
+// ==========================================
 function getBusSvg(bodyColor, stripeColor, headlightOn) {
   const headlightGlow = headlightOn ? '<circle cx="50" cy="2" r="12" fill="#fbbf24" opacity="0.8" filter="blur(3px)" />' : '';
   const headlightBeams = headlightOn ? '<rect x="10" y="-15" width="14" height="20" fill="#fef08a" opacity="0.5" filter="blur(4px)" /><rect x="76" y="-15" width="14" height="20" fill="#fef08a" opacity="0.5" filter="blur(4px)" />' : '';
@@ -1102,15 +1105,33 @@ function getBusSvg(bodyColor, stripeColor, headlightOn) {
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 200" width="100" height="200">
       ${headlightGlow}
       ${headlightBeams}
-      <rect x="2" y="8" width="96" height="184" rx="12" fill="rgba(0,0,0,0.5)" filter="blur(4px)" />
-      <rect x="6" y="4" width="88" height="192" rx="12" fill="#0f172a" stroke="#1e293b" stroke-width="2"/>
+      <!-- Sombra suave em relevo 3D -->
+      <rect x="2" y="8" width="96" height="184" rx="12" fill="rgba(0,0,0,0.6)" filter="blur(4px)" />
+      
+      <!-- Carroçaria principal com a cor selecionada no menu -->
       <path d="M 6,18 C 6,8 16,6 50,6 C 84,6 94,8 94,18 L 94,182 C 94,192 84,196 50,196 C 16,196 6,192 6,182 Z" fill="${bodyColor}" />
-      <path d="M 6,75 L 94,75 L 94,135 L 6,140 Z" fill="${stripeColor}" opacity="0.9" />
+      
+      <!-- Faixa lateral de destaque -->
+      <path d="M 6,75 L 94,75 L 94,135 L 6,140 Z" fill="${stripeColor}" opacity="0.95" />
+      
+      <!-- Traseira e para-choques -->
       <path d="M 6,135 L 94,130 L 94,188 C 94,194 84,196 50,196 C 16,196 6,194 6,188 Z" fill="#1e293b" />
-      <path d="M 10,10 L 90,10 L 84,40 L 16,40 Z" fill="#0f172a" stroke="#cbd5e1" stroke-width="1.5" />
-      <path d="M 14,13 L 86,13 L 82,37 L 18,37 Z" fill="#38bdf8" opacity="0.6" />
+      
+      <!-- Para-brisa Panorâmico Dianteiro -->
+      <path d="M 10,10 L 90,10 L 84,42 L 16,42 Z" fill="#0f172a" stroke="#cbd5e1" stroke-width="1.5" />
+      <path d="M 14,13 L 86,13 L 82,39 L 18,39 Z" fill="#38bdf8" opacity="0.7" />
+      
+      <!-- Janelas Laterais de Passageiros -->
+      <rect x="8" y="50" width="10" height="22" rx="2" fill="#38bdf8" opacity="0.6" />
+      <rect x="82" y="50" width="10" height="22" rx="2" fill="#38bdf8" opacity="0.6" />
+      <rect x="8" y="82" width="10" height="22" rx="2" fill="#38bdf8" opacity="0.6" />
+      <rect x="82" y="82" width="10" height="22" rx="2" fill="#38bdf8" opacity="0.6" />
+      
+      <!-- Faróis dianteiros -->
       <rect x="10" y="2" width="14" height="5" rx="2" fill="${headlightOn ? '#fef08a' : '#fbbf24'}" />
       <rect x="76" y="2" width="14" height="5" rx="2" fill="${headlightOn ? '#fef08a' : '#fbbf24'}" />
+      
+      <!-- Lanternas traseiras -->
       <rect x="12" y="193" width="12" height="3" fill="#ef4444" rx="1" />
       <rect x="76" y="193" width="12" height="3" fill="#ef4444" rx="1" />
     </svg>
