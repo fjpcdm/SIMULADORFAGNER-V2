@@ -156,34 +156,6 @@ const cssStyles = `
     max-width: 90vw !important;
   }
 
-  .landmark-banner {
-    position: absolute !important;
-    top: 65px !important;
-    left: 50% !important;
-    transform: translateX(-50%) !important;
-    z-index: 999998 !important;
-    background: rgba(15, 23, 42, 0.9) !important;
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    color: #f59e0b !important;
-    padding: 6px 16px !important;
-    border-radius: 16px !important;
-    font-weight: bold !important;
-    font-size: 0.8rem !important;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.5) !important;
-    border: 1px solid rgba(245, 158, 11, 0.5) !important;
-    text-align: center !important;
-    display: none;
-    pointer-events: none;
-    white-space: nowrap;
-    animation: fadeInOut 0.5s ease;
-  }
-
-  @keyframes fadeInOut {
-    from { opacity: 0; transform: translate(-50%, -10px); }
-    to { opacity: 1; transform: translate(-50%, 0); }
-  }
-
   .mobile-top-bar {
     position: absolute;
     top: 12px;
@@ -218,7 +190,7 @@ const cssStyles = `
 
   .hud {
     position: absolute !important;
-    top: 100px !important;
+    top: 60px !important;
     left: 15px !important;
     z-index: 999999 !important;
     background: rgba(15, 23, 42, 0.92) !important;
@@ -595,19 +567,6 @@ function showAlert(message) {
   }, 1800);
 }
 
-const landmarkBanner = document.createElement('div');
-landmarkBanner.className = 'landmark-banner';
-landmarkBanner.id = 'landmarkBanner';
-document.body.appendChild(landmarkBanner);
-
-function showLandmark(text) {
-  landmarkBanner.textContent = `📍 Você está em: ${text}`;
-  landmarkBanner.style.display = 'block';
-  setTimeout(() => {
-    landmarkBanner.style.display = 'none';
-  }, 4000);
-}
-
 const COLOR_PRESETS = {
   'vermelho': { name: 'Vermelho', bodyColor: '#ff2c2c', stripeColor: '#ff2c2c' },
   'azul': { name: 'Azul', bodyColor: '#1883ff', stripeColor: '#1883ff' },
@@ -828,8 +787,6 @@ let speedMultiplier = 1.0;
 let currentCameraMode = 'street'; 
 let currentZoomLevel = 19.8; 
 
-let lastLandmarkCheckKm = 0;
-
 const keysPressed = { Up: false, Down: false, Left: false, Right: false };
 
 function calculateBearing(startCoord, endCoord) {
@@ -1013,7 +970,6 @@ document.getElementById('btnStartLineMode').addEventListener('click', () => {
   isAutopilotMoving = false;
   currentSpeedKmh = 0;
   distanceCoveredKm = 0;
-  lastLandmarkCheckKm = 0;
 
   targetHeading = calculateBearing(activePath[0], activePath[1]);
   smoothHeading = targetHeading;
@@ -1035,7 +991,6 @@ document.getElementById('btnStartFreeMode').addEventListener('click', async () =
   currentSpeedKmh = 0;
   isAutopilotMoving = true;
   distanceCoveredKm = 0;
-  lastLandmarkCheckKm = 0;
   cruiseSpeedKmh = 90;
   boostSpeedKmh = 140;
   speedMultiplier = 1.0;
@@ -1051,14 +1006,11 @@ document.getElementById('btnStartFreeMode').addEventListener('click', async () =
       const lon = parseFloat(data[0].lon);
       const lat = parseFloat(data[0].lat);
       startSimulation([lon, lat]);
-      showLandmark(data[0].display_name.split(',')[0]);
     } else {
       startSimulation([-43.941879, -19.913783]);
-      showLandmark("Belo Horizonte - Centro");
     }
   } catch (err) {
     startSimulation([-43.941879, -19.913783]);
-    showLandmark("Belo Horizonte - Centro");
   }
 });
 
@@ -1118,7 +1070,6 @@ function exitGame() {
   leftControlsContainer.style.display = 'none';
   rightControlsContainer.style.display = 'none';
   mapBanner.style.display = 'none';
-  landmarkBanner.style.display = 'none';
 
   document.getElementById('cardLineMode').style.display = 'none';
   document.getElementById('cardFreeMode').style.display = 'none';
@@ -1390,21 +1341,6 @@ function gameLoop(now) {
   const distStep = getMetersBetween(prev, [busLng, busLat]) / 1000;
   if (!isNaN(distStep)) {
     distanceCoveredKm += distStep;
-  }
-
-  if (distanceCoveredKm - lastLandmarkCheckKm >= 1.5) {
-    lastLandmarkCheckKm = distanceCoveredKm;
-    const landmarks = [
-      "Centro / Área Comercial",
-      "Avenida Principal",
-      "Corredor Metropolitano",
-      "Trevo de Acesso Regional",
-      "Via de Contorno",
-      "Terminal de Integração",
-      "Área Residencial Norte"
-    ];
-    const randomLandmark = landmarks[Math.floor(Math.random() * landmarks.length)];
-    showLandmark(randomLandmark);
   }
 
   const distFormatted = `${distanceCoveredKm.toFixed(2)} km`;
