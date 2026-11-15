@@ -318,10 +318,34 @@ const cssStyles = `
     border-color: #f59e0b;
   }
 
+  .camera-controls {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 8px;
+  }
+
+  .btn-camera {
+    flex: 1;
+    padding: 6px 4px;
+    font-size: 0.7rem;
+    font-weight: bold;
+    color: #ffffff;
+    background: #334155;
+    border: 1px solid #38bdf8;
+    border-radius: 6px;
+    cursor: pointer;
+    text-align: center;
+  }
+
+  .btn-camera.active {
+    background: #38bdf8 !important;
+    color: #0f172a;
+  }
+
   .zoom-controls {
     display: flex;
     gap: 8px;
-    margin-top: 8px;
+    margin-top: 4px;
   }
 
   .btn-zoom {
@@ -533,8 +557,8 @@ const cssStyles = `
   }
 
   .bus-marker-img {
-    width: 22px !important;
-    height: 44px !important;
+    width: 24px !important;
+    height: 48px !important;
     display: block !important;
     filter: drop-shadow(0px 3px 6px rgba(0, 0, 0, 0.95));
   }
@@ -703,6 +727,15 @@ hudContainer.innerHTML = `
   </div>
 
   <button class="btn-headlight" id="btnHeadlightToggle">🔦 Farol: Desligado</button>
+  
+  <div style="margin-bottom: 6px; font-size: 0.75rem; color: #94a3b8; font-weight: bold;">CÂMERA & VISÃO</div>
+  <div class="camera-controls">
+    <button id="btnCamStreet" class="btn-camera active">🛣️ Rua</button>
+    <button id="btnCamRear" class="btn-camera">🔙 Traseira</button>
+    <button id="btnCamFront" class="btn-camera">👁️ Frente</button>
+    <button id="btnCamSide" class="btn-camera">📐 Lado</button>
+  </div>
+
   <div class="trip-status-badge stopped" id="tripStatusBadge">Aguardando Partida</div>
   <button class="btn-trip-toggle start" id="btnTripToggle">▶️ Dar Entrada na Viagem</button>
 
@@ -743,9 +776,10 @@ let busMarker = null;
 let animationFrameId = null;
 
 let currentGameMode = 'line'; 
-let busLabelText = '';
 let activePresetKey = 'vermelho';
 let isHeadlightOn = false;
+let currentVehicleType = 'urbano'; // 'urbano' (Apache VIP) ou 'rodoviario' (Viaggio G8)
+let activeLetreiroText = "EXECUTIVO";
 
 let activePath = [];
 let busLng = 0;
@@ -772,6 +806,10 @@ let tripStartTime = null;
 let tripTimerInterval = null;
 let tripStartRealTimeStr = "";
 let speedMultiplier = 1.0;
+
+// Modos de Câmera: 'street' (Visão de Rua 3D), 'rear' (Traseira externa), 'front' (Frente), 'side' (Lateral)
+let currentCameraMode = 'street'; 
+let currentZoomLevel = 19.0;
 
 const keysPressed = { Up: false, Down: false, Left: false, Right: false };
 
@@ -843,11 +881,31 @@ btnHeadlightToggle.addEventListener('click', () => {
     btnHeadlightToggle.className = 'btn-headlight';
     btnHeadlightToggle.textContent = '🔦 Farol: Desligado';
   }
-  if (busMarker) {
-    const preset = COLOR_PRESETS[activePresetKey] || COLOR_PRESETS['vermelho'];
-    busMarker.getElement().src = getBusSvg(preset.bodyColor, preset.stripeColor, isHeadlightOn);
-  }
+  updateBusMarkerIcon();
 });
+
+// Configuração dos botões de Câmera
+function setCameraMode(mode) {
+  currentCameraMode = mode;
+  ['btnCamStreet', 'btnCamRear', 'btnCamFront', 'btnCamSide'].forEach(id => {
+    document.getElementById(id).classList.remove('active');
+  });
+  if (mode === 'street') document.getElementById('btnCamStreet').classList.add('active');
+  if (mode === 'rear') document.getElementById('btnCamRear').classList.add('active');
+  if (mode === 'front') document.getElementById('btnCamFront').classList.add('active');
+  if (mode === 'side') document.getElementById('btnCamSide').classList.add('active');
+}
+
+document.getElementById('btnCamStreet').addEventListener('click', () => setCameraMode('street'));
+document.getElementById('btnCamRear').addEventListener('click', () => setCameraMode('rear'));
+document.getElementById('btnCamFront').addEventListener('click', () => setCameraMode('front'));
+document.getElementById('btnCamSide').addEventListener('click', () => setCameraMode('side'));
+
+function updateBusMarkerIcon() {
+  if (!busMarker) return;
+  const preset = COLOR_PRESETS[activePresetKey] || COLOR_PRESETS['vermelho'];
+  busMarker.getElement().src = getBusSvg(preset.bodyColor, preset.stripeColor, isHeadlightOn, currentVehicleType, activeLetreiroText);
+}
 
 function bindTouch(elementId, keyName) {
   const el = document.getElementById(elementId);
@@ -913,7 +971,6 @@ document.getElementById('btnStartLineMode').addEventListener('click', () => {
   currentGameMode = 'line';
   const selectedKey = document.getElementById('selectLine').value;
   activePresetKey = document.getElementById('selectColorLine').value || 'vermelho';
-  busLabelText = 'EXECUTIVO';
 
   const db = getLinesDatabase();
   const lineData = db[selectedKey] || Object.values(db)[0];
@@ -922,9 +979,11 @@ document.getElementById('btnStartLineMode').addEventListener('click', () => {
     return;
   }
 
-  const isRodoviario = lineData.tipo === 'rodoviario';
+  // Identifica se é rodoviário (Viaggio G8) ou urbano (Apache VIP)
+  currentVehicleType = lineData.tipo === 'rodoviario' ? 'rodoviario' : 'urbano';
+  activeLetreiroText = lineData.nome || "LINHA MUNICIPAL";
 
-  if (isRodoviario) {
+  if (currentVehicleType === 'rodoviario') {
     cruiseSpeedKmh = 140;
     boostSpeedKmh = 180;
   } else {
@@ -959,7 +1018,8 @@ document.getElementById('btnStartLineMode').addEventListener('click', () => {
 
 document.getElementById('btnStartFreeMode').addEventListener('click', async () => {
   currentGameMode = 'free';
-  busLabelText = 'EXECUTIVO';
+  currentVehicleType = 'urbano';
+  activeLetreiroText = "EXECUTIVO LIVRE";
   activePresetKey = document.getElementById('selectColorFree').value || 'vermelho';
   const locationQuery = document.getElementById('inputFreeLocation').value.trim();
 
@@ -1095,43 +1155,52 @@ function mostrarRelatorioFinal() {
 }
 
 // ==========================================
-// NOVO SISTEMA DE ÍCONES DE AUTOCARRO (DETALHADO E REALISTA)
+// SISTEMA DE ÍCONES: CAIO APACHE VIP (Urbano) vs. MARCOPOLO VIAGGIO G8 (Rodoviário) com Letreiro LED
 // ==========================================
-function getBusSvg(bodyColor, stripeColor, headlightOn) {
+function getBusSvg(bodyColor, stripeColor, headlightOn, tipo = 'urbano', letreiroText = 'EXECUTIVO') {
   const headlightGlow = headlightOn ? '<circle cx="50" cy="2" r="12" fill="#fbbf24" opacity="0.8" filter="blur(3px)" />' : '';
   const headlightBeams = headlightOn ? '<rect x="10" y="-15" width="14" height="20" fill="#fef08a" opacity="0.5" filter="blur(4px)" /><rect x="76" y="-15" width="14" height="20" fill="#fef08a" opacity="0.5" filter="blur(4px)" />' : '';
   
+  // Diferencia o formato do teto/carroçaria: Urbano (Apache VIP - mais quadrado e robusto) vs Rodoviário (Viaggio G8 - mais aerodinâmico)
+  let bodyPath = tipo === 'rodoviario'
+    ? '<path d="M 8,20 C 8,10 18,6 50,6 C 82,6 92,10 92,20 L 94,185 C 94,194 84,196 50,196 C 16,196 6,194 6,185 Z" fill="' + bodyColor + '" />'
+    : '<path d="M 6,15 C 6,6 14,4 50,4 C 86,4 94,6 94,15 L 94,185 C 94,195 84,196 50,196 C 16,196 6,195 6,185 Z" fill="' + bodyColor + '" />';
+
   return 'data:image/svg+xml;utf8,' + encodeURIComponent(`
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 200" width="100" height="200">
       ${headlightGlow}
       ${headlightBeams}
-      <!-- Sombra suave em relevo 3D -->
+      <!-- Sombra volumétrica -->
       <rect x="2" y="8" width="96" height="184" rx="12" fill="rgba(0,0,0,0.6)" filter="blur(4px)" />
       
-      <!-- Carroçaria principal com a cor selecionada no menu -->
-      <path d="M 6,18 C 6,8 16,6 50,6 C 84,6 94,8 94,18 L 94,182 C 94,192 84,196 50,196 C 16,196 6,192 6,182 Z" fill="${bodyColor}" />
+      <!-- Carroçaria Principal -->
+      ${bodyPath}
       
-      <!-- Faixa lateral de destaque -->
+      <!-- Faixa Lateral de Destaque -->
       <path d="M 6,75 L 94,75 L 94,135 L 6,140 Z" fill="${stripeColor}" opacity="0.95" />
       
-      <!-- Traseira e para-choques -->
+      <!-- Traseira e Para-choques -->
       <path d="M 6,135 L 94,130 L 94,188 C 94,194 84,196 50,196 C 16,196 6,194 6,188 Z" fill="#1e293b" />
       
-      <!-- Para-brisa Panorâmico Dianteiro -->
-      <path d="M 10,10 L 90,10 L 84,42 L 16,42 Z" fill="#0f172a" stroke="#cbd5e1" stroke-width="1.5" />
-      <path d="M 14,13 L 86,13 L 82,39 L 18,39 Z" fill="#38bdf8" opacity="0.7" />
+      <!-- Para-brisa Panorâmico -->
+      <path d="M 10,12 L 90,12 L 84,40 L 16,40 Z" fill="#0f172a" stroke="#cbd5e1" stroke-width="1.5" />
+      <path d="M 14,15 L 86,15 L 82,37 L 18,37 Z" fill="#38bdf8" opacity="0.7" />
+
+      <!-- LETREIRO ELETRÓNICO LED (Número e Destino) -->
+      <rect x="20" y="18" width="60" height="14" rx="2" fill="#000000" stroke="#38bdf8" stroke-width="0.8" />
+      <text x="50" y="28" fill="#4ade80" font-size="8.5" font-weight="bold" font-family="monospace" text-anchor="middle">${letreiroText}</text>
       
       <!-- Janelas Laterais de Passageiros -->
-      <rect x="8" y="50" width="10" height="22" rx="2" fill="#38bdf8" opacity="0.6" />
-      <rect x="82" y="50" width="10" height="22" rx="2" fill="#38bdf8" opacity="0.6" />
-      <rect x="8" y="82" width="10" height="22" rx="2" fill="#38bdf8" opacity="0.6" />
-      <rect x="82" y="82" width="10" height="22" rx="2" fill="#38bdf8" opacity="0.6" />
+      <rect x="8" y="48" width="10" height="24" rx="2" fill="#38bdf8" opacity="0.6" />
+      <rect x="82" y="48" width="10" height="24" rx="2" fill="#38bdf8" opacity="0.6" />
+      <rect x="8" y="80" width="10" height="24" rx="2" fill="#38bdf8" opacity="0.6" />
+      <rect x="82" y="80" width="10" height="24" rx="2" fill="#38bdf8" opacity="0.6" />
       
-      <!-- Faróis dianteiros -->
-      <rect x="10" y="2" width="14" height="5" rx="2" fill="${headlightOn ? '#fef08a' : '#fbbf24'}" />
-      <rect x="76" y="2" width="14" height="5" rx="2" fill="${headlightOn ? '#fef08a' : '#fbbf24'}" />
+      <!-- Faróis Dianteiros -->
+      <rect x="10" y="3" width="14" height="5" rx="2" fill="${headlightOn ? '#fef08a' : '#fbbf24'}" />
+      <rect x="76" y="3" width="14" height="5" rx="2" fill="${headlightOn ? '#fef08a' : '#fbbf24'}" />
       
-      <!-- Lanternas traseiras -->
+      <!-- Lanternas Traseiras -->
       <rect x="12" y="193" width="12" height="3" fill="#ef4444" rx="1" />
       <rect x="76" y="193" width="12" height="3" fill="#ef4444" rx="1" />
     </svg>
@@ -1164,8 +1233,8 @@ function initMap(startCoords) {
       layers: [{ id: 'google-hybrid-layer', type: 'raster', source: 'google-hybrid-source', minzoom: 0, maxzoom: 22 }]
     },
     center: startCoords,
-    zoom: 19.0,
-    pitch: 0,
+    zoom: currentZoomLevel,
+    pitch: 65, // Visão 3D de rua imersiva
     bearing: smoothHeading,
     renderWorldCopies: false
   });
@@ -1174,7 +1243,7 @@ function initMap(startCoords) {
 
   const busImg = document.createElement('img');
   busImg.className = 'bus-marker-img';
-  busImg.src = getBusSvg(preset.bodyColor, preset.stripeColor, isHeadlightOn);
+  busImg.src = getBusSvg(preset.bodyColor, preset.stripeColor, isHeadlightOn, currentVehicleType, activeLetreiroText);
 
   busMarker = new maplibregl.Marker({ element: busImg, anchor: 'center' })
     .setLngLat(startCoords)
@@ -1309,7 +1378,7 @@ function gameLoop(now) {
       smoothHeading = lerpHeading(smoothHeading, targetHeading, 4.0 * deltaTime);
     }
   } else {
-    // MODO LIVRE (com controlos completos de aceleração e setas de direção móveis/teclado)
+    // MODO LIVRE
     let desiredSpeed = 0;
     if (keysPressed.Down) {
       currentSpeedKmh = Math.max(currentSpeedKmh - 60 * deltaTime, 0);
@@ -1365,9 +1434,29 @@ function gameLoop(now) {
     busMarker.setLngLat(currentCoords);
   }
 
+  // Câmaras Dinâmicas Adaptadas (Rua 3D, Traseira, Frente, Lado)
+  let targetPitch = 65;
+  let targetBearingOffset = 0;
+
+  if (currentCameraMode === 'street') {
+    targetPitch = 68; // Visão imersiva estilo GPS/rua
+    targetBearingOffset = 0;
+  } else if (currentCameraMode === 'rear') {
+    targetPitch = 45; // Visão externa traseira
+    targetBearingOffset = 180;
+  } else if (currentCameraMode === 'front') {
+    targetPitch = 50; // Visão frontal
+    targetBearingOffset = 0;
+  } else if (currentCameraMode === 'side') {
+    targetPitch = 30; // Visão lateral panorâmica
+    targetBearingOffset = 90;
+  }
+
   map.jumpTo({
     center: currentCoords,
-    bearing: smoothHeading
+    bearing: smoothHeading + targetBearingOffset,
+    pitch: targetPitch,
+    zoom: currentZoomLevel
   });
 
   if (!isLineFinished) {
@@ -1377,14 +1466,14 @@ function gameLoop(now) {
 
 document.getElementById('btnZoomNear').addEventListener('pointerdown', (e) => {
   e.stopPropagation();
-  map.setZoom(19.2);
+  currentZoomLevel = 19.4;
   document.getElementById('btnZoomNear').classList.add('active');
   document.getElementById('btnZoomFar').classList.remove('active');
 });
 
 document.getElementById('btnZoomFar').addEventListener('pointerdown', (e) => {
   e.stopPropagation();
-  map.setZoom(17.4);
+  currentZoomLevel = 17.8;
   document.getElementById('btnZoomFar').classList.add('active');
   document.getElementById('btnZoomNear').classList.remove('active');
 });
