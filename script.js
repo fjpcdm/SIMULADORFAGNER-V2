@@ -299,35 +299,16 @@ const cssStyles = `
     color: #0f172a;
   }
 
-  .btn-headlight {
-    width: 100%;
-    padding: 8px;
-    border-radius: 8px;
-    font-weight: bold;
-    font-size: 0.8rem;
-    cursor: pointer;
-    border: 1px solid #38bdf8;
-    background: #334155;
-    color: #ffffff;
-    margin-bottom: 8px;
-  }
-
-  .btn-headlight.active {
-    background: #fbbf24;
-    color: #0f172a;
-    border-color: #f59e0b;
-  }
-
   .camera-controls {
     display: flex;
-    gap: 4px;
+    gap: 6px;
     margin-bottom: 8px;
   }
 
   .btn-camera {
     flex: 1;
-    padding: 6px 4px;
-    font-size: 0.7rem;
+    padding: 8px 6px;
+    font-size: 0.75rem;
     font-weight: bold;
     color: #ffffff;
     background: #334155;
@@ -557,8 +538,8 @@ const cssStyles = `
   }
 
   .bus-marker-img {
-    width: 24px !important;
-    height: 48px !important;
+    width: 18px !important;
+    height: 36px !important;
     display: block !important;
     filter: drop-shadow(0px 3px 6px rgba(0, 0, 0, 0.95));
   }
@@ -726,14 +707,10 @@ hudContainer.innerHTML = `
     </div>
   </div>
 
-  <button class="btn-headlight" id="btnHeadlightToggle">🔦 Farol: Desligado</button>
-  
-  <div style="margin-bottom: 6px; font-size: 0.75rem; color: #94a3b8; font-weight: bold;">CÂMERA & VISÃO</div>
+  <div style="margin-bottom: 6px; font-size: 0.75rem; color: #94a3b8; font-weight: bold;">ESCOLHA DA CÂMERA</div>
   <div class="camera-controls">
-    <button id="btnCamStreet" class="btn-camera active">🛣️ Rua</button>
-    <button id="btnCamRear" class="btn-camera">🔙 Traseira</button>
-    <button id="btnCamFront" class="btn-camera">👁️ Frente</button>
-    <button id="btnCamSide" class="btn-camera">📐 Lado</button>
+    <button id="btnCamStreet" class="btn-camera active">🛣️ Visão Rua</button>
+    <button id="btnCamTop" class="btn-camera">🌐 Visão Cima</button>
   </div>
 
   <div class="trip-status-badge stopped" id="tripStatusBadge">Aguardando Partida</div>
@@ -777,8 +754,7 @@ let animationFrameId = null;
 
 let currentGameMode = 'line'; 
 let activePresetKey = 'vermelho';
-let isHeadlightOn = false;
-let currentVehicleType = 'urbano'; // 'urbano' (Apache VIP) ou 'rodoviario' (Viaggio G8)
+let currentVehicleType = 'urbano'; 
 let activeLetreiroText = "EXECUTIVO";
 
 let activePath = [];
@@ -807,9 +783,9 @@ let tripTimerInterval = null;
 let tripStartRealTimeStr = "";
 let speedMultiplier = 1.0;
 
-// Modos de Câmera: 'street' (Visão de Rua 3D), 'rear' (Traseira externa), 'front' (Frente), 'side' (Lateral)
+// Câmaras: 'street' (Visão de rua próxima e imersiva) ou 'top' (Visão de cima clássica)
 let currentCameraMode = 'street'; 
-let currentZoomLevel = 19.0;
+let currentZoomLevel = 19.5; // Zoom bem próximo para a visão de rua
 
 const keysPressed = { Up: false, Down: false, Left: false, Right: false };
 
@@ -871,40 +847,28 @@ document.getElementById('btnToggleHud').addEventListener('pointerdown', (e) => {
   hudContainer.classList.toggle('mobile-visible');
 });
 
-const btnHeadlightToggle = document.getElementById('btnHeadlightToggle');
-btnHeadlightToggle.addEventListener('click', () => {
-  isHeadlightOn = !isHeadlightOn;
-  if (isHeadlightOn) {
-    btnHeadlightToggle.className = 'btn-headlight active';
-    btnHeadlightToggle.textContent = '🔦 Farol: Ligado';
-  } else {
-    btnHeadlightToggle.className = 'btn-headlight';
-    btnHeadlightToggle.textContent = '🔦 Farol: Desligado';
-  }
-  updateBusMarkerIcon();
-});
-
-// Configuração dos botões de Câmera
+// Configuração dos botões de Câmera (Visão Rua vs Visão Cima)
 function setCameraMode(mode) {
   currentCameraMode = mode;
-  ['btnCamStreet', 'btnCamRear', 'btnCamFront', 'btnCamSide'].forEach(id => {
+  ['btnCamStreet', 'btnCamTop'].forEach(id => {
     document.getElementById(id).classList.remove('active');
   });
-  if (mode === 'street') document.getElementById('btnCamStreet').classList.add('active');
-  if (mode === 'rear') document.getElementById('btnCamRear').classList.add('active');
-  if (mode === 'front') document.getElementById('btnCamFront').classList.add('active');
-  if (mode === 'side') document.getElementById('btnCamSide').classList.add('active');
+  if (mode === 'street') {
+    document.getElementById('btnCamStreet').classList.add('active');
+    currentZoomLevel = 19.5; // Aproxima bem da rua
+  } else if (mode === 'top') {
+    document.getElementById('btnCamTop').classList.add('active');
+    currentZoomLevel = 17.5; // Visão de cima com o ônibus menor na via
+  }
 }
 
 document.getElementById('btnCamStreet').addEventListener('click', () => setCameraMode('street'));
-document.getElementById('btnCamRear').addEventListener('click', () => setCameraMode('rear'));
-document.getElementById('btnCamFront').addEventListener('click', () => setCameraMode('front'));
-document.getElementById('btnCamSide').addEventListener('click', () => setCameraMode('side'));
+document.getElementById('btnCamTop').addEventListener('click', () => setCameraMode('top'));
 
 function updateBusMarkerIcon() {
   if (!busMarker) return;
   const preset = COLOR_PRESETS[activePresetKey] || COLOR_PRESETS['vermelho'];
-  busMarker.getElement().src = getBusSvg(preset.bodyColor, preset.stripeColor, isHeadlightOn, currentVehicleType, activeLetreiroText);
+  busMarker.getElement().src = getBusSvg(preset.bodyColor, preset.stripeColor, currentVehicleType, activeLetreiroText);
 }
 
 function bindTouch(elementId, keyName) {
@@ -979,7 +943,6 @@ document.getElementById('btnStartLineMode').addEventListener('click', () => {
     return;
   }
 
-  // Identifica se é rodoviário (Viaggio G8) ou urbano (Apache VIP)
   currentVehicleType = lineData.tipo === 'rodoviario' ? 'rodoviario' : 'urbano';
   activeLetreiroText = lineData.nome || "LINHA MUNICIPAL";
 
@@ -1155,52 +1118,33 @@ function mostrarRelatorioFinal() {
 }
 
 // ==========================================
-// SISTEMA DE ÍCONES: CAIO APACHE VIP (Urbano) vs. MARCOPOLO VIAGGIO G8 (Rodoviário) com Letreiro LED
+// ÍCONES DE AUTOCARRO COM LETREIRO LED
 // ==========================================
-function getBusSvg(bodyColor, stripeColor, headlightOn, tipo = 'urbano', letreiroText = 'EXECUTIVO') {
-  const headlightGlow = headlightOn ? '<circle cx="50" cy="2" r="12" fill="#fbbf24" opacity="0.8" filter="blur(3px)" />' : '';
-  const headlightBeams = headlightOn ? '<rect x="10" y="-15" width="14" height="20" fill="#fef08a" opacity="0.5" filter="blur(4px)" /><rect x="76" y="-15" width="14" height="20" fill="#fef08a" opacity="0.5" filter="blur(4px)" />' : '';
-  
-  // Diferencia o formato do teto/carroçaria: Urbano (Apache VIP - mais quadrado e robusto) vs Rodoviário (Viaggio G8 - mais aerodinâmico)
+function getBusSvg(bodyColor, stripeColor, tipo = 'urbano', letreiroText = 'EXECUTIVO') {
   let bodyPath = tipo === 'rodoviario'
     ? '<path d="M 8,20 C 8,10 18,6 50,6 C 82,6 92,10 92,20 L 94,185 C 94,194 84,196 50,196 C 16,196 6,194 6,185 Z" fill="' + bodyColor + '" />'
     : '<path d="M 6,15 C 6,6 14,4 50,4 C 86,4 94,6 94,15 L 94,185 C 94,195 84,196 50,196 C 16,196 6,195 6,185 Z" fill="' + bodyColor + '" />';
 
   return 'data:image/svg+xml;utf8,' + encodeURIComponent(`
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 200" width="100" height="200">
-      ${headlightGlow}
-      ${headlightBeams}
-      <!-- Sombra volumétrica -->
       <rect x="2" y="8" width="96" height="184" rx="12" fill="rgba(0,0,0,0.6)" filter="blur(4px)" />
-      
-      <!-- Carroçaria Principal -->
       ${bodyPath}
-      
-      <!-- Faixa Lateral de Destaque -->
       <path d="M 6,75 L 94,75 L 94,135 L 6,140 Z" fill="${stripeColor}" opacity="0.95" />
-      
-      <!-- Traseira e Para-choques -->
       <path d="M 6,135 L 94,130 L 94,188 C 94,194 84,196 50,196 C 16,196 6,194 6,188 Z" fill="#1e293b" />
-      
-      <!-- Para-brisa Panorâmico -->
       <path d="M 10,12 L 90,12 L 84,40 L 16,40 Z" fill="#0f172a" stroke="#cbd5e1" stroke-width="1.5" />
       <path d="M 14,15 L 86,15 L 82,37 L 18,37 Z" fill="#38bdf8" opacity="0.7" />
 
-      <!-- LETREIRO ELETRÓNICO LED (Número e Destino) -->
+      <!-- LETREIRO ELETRÓNICO LED -->
       <rect x="20" y="18" width="60" height="14" rx="2" fill="#000000" stroke="#38bdf8" stroke-width="0.8" />
       <text x="50" y="28" fill="#4ade80" font-size="8.5" font-weight="bold" font-family="monospace" text-anchor="middle">${letreiroText}</text>
       
-      <!-- Janelas Laterais de Passageiros -->
       <rect x="8" y="48" width="10" height="24" rx="2" fill="#38bdf8" opacity="0.6" />
       <rect x="82" y="48" width="10" height="24" rx="2" fill="#38bdf8" opacity="0.6" />
       <rect x="8" y="80" width="10" height="24" rx="2" fill="#38bdf8" opacity="0.6" />
       <rect x="82" y="80" width="10" height="24" rx="2" fill="#38bdf8" opacity="0.6" />
       
-      <!-- Faróis Dianteiros -->
-      <rect x="10" y="3" width="14" height="5" rx="2" fill="${headlightOn ? '#fef08a' : '#fbbf24'}" />
-      <rect x="76" y="3" width="14" height="5" rx="2" fill="${headlightOn ? '#fef08a' : '#fbbf24'}" />
-      
-      <!-- Lanternas Traseiras -->
+      <rect x="10" y="3" width="14" height="5" rx="2" fill="#fbbf24" />
+      <rect x="76" y="3" width="14" height="5" rx="2" fill="#fbbf24" />
       <rect x="12" y="193" width="12" height="3" fill="#ef4444" rx="1" />
       <rect x="76" y="193" width="12" height="3" fill="#ef4444" rx="1" />
     </svg>
@@ -1234,7 +1178,7 @@ function initMap(startCoords) {
     },
     center: startCoords,
     zoom: currentZoomLevel,
-    pitch: 65, // Visão 3D de rua imersiva
+    pitch: 70, // Visão de rua bem próxima e imersiva
     bearing: smoothHeading,
     renderWorldCopies: false
   });
@@ -1243,7 +1187,7 @@ function initMap(startCoords) {
 
   const busImg = document.createElement('img');
   busImg.className = 'bus-marker-img';
-  busImg.src = getBusSvg(preset.bodyColor, preset.stripeColor, isHeadlightOn, currentVehicleType, activeLetreiroText);
+  busImg.src = getBusSvg(preset.bodyColor, preset.stripeColor, currentVehicleType, activeLetreiroText);
 
   busMarker = new maplibregl.Marker({ element: busImg, anchor: 'center' })
     .setLngLat(startCoords)
@@ -1434,27 +1378,19 @@ function gameLoop(now) {
     busMarker.setLngLat(currentCoords);
   }
 
-  // Câmaras Dinâmicas Adaptadas (Rua 3D, Traseira, Frente, Lado)
-  let targetPitch = 65;
-  let targetBearingOffset = 0;
+  // Comportamento dinâmico de câmera: Visão de Rua (próxima e inclinada) vs Visão de Cima (clássica plana)
+  let targetPitch = 70;
+  let targetBearing = smoothHeading;
 
   if (currentCameraMode === 'street') {
-    targetPitch = 68; // Visão imersiva estilo GPS/rua
-    targetBearingOffset = 0;
-  } else if (currentCameraMode === 'rear') {
-    targetPitch = 45; // Visão externa traseira
-    targetBearingOffset = 180;
-  } else if (currentCameraMode === 'front') {
-    targetPitch = 50; // Visão frontal
-    targetBearingOffset = 0;
-  } else if (currentCameraMode === 'side') {
-    targetPitch = 30; // Visão lateral panorâmica
-    targetBearingOffset = 90;
+    targetPitch = 72; // Bem próximo e imersivo na rua
+  } else if (currentCameraMode === 'top') {
+    targetPitch = 0;  // Visão de cima perfeitamente plana tradicional
   }
 
   map.jumpTo({
     center: currentCoords,
-    bearing: smoothHeading + targetBearingOffset,
+    bearing: targetBearing,
     pitch: targetPitch,
     zoom: currentZoomLevel
   });
@@ -1466,14 +1402,22 @@ function gameLoop(now) {
 
 document.getElementById('btnZoomNear').addEventListener('pointerdown', (e) => {
   e.stopPropagation();
-  currentZoomLevel = 19.4;
+  if (currentCameraMode === 'street') {
+    currentZoomLevel = 19.8;
+  } else {
+    currentZoomLevel = 18.2;
+  }
   document.getElementById('btnZoomNear').classList.add('active');
   document.getElementById('btnZoomFar').classList.remove('active');
 });
 
 document.getElementById('btnZoomFar').addEventListener('pointerdown', (e) => {
   e.stopPropagation();
-  currentZoomLevel = 17.8;
+  if (currentCameraMode === 'street') {
+    currentZoomLevel = 18.5;
+  } else {
+    currentZoomLevel = 16.5; // Visão de longe onde o ônibus fica menor na via
+  }
   document.getElementById('btnZoomFar').classList.add('active');
   document.getElementById('btnZoomNear').classList.remove('active');
 });
