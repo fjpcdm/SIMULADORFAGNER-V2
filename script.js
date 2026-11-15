@@ -300,15 +300,15 @@ const cssStyles = `
   }
 
   .camera-controls {
-    display: flex;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
     gap: 6px;
     margin-bottom: 8px;
   }
 
   .btn-camera {
-    flex: 1;
-    padding: 8px 6px;
-    font-size: 0.75rem;
+    padding: 8px 4px;
+    font-size: 0.7rem;
     font-weight: bold;
     color: #ffffff;
     background: #334155;
@@ -710,6 +710,7 @@ hudContainer.innerHTML = `
   <div style="margin-bottom: 6px; font-size: 0.75rem; color: #94a3b8; font-weight: bold;">ESCOLHA DA CÂMERA</div>
   <div class="camera-controls">
     <button id="btnCamStreet" class="btn-camera active">🛣️ Visão Rua</button>
+    <button id="btnCamCockpit" class="btn-camera">💺 Para-brisa</button>
     <button id="btnCamTop" class="btn-camera">🌐 Visão Cima</button>
   </div>
 
@@ -769,6 +770,7 @@ let boostSpeedKmh = 140;
 
 let targetHeading = 0;
 let smoothHeading = 0;
+let manualHeadingOffset = 0; // Pequeno ajuste de direção manual suave
 let distanceCoveredKm = 0;
 
 let currentSegIndex = 0;
@@ -783,9 +785,9 @@ let tripTimerInterval = null;
 let tripStartRealTimeStr = "";
 let speedMultiplier = 1.0;
 
-// Câmaras: 'street' (Visão de rua próxima e imersiva) ou 'top' (Visão de cima clássica)
+// Câmaras: 'street' (Rua imersiva), 'cockpit' (Para-brisa do motorista), 'top' (Cima próxima)
 let currentCameraMode = 'street'; 
-let currentZoomLevel = 19.5; // Zoom bem próximo para a visão de rua
+let currentZoomLevel = 19.8; 
 
 const keysPressed = { Up: false, Down: false, Left: false, Right: false };
 
@@ -847,22 +849,26 @@ document.getElementById('btnToggleHud').addEventListener('pointerdown', (e) => {
   hudContainer.classList.toggle('mobile-visible');
 });
 
-// Configuração dos botões de Câmera (Visão Rua vs Visão Cima)
+// Configuração dos botões de Câmera
 function setCameraMode(mode) {
   currentCameraMode = mode;
-  ['btnCamStreet', 'btnCamTop'].forEach(id => {
+  ['btnCamStreet', 'btnCamCockpit', 'btnCamTop'].forEach(id => {
     document.getElementById(id).classList.remove('active');
   });
   if (mode === 'street') {
     document.getElementById('btnCamStreet').classList.add('active');
-    currentZoomLevel = 19.5; // Aproxima bem da rua
+    currentZoomLevel = 19.8;
+  } else if (mode === 'cockpit') {
+    document.getElementById('btnCamCockpit').classList.add('active');
+    currentZoomLevel = 20.2; // Bem próximo simulando a visão pelo para-brisa
   } else if (mode === 'top') {
     document.getElementById('btnCamTop').classList.add('active');
-    currentZoomLevel = 17.5; // Visão de cima com o ônibus menor na via
+    currentZoomLevel = 18.5; // Visão de cima mais próxima e detalhada
   }
 }
 
 document.getElementById('btnCamStreet').addEventListener('click', () => setCameraMode('street'));
+document.getElementById('btnCamCockpit').addEventListener('click', () => setCameraMode('cockpit'));
 document.getElementById('btnCamTop').addEventListener('click', () => setCameraMode('top'));
 
 function updateBusMarkerIcon() {
@@ -971,6 +977,7 @@ document.getElementById('btnStartLineMode').addEventListener('click', () => {
   isAutopilotMoving = false;
   currentSpeedKmh = 0;
   distanceCoveredKm = 0;
+  manualHeadingOffset = 0;
 
   targetHeading = calculateBearing(activePath[0], activePath[1]);
   smoothHeading = targetHeading;
@@ -995,6 +1002,7 @@ document.getElementById('btnStartFreeMode').addEventListener('click', async () =
   boostSpeedKmh = 140;
   speedMultiplier = 1.0;
   isTripActive = true;
+  manualHeadingOffset = 0;
   updateTripStatus();
   startTripTimer();
 
@@ -1017,12 +1025,11 @@ function startSimulation(startCoords) {
   mobileTopBar.style.display = 'flex';
   rightControlsContainer.style.display = 'flex';
   speedBox.style.display = 'flex';
+  leftControlsContainer.style.display = 'flex'; // Exibe as setas esquerda/direita em ambos os modos para correção de direção ou condução livre
 
   if (currentGameMode === 'free') {
-    leftControlsContainer.style.display = 'flex';
     btnTripToggle.style.display = 'none';
   } else {
-    leftControlsContainer.style.display = 'none';
     btnTripToggle.style.display = 'block';
   }
 
@@ -1054,6 +1061,7 @@ function exitGame() {
   isTripActive = false;
   targetHeading = 0;
   smoothHeading = 0;
+  manualHeadingOffset = 0;
   distanceCoveredKm = 0;
   speedMultiplier = 1.0;
   document.getElementById('tripTimerDisplay').textContent = '00:00';
@@ -1178,7 +1186,7 @@ function initMap(startCoords) {
     },
     center: startCoords,
     zoom: currentZoomLevel,
-    pitch: 70, // Visão de rua bem próxima e imersiva
+    pitch: 70,
     bearing: smoothHeading,
     renderWorldCopies: false
   });
@@ -1254,6 +1262,18 @@ function gameLoop(now) {
       mapBanner.style.display = 'none';
       isAutopilotMoving = true;
       updateTripStatus();
+    }
+
+    // Pequeno ajuste de direção manual suave no Modo Linha
+    if (keysPressed.Left) {
+      manualHeadingOffset -= 25 * deltaTime;
+    }
+    if (keysPressed.Right) {
+      manualHeadingOffset += 25 * deltaTime;
+    }
+    // Retorna suavemente o offset para zero se não estiver a pressionar
+    if (!keysPressed.Left && !keysPressed.Right) {
+      manualHeadingOffset *= 0.92;
     }
 
     if (isTripActive && isAutopilotMoving && !isLineFinished) {
@@ -1354,7 +1374,8 @@ function gameLoop(now) {
       const metersPerDegreeLat = 111320;
       const metersPerDegreeLng = 111320 * Math.cos(busLat * (Math.PI / 180));
 
-      const rad = (smoothHeading * Math.PI) / 180;
+      const finalAngleHeading = smoothHeading + manualHeadingOffset;
+      const rad = (finalAngleHeading * Math.PI) / 180;
       busLng += (metersToMove * Math.sin(rad)) / metersPerDegreeLng;
       busLat += (metersToMove * Math.cos(rad)) / metersPerDegreeLat;
     }
@@ -1378,19 +1399,21 @@ function gameLoop(now) {
     busMarker.setLngLat(currentCoords);
   }
 
-  // Comportamento dinâmico de câmera: Visão de Rua (próxima e inclinada) vs Visão de Cima (clássica plana)
+  // Controlo das Câmaras: Rua, Para-brisa (Cockpit) ou Cima
   let targetPitch = 70;
-  let targetBearing = smoothHeading;
+  let effectiveBearing = smoothHeading + manualHeadingOffset;
 
   if (currentCameraMode === 'street') {
-    targetPitch = 72; // Bem próximo e imersivo na rua
+    targetPitch = 74; // Rua imersiva
+  } else if (currentCameraMode === 'cockpit') {
+    targetPitch = 80; // Visão frontal pelo para-brisa do motorista
   } else if (currentCameraMode === 'top') {
-    targetPitch = 0;  // Visão de cima perfeitamente plana tradicional
+    targetPitch = 25; // Visão de cima próxima
   }
 
   map.jumpTo({
     center: currentCoords,
-    bearing: targetBearing,
+    bearing: effectiveBearing,
     pitch: targetPitch,
     zoom: currentZoomLevel
   });
@@ -1402,22 +1425,18 @@ function gameLoop(now) {
 
 document.getElementById('btnZoomNear').addEventListener('pointerdown', (e) => {
   e.stopPropagation();
-  if (currentCameraMode === 'street') {
-    currentZoomLevel = 19.8;
-  } else {
-    currentZoomLevel = 18.2;
-  }
+  if (currentCameraMode === 'street') currentZoomLevel = 20.2;
+  else if (currentCameraMode === 'cockpit') currentZoomLevel = 20.6;
+  else currentZoomLevel = 19.2;
   document.getElementById('btnZoomNear').classList.add('active');
   document.getElementById('btnZoomFar').classList.remove('active');
 });
 
 document.getElementById('btnZoomFar').addEventListener('pointerdown', (e) => {
   e.stopPropagation();
-  if (currentCameraMode === 'street') {
-    currentZoomLevel = 18.5;
-  } else {
-    currentZoomLevel = 16.5; // Visão de longe onde o ônibus fica menor na via
-  }
+  if (currentCameraMode === 'street') currentZoomLevel = 18.8;
+  else if (currentCameraMode === 'cockpit') currentZoomLevel = 19.5;
+  else currentZoomLevel = 17.5;
   document.getElementById('btnZoomFar').classList.add('active');
   document.getElementById('btnZoomNear').classList.remove('active');
 });
