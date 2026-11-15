@@ -767,7 +767,7 @@ let isAutopilotMoving = false;
 let cruiseSpeedKmh = 90;
 let boostSpeedKmh = 140;
 
-let vehicleHeading = 0; // Direção real do autocarro controlada pelo jogador
+let vehicleHeading = 0; 
 let distanceCoveredKm = 0;
 
 let currentSegIndex = 0;
@@ -947,7 +947,6 @@ document.getElementById('btnStartLineMode').addEventListener('click', () => {
   currentSpeedKmh = 0;
   distanceCoveredKm = 0;
 
-  // Inicializa o sentido com base no primeiro ponto da rota
   const [lon1, lat1] = activePath[0];
   const [lon2, lat2] = activePath[1];
   const y = Math.sin((lon2 - lon1) * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180);
@@ -982,7 +981,9 @@ document.getElementById('btnStartFreeMode').addEventListener('click', async () =
     const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(locationQuery)}`);
     const data = await res.json();
     if (data && data.length > 0) {
-      startSimulation([parseFloat(data[0].lon), parseFloat(data[0].lat)]);
+      const lon = parseFloat(data[0].lon);
+      const lat = parseFloat(data[0].lat);
+      startSimulation([lon, lat]);
     } else {
       startSimulation([-43.941879, -19.913783]);
     }
@@ -997,7 +998,7 @@ function startSimulation(startCoords) {
   mobileTopBar.style.display = 'flex';
   rightControlsContainer.style.display = 'flex';
   speedBox.style.display = 'flex';
-  leftControlsContainer.style.display = 'flex'; // Setas esquerda/direita ativas para controlo total da direção
+  leftControlsContainer.style.display = 'flex'; 
 
   if (currentGameMode === 'free') {
     btnTripToggle.style.display = 'none';
@@ -1217,7 +1218,6 @@ function gameLoop(now) {
 
   const prev = [busLng, busLat];
 
-  // Controlo idêntico ao Modo Livre: o jogador comanda o volante diretamente a 100%
   if (keysPressed.Left) {
     vehicleHeading = (vehicleHeading - 90 * deltaTime + 360) % 360;
   }
@@ -1267,11 +1267,10 @@ function gameLoop(now) {
     busLng += (metersToMove * Math.sin(rad)) / metersPerDegreeLng;
     busLat += (metersToMove * Math.cos(rad)) / metersPerDegreeLat;
 
-    // No Modo Linha, verificamos se o veículo chegou próximo ao ponto final do trajeto para encerrar a viagem
     if (currentGameMode === 'line' && activePath.length > 0) {
       const finalPoint = activePath[activePath.length - 1];
       const distToDestination = getMetersBetween([busLng, busLat], finalPoint);
-      if (distToDestination < 20) {
+      if (distToDestination < 25) {
         isLineFinished = true;
         mostrarRelatorioFinal();
       }
