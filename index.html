@@ -43,6 +43,7 @@
   </style>
 </head>
 <body>
+  
   <div id="map"></div>
 
   <!-- Biblioteca MapLibre GL JS -->
@@ -51,5 +52,15 @@
   <script src="dados_rotas.js"></script>
   <!-- Script do Jogo -->
   <script src="script.js"></script>
+    <!-- Funcionar offilline -->
+  <script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js')
+        .then(reg => console.log('Modo Offline Ativado!', reg.scope))
+        .catch(err => console.log('Erro ao ativar modo offline:', err));
+    });
+  }
+</script>
 </body>
 </html>
