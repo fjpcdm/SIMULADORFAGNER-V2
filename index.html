@@ -8,7 +8,9 @@
   <!-- Folha de estilo do MapLibre GL -->
   <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
 
-  
+  <!-- PWA Manifest -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0f172a">
 
   <style>
     *, *::before, *::after {
@@ -42,8 +44,15 @@
       height: 100vh;
       z-index: 1;
     }
+
+    /* Menu da direita ajustado mais para cima (bottom aumentado) */
+    .menu-direito, #menu-direito {
+      position: absolute;
+      right: 15px;
+      bottom: 140px; 
+      z-index: 10;
+    }
   </style>
-      <link rel="manifest" href="manifest.json">
 </head>
 <body>
   
@@ -55,16 +64,18 @@
   <script src="dados_rotas.js"></script>
   <!-- Script do Jogo -->
   <script src="script.js"></script>
-
-    <!-- Funcionar offilline -->
+    
+  <!-- Funcionar offline (Service Worker) -->
   <script>
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./sw.js')
-        .then(reg => console.log('Modo Offline Ativado!', reg.scope))
-        .catch(err => console.log('Erro ao ativar modo offline:', err));
-    });
-  }
-</script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js')
+          .then(reg => console.log('Modo Offline Ativado!', reg.scope))
+          .catch(err => console.log('Erro ao ativar modo offline:', err));
+      });
+    }
+  </script>
+</body>
+</html>
 </body>
 </html>
