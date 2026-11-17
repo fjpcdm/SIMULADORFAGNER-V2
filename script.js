@@ -569,6 +569,7 @@ function showAlert(message) {
 
 const COLOR_PRESETS = {
   'vermelho': { name: 'Vermelho', bodyColor: '#ff2c2c', stripeColor: '#ff2c2c' },
+ 'bhtrans': { name: 'BHTrans Convencional', bodyColor: '#8C9298', stripeColor: '#003366' },
   'azul': { name: 'Azul', bodyColor: '#1883ff', stripeColor: '#1883ff' },
   'laranja': { name: 'Laranja', bodyColor: '#ea580c', stripeColor: '#ffff00' },
   'amarelo': { name: 'Amarelo', bodyColor: '#eab308', stripeColor: '#ffffff' },
@@ -604,7 +605,7 @@ for (const key in COLOR_PRESETS) {
 
 setupModal.innerHTML = `
   <div class="setup-card" id="cardMainMenu">
-    <h2>🚍 Simulador de Ônibus & Trem</h2>
+    <h2>🚍 Simulador de Ônibus /h2>
     <div class="mode-selection-box">
       <button class="btn-mode-select" id="btnSelectLineMode">📍 Modo Linha</button>
       <button class="btn-mode-select" id="btnSelectFreeMode">🗺️ Modo Livre</button>
@@ -775,6 +776,9 @@ let segProgressMeters = 0;
 let currentSegLength = 0;
 let targetHeading = 0;
 let smoothHeading = 0;
+
+// Variável para esterçamento lateral fino (Aproximar do meio-fio)
+let lateralOffsetMeters = 0; 
 
 let isLineFinished = false;
 let isTripActive = false;
@@ -970,6 +974,7 @@ document.getElementById('btnStartLineMode').addEventListener('click', () => {
   isAutopilotMoving = false;
   currentSpeedKmh = 0;
   distanceCoveredKm = 0;
+  lateralOffsetMeters = 0;
 
   targetHeading = calculateBearing(activePath[0], activePath[1]);
   smoothHeading = targetHeading;
@@ -996,6 +1001,7 @@ document.getElementById('btnStartFreeMode').addEventListener('click', async () =
   speedMultiplier = 1.0;
   isTripActive = true;
   vehicleHeading = 0;
+  lateralOffsetMeters = 0;
   updateTripStatus();
   startTripTimer();
 
@@ -1057,6 +1063,7 @@ function exitGame() {
   vehicleHeading = 0;
   distanceCoveredKm = 0;
   speedMultiplier = 1.0;
+  lateralOffsetMeters = 0;
   document.getElementById('tripTimerDisplay').textContent = '00:00';
   document.getElementById('miniTimerDisplay').textContent = '00:00';
   document.getElementById('kmCoveredDisplay').textContent = '0.00 km';
@@ -1252,6 +1259,15 @@ function gameLoop(now) {
     updateTripStatus();
   }
 
+  // Ajuste lateral fino com as setas Esquerda/Direita (aproximar do meio-fio)
+  const lateralSpeedMps = 3.0; // Velocidade de deslocamento lateral em metros por segundo
+  if (keysPressed.Left) {
+    lateralOffsetMeters -= lateralSpeedMps * deltaTime;
+  }
+  if (keysPressed.Right) {
+    lateralOffsetMeters += lateralSpeedMps * deltaTime;
+  }
+
   if (isTripActive && isAutopilotMoving && !isLineFinished) {
     if (keysPressed.Down) {
       desiredSpeed = 0;
@@ -1271,6 +1287,9 @@ function gameLoop(now) {
   } else if (currentSpeedKmh > desiredSpeed) {
     currentSpeedKmh = Math.max(currentSpeedKmh - 40 * deltaTime, desiredSpeed);
   }
+
+  let pureBusLng = busLng;
+  let pureBusLat = busLat;
 
   if (currentGameMode === 'line') {
     if (currentSpeedKmh > 0 && !isLineFinished && isTripActive) {
@@ -1292,8 +1311,8 @@ function gameLoop(now) {
           remainingDistance = 0;
 
           const ratio = currentSegLength > 0 ? (segProgressMeters / currentSegLength) : 0;
-          busLng = p1[0] + (p2[0] - p1[0]) * ratio;
-          busLat = p1[1] + (p2[1] - p1[1]) * ratio;
+          pureBusLng = p1[0] + (p2[0] - p1[0]) * ratio;
+          pureBusLat = p1[1] + (p2[1] - p1[1]) * ratio;
 
           targetHeading = calculateBearing(p1, p2);
         } else {
@@ -1302,32 +1321,27 @@ function gameLoop(now) {
           segProgressMeters = 0;
 
           if (currentSegIndex >= activePath.length - 1) {
-            busLng = activePath[activePath.length - 1][0];
-            busLat = activePath[activePath.length - 1][1];
+            pureBusLng = activePath[activePath.length - 1][0];
+            pureBusLat = activePath[activePath.length - 1][1];
             isLineFinished = true;
             mostrarRelatorioFinal();
             break;
           } else {
             currentSegLength = getMetersBetween(activePath[currentSegIndex], activePath[currentSegIndex + 1]);
-            busLng = activePath[currentSegIndex][0];
-            busLat = activePath[currentSegIndex][1];
+            pureBusLng = activePath[currentSegIndex][0];
+            pureBusLat = activePath[currentSegIndex][1];
             targetHeading = calculateBearing(activePath[currentSegIndex], activePath[currentSegIndex + 1]);
           }
         }
       }
 
+      busLng = pureBusLng;
+      busLat = pureBusLat;
+
       smoothHeading = lerpHeading(smoothHeading, targetHeading, 6.0 * deltaTime);
     }
   } else {
-    // MODO LIVRE: Atualiza perfeitamente a direção e o movimento do autocarro
-    if (keysPressed.Left) {
-      vehicleHeading = (vehicleHeading - 90 * deltaTime + 360) % 360;
-    }
-    if (keysPressed.Right) {
-      vehicleHeading = (vehicleHeading + 90 * deltaTime) % 360;
-    }
-
-    if (currentSpeedKmh > 0 || keysPressed.Up || keysPressed.Down || keysPressed.Left || keysPressed.Right) {
+    if (currentSpeedKmh > 0 || keysPressed.Up || keysPressed.Down) {
       const speedMps = (currentSpeedKmh / 3.6) * speedMultiplier;
       const metersToMove = speedMps * deltaTime;
       const metersPerDegreeLat = 111320;
@@ -1337,6 +1351,20 @@ function gameLoop(now) {
       busLng += (metersToMove * Math.sin(rad)) / metersPerDegreeLng;
       busLat += (metersToMove * Math.cos(rad)) / metersPerDegreeLat;
     }
+  }
+
+  // Aplicar deslocamento lateral perpendicular (para alinhar ao meio-fio)
+  let renderLng = busLng;
+  let renderLat = busLat;
+  if (Math.abs(lateralOffsetMeters) > 0.001) {
+    const currentHeading = currentGameMode === 'line' ? smoothHeading : vehicleHeading;
+    const perpHeading = (currentHeading + 90) % 360; // Direção perpendicular (direita/esquerda)
+    const perpRad = (perpHeading * Math.PI) / 180;
+    const metersPerDegreeLat = 111320;
+    const metersPerDegreeLng = 111320 * Math.cos(busLat * (Math.PI / 180));
+
+    renderLng += (lateralOffsetMeters * Math.sin(perpRad)) / metersPerDegreeLng;
+    renderLat += (lateralOffsetMeters * Math.cos(perpRad)) / metersPerDegreeLat;
   }
 
   const distStep = getMetersBetween(prev, [busLng, busLat]) / 1000;
@@ -1352,7 +1380,7 @@ function gameLoop(now) {
   document.getElementById('speedValue').textContent = speedRounded;
   document.getElementById('miniSpeedDisplay').textContent = speedRounded;
 
-  const currentCoords = [busLng, busLat];
+  const currentCoords = [renderLng, renderLat];
   if (busMarker) {
     busMarker.setLngLat(currentCoords);
   }
