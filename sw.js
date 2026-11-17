@@ -1,34 +1,26 @@
-const CACHE_NAME = 'bus-simulator-v1';
+const CACHE_NAME = 'bus-online-cache-v1';
 const urlsToCache = [
-  './',
-  './index.html',
-  './script.js',
-  './dados_rotas.js',
-  'https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js',
-  'https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css'
+  '/',
+  'index.html',
+  'dados_rotas.js'
 ];
 
+// Instalação do Service Worker e cache dos arquivos
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then(cache => cache.addAll(urlsToCache))
+      .then(cache => {
+        return cache.addAll(urlsToCache);
+      })
   );
 });
 
+// Intercepta as requisições para servir os arquivos do cache offline
 self.addEventListener('fetch', event => {
   event.respondWith(
     caches.match(event.request)
       .then(response => {
-        return response || fetch(event.request).then(fetchResponse => {
-          return caches.open(CACHE_NAME).then(cache => {
-            cache.put(event.request, fetchResponse.clone());
-            return fetchResponse;
-          });
-        });
-      }).catch(() => {
-        if (event.request.destination === 'document') {
-          return caches.match('./index.html');
-        }
+        return response || fetch(event.request);
       })
   );
 });
