@@ -605,7 +605,7 @@ for (const key in COLOR_PRESETS) {
 
 setupModal.innerHTML = `
   <div class="setup-card" id="cardMainMenu">
-    <h2>🚍 Simulador de Ônibus /h2>
+    <h2>🚍 Simulador de Ônibus </h2>
     <div class="mode-selection-box">
       <button class="btn-mode-select" id="btnSelectLineMode">📍 Modo Linha</button>
       <button class="btn-mode-select" id="btnSelectFreeMode">🗺️ Modo Livre</button>
