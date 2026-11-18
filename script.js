@@ -1,6 +1,6 @@
 // ============================================================
 // ARQUIVO: script.js
-// MOTOR DE SIMULAÇÃO - ESTERÇAMENTO SUAVIZADO E AJUSTES DE HUD
+// MOTOR DE SIMULAÇÃO - CÂMERA SUAVIZADA (SEM TREMORES)
 // ============================================================
 
 const cssStyles = `
@@ -795,8 +795,8 @@ let segProgressMeters = 0;
 let currentSegLength = 0;
 let targetHeading = 0;
 let smoothHeading = 0;
+let currentCameraBearing = 0; // Armazena o ângulo atual suave da câmera para evitar tremores
 
-// Esterçamento suavizado (ajuste sutil e gradual nas curvas/meio-fio)
 let manualHeadingOffset = 0; 
 
 let isLineFinished = false;
@@ -998,6 +998,7 @@ document.getElementById('btnStartLineMode').addEventListener('click', () => {
   targetHeading = calculateBearing(activePath[0], activePath[1]);
   smoothHeading = targetHeading;
   vehicleHeading = targetHeading;
+  currentCameraBearing = targetHeading;
 
   updateTripStatus();
   startSimulation(activePath[0]);
@@ -1021,6 +1022,7 @@ document.getElementById('btnStartFreeMode').addEventListener('click', async () =
   isTripActive = true;
   vehicleHeading = 0;
   manualHeadingOffset = 0;
+  currentCameraBearing = 0;
   updateTripStatus();
   startTripTimer();
 
@@ -1278,8 +1280,8 @@ function gameLoop(now) {
     updateTripStatus();
   }
 
-  // Esterçamento suavizado (taxa reduzida para correções leves, curvas suaves e encostar no meio-fio)
-  const turnRate = 22; // Reduzido de 75 para 22 para dar controle suave e evitar saídas bruscas da via
+  // Esterçamento sutil e suave
+  const turnRate = 18; 
   if (keysPressed.Left) {
     manualHeadingOffset -= turnRate * deltaTime;
   }
@@ -1368,12 +1370,12 @@ function gameLoop(now) {
         busLat = pureBusLat;
       }
 
-      smoothHeading = lerpHeading(smoothHeading, targetHeading + manualHeadingOffset, 5.0 * deltaTime);
+      smoothHeading = lerpHeading(smoothHeading, targetHeading + manualHeadingOffset, 3.0 * deltaTime);
     }
   } else {
     if (currentSpeedKmh > 0 || keysPressed.Up || keysPressed.Down || keysPressed.Left || keysPressed.Right) {
-      if (keysPressed.Left) vehicleHeading = (vehicleHeading - 45 * deltaTime + 360) % 360;
-      if (keysPressed.Right) vehicleHeading = (vehicleHeading + 45 * deltaTime) % 360;
+      if (keysPressed.Left) vehicleHeading = (vehicleHeading - 35 * deltaTime + 360) % 360;
+      if (keysPressed.Right) vehicleHeading = (vehicleHeading + 35 * deltaTime) % 360;
 
       const speedMps = (currentSpeedKmh / 3.6) * speedMultiplier;
       const metersToMove = speedMps * deltaTime;
@@ -1411,7 +1413,10 @@ function gameLoop(now) {
     targetPitch = 25; 
   }
 
-  const activeBearing = currentGameMode === 'line' ? smoothHeading : vehicleHeading;
+  const rawTargetBearing = currentGameMode === 'line' ? smoothHeading : vehicleHeading;
+  
+  // Interpolação suave do ângulo da câmera (evita solavancos e tremores na tela)
+  currentCameraBearing = lerpHeading(currentCameraBearing, rawTargetBearing, 4.0 * deltaTime);
 
   if (busMarker && busMarker.getElement()) {
     if (currentCameraMode === 'street' && currentZoomLevel <= 18.5) {
@@ -1423,7 +1428,7 @@ function gameLoop(now) {
 
   map.jumpTo({
     center: currentCoords,
-    bearing: activeBearing,
+    bearing: currentCameraBearing,
     pitch: targetPitch,
     zoom: currentZoomLevel
   });
