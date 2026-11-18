@@ -1,6 +1,6 @@
 // ============================================================
 // ARQUIVO: script.js
-// MOTOR DE SIMULAÇÃO - COMPATIBILIDADE MULTI-PLATAFORMA (LINUX/WINDOWS)
+// MOTOR DE SIMULAÇÃO - SEPARAÇÃO URBANO/RODOVIÁRIO E ESTERÇAMENTO
 // ============================================================
 
 const cssStyles = `
@@ -389,13 +389,14 @@ const cssStyles = `
     color: #94a3b8;
   }
 
+  /* Ajustado para garantir que os botões da esquerda apareçam inteiros na tela */
   .mobile-controls-left {
     position: absolute !important;
-    bottom: 30px !important;
-    left: 15px !important;
+    bottom: 25px !important;
+    left: 12px !important;
     z-index: 999999 !important;
     display: flex;
-    gap: 10px;
+    gap: 12px;
   }
 
   .mobile-controls-right {
@@ -537,9 +538,10 @@ const cssStyles = `
     pointer-events: none !important;
   }
 
+  /* Ícone do ônibus mais estreito na largura e longo no comprimento */
   .bus-marker-img {
-    width: 18px !important;
-    height: 36px !important;
+    width: 14px !important;
+    height: 42px !important;
     display: block !important;
     filter: drop-shadow(0px 3px 6px rgba(0, 0, 0, 0.95));
   }
@@ -569,7 +571,6 @@ function showAlert(message) {
 
 const COLOR_PRESETS = {
   'vermelho': { name: 'Vermelho', bodyColor: '#ff2c2c', stripeColor: '#ff2c2c' },
- 'bhtrans': { name: 'BHTrans Convencional', bodyColor: '#8C9298', stripeColor: '#003366' },
   'azul': { name: 'Azul', bodyColor: '#1883ff', stripeColor: '#1883ff' },
   'laranja': { name: 'Laranja', bodyColor: '#ea580c', stripeColor: '#ffff00' },
   'amarelo': { name: 'Amarelo', bodyColor: '#eab308', stripeColor: '#ffffff' },
@@ -605,7 +606,7 @@ for (const key in COLOR_PRESETS) {
 
 setupModal.innerHTML = `
   <div class="setup-card" id="cardMainMenu">
-    <h2>🚍 Simulador de Ônibus </h2>
+    <h2>🚍 Simulador de Ônibus & Trem</h2>
     <div class="mode-selection-box">
       <button class="btn-mode-select" id="btnSelectLineMode">📍 Modo Linha</button>
       <button class="btn-mode-select" id="btnSelectFreeMode">🗺️ Modo Livre</button>
@@ -615,7 +616,14 @@ setupModal.innerHTML = `
   <div class="setup-card" id="cardLineMode" style="display: none;">
     <h2>🚍 Modo Linha</h2>
     <div class="form-group">
-      <label>Linha de Operação:</label>
+      <label>Tipo de Linha de Operação:</label>
+      <select id="selectCategoryType">
+        <option value="urbano">Linhas Urbanas</option>
+        <option value="rodoviario">Linhas Rodoviárias</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Selecione a Linha:</label>
       <select id="selectLine"></select>
     </div>
     <div class="form-group">
@@ -644,21 +652,34 @@ document.body.appendChild(setupModal);
 
 function refreshLinesDropdown() {
   const select = document.getElementById('selectLine');
-  if (!select) return;
+  const catSelect = document.getElementById('selectCategoryType');
+  if (!select || !catSelect) return;
 
+  const selectedCategory = catSelect.value; // 'urbano' ou 'rodoviario'
   const db = getLinesDatabase();
   const keys = Object.keys(db);
 
   select.innerHTML = '';
-  if (keys.length === 0) {
+  
+  // Filtra as linhas de acordo com a categoria escolhida
+  const filteredKeys = keys.filter(key => {
+    const tipo = (db[key].tipo || 'urbano').toLowerCase();
+    if (selectedCategory === 'rodoviario') {
+      return tipo === 'rodoviario';
+    } else {
+      return tipo !== 'rodoviario'; // Considera urbano tudo que não for explicitamente rodoviário
+    }
+  });
+
+  if (filteredKeys.length === 0) {
     const opt = document.createElement('option');
     opt.value = "";
-    opt.textContent = "Carregando linhas do dados_rotas.js...";
+    opt.textContent = "Nenhuma linha encontrada nesta categoria";
     select.appendChild(opt);
     return;
   }
 
-  keys.forEach(key => {
+  filteredKeys.forEach(key => {
     const opt = document.createElement('option');
     opt.value = key;
     opt.textContent = db[key].nome;
@@ -666,9 +687,10 @@ function refreshLinesDropdown() {
   });
 }
 
+document.getElementById('selectCategoryType').addEventListener('change', refreshLinesDropdown);
+
 refreshLinesDropdown();
 setTimeout(refreshLinesDropdown, 250);
-setTimeout(refreshLinesDropdown, 750);
 
 const mapBanner = document.createElement('div');
 mapBanner.className = 'map-instruction-banner';
@@ -777,8 +799,9 @@ let currentSegLength = 0;
 let targetHeading = 0;
 let smoothHeading = 0;
 
-// Variável para esterçamento lateral fino (Aproximar do meio-fio)
-let lateralOffsetMeters = 0; 
+// Variáveis para esterçamento lateral e correções manuais no Modo Linha
+let manualHeadingOffset = 0; // Permite virar o ônibus levemente para a direita ou esquerda nas curvas
+let lateralOffsetMeters = 0;   // Ajuste sutil para encostar no meio-fio ou desviar
 
 let isLineFinished = false;
 let isTripActive = false;
@@ -974,6 +997,7 @@ document.getElementById('btnStartLineMode').addEventListener('click', () => {
   isAutopilotMoving = false;
   currentSpeedKmh = 0;
   distanceCoveredKm = 0;
+  manualHeadingOffset = 0;
   lateralOffsetMeters = 0;
 
   targetHeading = calculateBearing(activePath[0], activePath[1]);
@@ -1001,6 +1025,7 @@ document.getElementById('btnStartFreeMode').addEventListener('click', async () =
   speedMultiplier = 1.0;
   isTripActive = true;
   vehicleHeading = 0;
+  manualHeadingOffset = 0;
   lateralOffsetMeters = 0;
   updateTripStatus();
   startTripTimer();
@@ -1063,6 +1088,7 @@ function exitGame() {
   vehicleHeading = 0;
   distanceCoveredKm = 0;
   speedMultiplier = 1.0;
+  manualHeadingOffset = 0;
   lateralOffsetMeters = 0;
   document.getElementById('tripTimerDisplay').textContent = '00:00';
   document.getElementById('miniTimerDisplay').textContent = '00:00';
@@ -1125,32 +1151,33 @@ function mostrarRelatorioFinal() {
   });
 }
 
+// SVG do ônibus mais estreito na largura e longo no comprimento
 function getBusSvg(bodyColor, stripeColor, tipo = 'urbano', letreiroText = 'EXECUTIVO') {
   let bodyPath = tipo === 'rodoviario'
-    ? '<path d="M 8,20 C 8,10 18,6 50,6 C 82,6 92,10 92,20 L 94,185 C 94,194 84,196 50,196 C 16,196 6,194 6,185 Z" fill="' + bodyColor + '" />'
-    : '<path d="M 6,15 C 6,6 14,4 50,4 C 86,4 94,6 94,15 L 94,185 C 94,195 84,196 50,196 C 16,196 6,195 6,185 Z" fill="' + bodyColor + '" />';
+    ? '<path d="M 12,18 C 12,8 20,4 50,4 C 80,4 88,8 88,18 L 90,188 C 90,195 80,196 50,196 C 20,196 10,195 10,188 Z" fill="' + bodyColor + '" />'
+    : '<path d="M 10,15 C 10,6 18,4 50,4 C 82,4 90,6 90,15 L 90,188 C 90,195 80,196 50,196 C 20,196 10,195 10,188 Z" fill="' + bodyColor + '" />';
 
   return 'data:image/svg+xml;utf8,' + encodeURIComponent(`
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 200" width="100" height="200">
-      <rect x="2" y="8" width="96" height="184" rx="12" fill="rgba(0,0,0,0.6)" filter="blur(4px)" />
+      <rect x="4" y="6" width="92" height="188" rx="10" fill="rgba(0,0,0,0.5)" filter="blur(3px)" />
       ${bodyPath}
-      <path d="M 6,75 L 94,75 L 94,135 L 6,140 Z" fill="${stripeColor}" opacity="0.95" />
-      <path d="M 6,135 L 94,130 L 94,188 C 94,194 84,196 50,196 C 16,196 6,194 6,188 Z" fill="#1e293b" />
-      <path d="M 10,12 L 90,12 L 84,40 L 16,40 Z" fill="#0f172a" stroke="#cbd5e1" stroke-width="1.5" />
-      <path d="M 14,15 L 86,15 L 82,37 L 18,37 Z" fill="#38bdf8" opacity="0.7" />
+      <path d="M 10,75 L 90,75 L 90,135 L 10,138 Z" fill="${stripeColor}" opacity="0.95" />
+      <path d="M 10,135 L 90,130 L 90,188 C 90,194 80,196 50,196 C 20,196 10,194 10,188 Z" fill="#1e293b" />
+      <path d="M 14,10 L 86,10 L 80,38 L 20,38 Z" fill="#0f172a" stroke="#cbd5e1" stroke-width="1.5" />
+      <path d="M 17,13 L 83,13 L 78,35 L 22,35 Z" fill="#38bdf8" opacity="0.7" />
 
-      <rect x="20" y="18" width="60" height="14" rx="2" fill="#000000" stroke="#38bdf8" stroke-width="0.8" />
-      <text x="50" y="28" fill="#4ade80" font-size="8.5" font-weight="bold" font-family="monospace" text-anchor="middle">${letreiroText}</text>
+      <rect x="24" y="16" width="52" height="14" rx="2" fill="#000000" stroke="#38bdf8" stroke-width="0.8" />
+      <text x="50" y="26" fill="#4ade80" font-size="8" font-weight="bold" font-family="monospace" text-anchor="middle">${letreiroText}</text>
       
-      <rect x="8" y="48" width="10" height="24" rx="2" fill="#38bdf8" opacity="0.6" />
-      <rect x="82" y="48" width="10" height="24" rx="2" fill="#38bdf8" opacity="0.6" />
-      <rect x="8" y="80" width="10" height="24" rx="2" fill="#38bdf8" opacity="0.6" />
-      <rect x="82" y="80" width="10" height="24" rx="2" fill="#38bdf8" opacity="0.6" />
+      <rect x="12" y="46" width="8" height="25" rx="2" fill="#38bdf8" opacity="0.6" />
+      <rect x="80" y="46" width="8" height="25" rx="2" fill="#38bdf8" opacity="0.6" />
+      <rect x="12" y="80" width="8" height="25" rx="2" fill="#38bdf8" opacity="0.6" />
+      <rect x="80" y="80" width="8" height="25" rx="2" fill="#38bdf8" opacity="0.6" />
       
-      <rect x="10" y="3" width="14" height="5" rx="2" fill="#fbbf24" />
-      <rect x="76" y="3" width="14" height="5" rx="2" fill="#fbbf24" />
-      <rect x="12" y="193" width="12" height="3" fill="#ef4444" rx="1" />
-      <rect x="76" y="193" width="12" height="3" fill="#ef4444" rx="1" />
+      <rect x="14" y="3" width="12" height="4" rx="1" fill="#fbbf24" />
+      <rect x="74" y="3" width="12" height="4" rx="1" fill="#fbbf24" />
+      <rect x="16" y="193" width="10" height="3" fill="#ef4444" rx="1" />
+      <rect x="74" y="193" width="10" height="3" fill="#ef4444" rx="1" />
     </svg>
   `);
 }
@@ -1259,13 +1286,13 @@ function gameLoop(now) {
     updateTripStatus();
   }
 
-  // Ajuste lateral fino com as setas Esquerda/Direita (aproximar do meio-fio)
-  const lateralSpeedMps = 3.0; // Velocidade de deslocamento lateral em metros por segundo
+  // Controle de direção manual (Esterçamento para curvas, meio-fio e desvios)
+  const turnRate = 75; // Graus por segundo ao esterçar
   if (keysPressed.Left) {
-    lateralOffsetMeters -= lateralSpeedMps * deltaTime;
+    manualHeadingOffset -= turnRate * deltaTime;
   }
   if (keysPressed.Right) {
-    lateralOffsetMeters += lateralSpeedMps * deltaTime;
+    manualHeadingOffset += turnRate * deltaTime;
   }
 
   if (isTripActive && isAutopilotMoving && !isLineFinished) {
@@ -1335,13 +1362,28 @@ function gameLoop(now) {
         }
       }
 
-      busLng = pureBusLng;
-      busLat = pureBusLat;
+      // Se o usuário esterçou manualmente, permite o deslocamento livre baseado no heading atual ajustado
+      if (Math.abs(manualHeadingOffset) > 0.5) {
+        const speedMps = (currentSpeedKmh / 3.6) * speedMultiplier;
+        const metersToMove = speedMps * deltaTime;
+        const metersPerDegreeLat = 111320;
+        const metersPerDegreeLng = 111320 * Math.cos(busLat * (Math.PI / 180));
+        const activeRad = ((targetHeading + manualHeadingOffset) * Math.PI) / 180;
 
-      smoothHeading = lerpHeading(smoothHeading, targetHeading, 6.0 * deltaTime);
+        busLng += (metersToMove * Math.sin(activeRad)) / metersPerDegreeLng;
+        busLat += (metersToMove * Math.cos(activeRad)) / metersPerDegreeLat;
+      } else {
+        busLng = pureBusLng;
+        busLat = pureBusLat;
+      }
+
+      smoothHeading = lerpHeading(smoothHeading, targetHeading + manualHeadingOffset, 8.0 * deltaTime);
     }
   } else {
-    if (currentSpeedKmh > 0 || keysPressed.Up || keysPressed.Down) {
+    if (currentSpeedKmh > 0 || keysPressed.Up || keysPressed.Down || keysPressed.Left || keysPressed.Right) {
+      if (keysPressed.Left) vehicleHeading = (vehicleHeading - 90 * deltaTime + 360) % 360;
+      if (keysPressed.Right) vehicleHeading = (vehicleHeading + 90 * deltaTime) % 360;
+
       const speedMps = (currentSpeedKmh / 3.6) * speedMultiplier;
       const metersToMove = speedMps * deltaTime;
       const metersPerDegreeLat = 111320;
@@ -1351,20 +1393,6 @@ function gameLoop(now) {
       busLng += (metersToMove * Math.sin(rad)) / metersPerDegreeLng;
       busLat += (metersToMove * Math.cos(rad)) / metersPerDegreeLat;
     }
-  }
-
-  // Aplicar deslocamento lateral perpendicular (para alinhar ao meio-fio)
-  let renderLng = busLng;
-  let renderLat = busLat;
-  if (Math.abs(lateralOffsetMeters) > 0.001) {
-    const currentHeading = currentGameMode === 'line' ? smoothHeading : vehicleHeading;
-    const perpHeading = (currentHeading + 90) % 360; // Direção perpendicular (direita/esquerda)
-    const perpRad = (perpHeading * Math.PI) / 180;
-    const metersPerDegreeLat = 111320;
-    const metersPerDegreeLng = 111320 * Math.cos(busLat * (Math.PI / 180));
-
-    renderLng += (lateralOffsetMeters * Math.sin(perpRad)) / metersPerDegreeLng;
-    renderLat += (lateralOffsetMeters * Math.cos(perpRad)) / metersPerDegreeLat;
   }
 
   const distStep = getMetersBetween(prev, [busLng, busLat]) / 1000;
@@ -1380,7 +1408,7 @@ function gameLoop(now) {
   document.getElementById('speedValue').textContent = speedRounded;
   document.getElementById('miniSpeedDisplay').textContent = speedRounded;
 
-  const currentCoords = [renderLng, renderLat];
+  const currentCoords = [busLng, busLat];
   if (busMarker) {
     busMarker.setLngLat(currentCoords);
   }
@@ -1393,6 +1421,15 @@ function gameLoop(now) {
   }
 
   const activeBearing = currentGameMode === 'line' ? smoothHeading : vehicleHeading;
+
+  // Ajuste sutil na escala do ônibus quando a visão for rua e estiver afastado (longe)
+  if (busMarker && busMarker.getElement()) {
+    if (currentCameraMode === 'street' && currentZoomLevel <= 19.0) {
+      busMarker.getElement().style.transform = 'scale(0.85)';
+    } else {
+      busMarker.getElement().style.transform = 'scale(1)';
+    }
+  }
 
   map.jumpTo({
     center: currentCoords,
@@ -1416,7 +1453,7 @@ document.getElementById('btnZoomNear').addEventListener('pointerdown', (e) => {
 
 document.getElementById('btnZoomFar').addEventListener('pointerdown', (e) => {
   e.stopPropagation();
-  if (currentCameraMode === 'street') currentZoomLevel = 18.8;
+  if (currentCameraMode === 'street') currentZoomLevel = 18.2; // Visão rua longe melhorada e menor
   else currentZoomLevel = 17.5;
   document.getElementById('btnZoomFar').classList.add('active');
   document.getElementById('btnZoomNear').classList.remove('active');
