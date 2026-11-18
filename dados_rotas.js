@@ -2564,5 +2564,3 @@ window.linesDatabase["LAFAIETE_RIO_ESPERA"] = {
   ]
 };
 
-
-
