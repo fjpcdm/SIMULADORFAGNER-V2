@@ -1,6 +1,6 @@
-const CACHE_NAME = 'simulador-onibus-v1';
+const CACHE_NAME = 'simulador-onibus-v2';
 
-// Todos os arquivos essenciais que o app precisa para funcionar offline
+// Lista de arquivos essenciais para o app rodar sem internet
 const assetsToCache = [
   './',
   './index.html',
@@ -10,19 +10,18 @@ const assetsToCache = [
   'https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js'
 ];
 
-// Instalação do Service Worker e salvamento no cache
+// Instala o Service Worker e guarda no cache
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => {
-        console.log('Arquivos em cache salvos com sucesso');
         return cache.addAll(assetsToCache);
       })
   );
   self.skipWaiting();
 });
 
-// Ativação e limpeza de caches antigos se houver atualização
+// Ativa e limpa versões antigas do cache
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys().then(keys => {
@@ -38,15 +37,12 @@ self.addEventListener('activate', event => {
   self.claim();
 });
 
-// Intercepta as requisições para carregar do cache quando estiver offline
+// Intercepta as requisições: serve do cache se estiver offline, senão busca na rede
 self.addEventListener('fetch', event => {
   event.respondWith(
     caches.match(event.request)
       .then(response => {
-        // Retorna do cache se encontrar, senão busca na rede
         return response || fetch(event.request);
-      }).catch(() => {
-        // Caso queira retornar uma página de fallback offline futuramente, pode tratar aqui
       })
   );
 });
