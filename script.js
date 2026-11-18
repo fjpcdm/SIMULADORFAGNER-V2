@@ -1,6 +1,6 @@
 // ============================================================
 // ARQUIVO: script.js
-// MOTOR DE SIMULAÇÃO - SEPARAÇÃO URBANO/RODOVIÁRIO E ESTERÇAMENTO
+// MOTOR DE SIMULAÇÃO - ESTERÇAMENTO SUAVIZADO E AJUSTES DE HUD
 // ============================================================
 
 const cssStyles = `
@@ -389,7 +389,6 @@ const cssStyles = `
     color: #94a3b8;
   }
 
-  /* Ajustado para garantir que os botões da esquerda apareçam inteiros na tela */
   .mobile-controls-left {
     position: absolute !important;
     bottom: 25px !important;
@@ -538,7 +537,6 @@ const cssStyles = `
     pointer-events: none !important;
   }
 
-  /* Ícone do ônibus mais estreito na largura e longo no comprimento */
   .bus-marker-img {
     width: 14px !important;
     height: 42px !important;
@@ -655,19 +653,18 @@ function refreshLinesDropdown() {
   const catSelect = document.getElementById('selectCategoryType');
   if (!select || !catSelect) return;
 
-  const selectedCategory = catSelect.value; // 'urbano' ou 'rodoviario'
+  const selectedCategory = catSelect.value; 
   const db = getLinesDatabase();
   const keys = Object.keys(db);
 
   select.innerHTML = '';
   
-  // Filtra as linhas de acordo com a categoria escolhida
   const filteredKeys = keys.filter(key => {
     const tipo = (db[key].tipo || 'urbano').toLowerCase();
     if (selectedCategory === 'rodoviario') {
       return tipo === 'rodoviario';
     } else {
-      return tipo !== 'rodoviario'; // Considera urbano tudo que não for explicitamente rodoviário
+      return tipo !== 'rodoviario';
     }
   });
 
@@ -799,9 +796,8 @@ let currentSegLength = 0;
 let targetHeading = 0;
 let smoothHeading = 0;
 
-// Variáveis para esterçamento lateral e correções manuais no Modo Linha
-let manualHeadingOffset = 0; // Permite virar o ônibus levemente para a direita ou esquerda nas curvas
-let lateralOffsetMeters = 0;   // Ajuste sutil para encostar no meio-fio ou desviar
+// Esterçamento suavizado (ajuste sutil e gradual nas curvas/meio-fio)
+let manualHeadingOffset = 0; 
 
 let isLineFinished = false;
 let isTripActive = false;
@@ -998,7 +994,6 @@ document.getElementById('btnStartLineMode').addEventListener('click', () => {
   currentSpeedKmh = 0;
   distanceCoveredKm = 0;
   manualHeadingOffset = 0;
-  lateralOffsetMeters = 0;
 
   targetHeading = calculateBearing(activePath[0], activePath[1]);
   smoothHeading = targetHeading;
@@ -1026,7 +1021,6 @@ document.getElementById('btnStartFreeMode').addEventListener('click', async () =
   isTripActive = true;
   vehicleHeading = 0;
   manualHeadingOffset = 0;
-  lateralOffsetMeters = 0;
   updateTripStatus();
   startTripTimer();
 
@@ -1089,7 +1083,6 @@ function exitGame() {
   distanceCoveredKm = 0;
   speedMultiplier = 1.0;
   manualHeadingOffset = 0;
-  lateralOffsetMeters = 0;
   document.getElementById('tripTimerDisplay').textContent = '00:00';
   document.getElementById('miniTimerDisplay').textContent = '00:00';
   document.getElementById('kmCoveredDisplay').textContent = '0.00 km';
@@ -1151,7 +1144,6 @@ function mostrarRelatorioFinal() {
   });
 }
 
-// SVG do ônibus mais estreito na largura e longo no comprimento
 function getBusSvg(bodyColor, stripeColor, tipo = 'urbano', letreiroText = 'EXECUTIVO') {
   let bodyPath = tipo === 'rodoviario'
     ? '<path d="M 12,18 C 12,8 20,4 50,4 C 80,4 88,8 88,18 L 90,188 C 90,195 80,196 50,196 C 20,196 10,195 10,188 Z" fill="' + bodyColor + '" />'
@@ -1286,8 +1278,8 @@ function gameLoop(now) {
     updateTripStatus();
   }
 
-  // Controle de direção manual (Esterçamento para curvas, meio-fio e desvios)
-  const turnRate = 75; // Graus por segundo ao esterçar
+  // Esterçamento suavizado (taxa reduzida para correções leves, curvas suaves e encostar no meio-fio)
+  const turnRate = 22; // Reduzido de 75 para 22 para dar controle suave e evitar saídas bruscas da via
   if (keysPressed.Left) {
     manualHeadingOffset -= turnRate * deltaTime;
   }
@@ -1362,8 +1354,7 @@ function gameLoop(now) {
         }
       }
 
-      // Se o usuário esterçou manualmente, permite o deslocamento livre baseado no heading atual ajustado
-      if (Math.abs(manualHeadingOffset) > 0.5) {
+      if (Math.abs(manualHeadingOffset) > 0.1) {
         const speedMps = (currentSpeedKmh / 3.6) * speedMultiplier;
         const metersToMove = speedMps * deltaTime;
         const metersPerDegreeLat = 111320;
@@ -1377,12 +1368,12 @@ function gameLoop(now) {
         busLat = pureBusLat;
       }
 
-      smoothHeading = lerpHeading(smoothHeading, targetHeading + manualHeadingOffset, 8.0 * deltaTime);
+      smoothHeading = lerpHeading(smoothHeading, targetHeading + manualHeadingOffset, 5.0 * deltaTime);
     }
   } else {
     if (currentSpeedKmh > 0 || keysPressed.Up || keysPressed.Down || keysPressed.Left || keysPressed.Right) {
-      if (keysPressed.Left) vehicleHeading = (vehicleHeading - 90 * deltaTime + 360) % 360;
-      if (keysPressed.Right) vehicleHeading = (vehicleHeading + 90 * deltaTime) % 360;
+      if (keysPressed.Left) vehicleHeading = (vehicleHeading - 45 * deltaTime + 360) % 360;
+      if (keysPressed.Right) vehicleHeading = (vehicleHeading + 45 * deltaTime) % 360;
 
       const speedMps = (currentSpeedKmh / 3.6) * speedMultiplier;
       const metersToMove = speedMps * deltaTime;
@@ -1422,9 +1413,8 @@ function gameLoop(now) {
 
   const activeBearing = currentGameMode === 'line' ? smoothHeading : vehicleHeading;
 
-  // Ajuste sutil na escala do ônibus quando a visão for rua e estiver afastado (longe)
   if (busMarker && busMarker.getElement()) {
-    if (currentCameraMode === 'street' && currentZoomLevel <= 19.0) {
+    if (currentCameraMode === 'street' && currentZoomLevel <= 18.5) {
       busMarker.getElement().style.transform = 'scale(0.85)';
     } else {
       busMarker.getElement().style.transform = 'scale(1)';
@@ -1453,7 +1443,7 @@ document.getElementById('btnZoomNear').addEventListener('pointerdown', (e) => {
 
 document.getElementById('btnZoomFar').addEventListener('pointerdown', (e) => {
   e.stopPropagation();
-  if (currentCameraMode === 'street') currentZoomLevel = 18.2; // Visão rua longe melhorada e menor
+  if (currentCameraMode === 'street') currentZoomLevel = 18.2; 
   else currentZoomLevel = 17.5;
   document.getElementById('btnZoomFar').classList.add('active');
   document.getElementById('btnZoomNear').classList.remove('active');
