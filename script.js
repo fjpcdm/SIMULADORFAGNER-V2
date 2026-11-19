@@ -1,6 +1,6 @@
 // ============================================================
 // ARQUIVO: script.js
-// MOTOR DE SIMULAÇÃO - VOLANTE INFERIOR, CORREÇÃO SEM DESLIZE E VELOCIDADES MANTIDAS
+// MOTOR DE SIMULAÇÃO - VOLANTE AMPLIADO, PEDAIS AO LADO E SEM BOTÕES DE SETA
 // ============================================================
 
 const cssStyles = `
@@ -390,7 +390,7 @@ const cssStyles = `
     color: #94a3b8;
   }
 
-  /* Barra inferior centralizada com volante e acelerador/freio sempre visíveis */
+  /* Barra inferior centralizada: volante ampliado + pedais de freio e acelerador ao lado */
   .bottom-cockpit-bar {
     position: fixed !important;
     bottom: calc(14px + env(safe-area-inset-bottom, 0px)) !important;
@@ -398,45 +398,40 @@ const cssStyles = `
     transform: translateX(-50%) !important;
     z-index: 999999 !important;
     display: flex;
-    align-items: center;
+    align-items: flex-end;
     justify-content: center;
-    gap: 14px;
-    padding: 8px 14px;
-    background: rgba(15, 23, 42, 0.85);
+    gap: 18px;
+    padding: 10px 18px;
+    background: rgba(15, 23, 42, 0.88);
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
     border: 1px solid rgba(148, 163, 184, 0.35);
-    border-radius: 28px;
+    border-radius: 32px;
     max-width: calc(100vw - 16px);
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.65);
   }
 
-  .steering-wheel-group {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
   .steering-wheel-visual {
-    width: 68px;
-    height: 68px;
+    width: 96px;
+    height: 96px;
     border-radius: 50%;
-    border: 6px solid #e2e8f0;
-    background: radial-gradient(circle at center, rgba(30, 41, 59, 0.95) 35%, rgba(15, 23, 42, 0.95) 100%);
+    border: 8px solid #e2e8f0;
+    background: radial-gradient(circle at center, rgba(30, 41, 59, 0.96) 34%, rgba(15, 23, 42, 0.96) 100%);
     position: relative;
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: inset 0 0 8px rgba(0,0,0,0.8), 0 2px 8px rgba(0,0,0,0.6);
+    box-shadow: inset 0 0 10px rgba(0,0,0,0.85), 0 4px 12px rgba(0,0,0,0.65);
     transition: transform 0.08s linear;
     flex-shrink: 0;
+    cursor: pointer;
   }
 
   .steering-wheel-visual::before {
     content: "";
     position: absolute;
     width: 100%;
-    height: 5px;
+    height: 7px;
     background: #94a3b8;
     border-radius: 2px;
   }
@@ -444,7 +439,7 @@ const cssStyles = `
   .steering-wheel-visual::after {
     content: "";
     position: absolute;
-    width: 5px;
+    width: 7px;
     height: 55%;
     bottom: 0;
     background: #94a3b8;
@@ -452,79 +447,85 @@ const cssStyles = `
   }
 
   .steering-wheel-hub {
-    width: 20px;
-    height: 20px;
+    width: 26px;
+    height: 26px;
     border-radius: 50%;
     background: #38bdf8;
-    border: 2px solid #0f172a;
+    border: 3px solid #0f172a;
     z-index: 2;
   }
 
   .pedal-controls-group {
     display: flex;
-    align-items: center;
-    gap: 8px;
+    align-items: flex-end;
+    gap: 10px;
   }
 
-  .btn-drive-touch {
-    width: 52px;
-    height: 52px;
-    background: rgba(30, 41, 59, 0.95);
-    border: 2px solid #38bdf8;
-    border-radius: 50%;
+  .pedal-btn {
+    width: 50px;
+    height: 76px;
+    border-radius: 10px;
     color: #ffffff;
-    font-size: 1.2rem;
+    font-size: 0.7rem;
+    font-weight: 800;
+    letter-spacing: 0.5px;
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
+    gap: 4px;
     cursor: pointer;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+    box-shadow: 0 5px 12px rgba(0,0,0,0.55);
     flex-shrink: 0;
+    border: 2px solid #cbd5e1;
+    transition: transform 0.08s ease, background 0.1s ease;
   }
 
-  .btn-drive-touch:active {
-    background: rgba(56, 189, 248, 0.5);
-    transform: scale(0.95);
+  .pedal-btn.pedal-brake {
+    background: linear-gradient(180deg, rgba(185, 28, 28, 0.85) 0%, rgba(127, 29, 29, 0.95) 100%);
+    border-color: #f87171;
   }
 
-  .btn-drive-touch.btn-accel {
-    border-color: #10b981;
-    background: rgba(16, 185, 129, 0.45);
+  .pedal-btn.pedal-brake:active {
+    background: rgba(239, 68, 68, 0.95);
+    transform: translateY(3px) scale(0.97);
   }
 
-  .btn-drive-touch.btn-accel:active {
-    background: rgba(16, 185, 129, 0.9);
+  .pedal-btn.pedal-accel {
+    height: 86px;
+    background: linear-gradient(180deg, rgba(5, 150, 105, 0.85) 0%, rgba(6, 95, 70, 0.95) 100%);
+    border-color: #34d399;
   }
 
-  .btn-drive-touch.btn-brake {
-    border-color: #ef4444;
-    background: rgba(239, 68, 68, 0.45);
-  }
-
-  .btn-drive-touch.btn-brake:active {
-    background: rgba(239, 68, 68, 0.9);
+  .pedal-btn.pedal-accel:active {
+    background: rgba(16, 185, 129, 0.95);
+    transform: translateY(3px) scale(0.97);
   }
 
   @media (max-width: 480px) {
     .bottom-cockpit-bar {
-      gap: 8px;
-      padding: 6px 10px;
-    }
-    .steering-wheel-group {
-      gap: 5px;
+      gap: 12px;
+      padding: 8px 14px;
     }
     .steering-wheel-visual {
-      width: 54px;
-      height: 54px;
-      border-width: 5px;
+      width: 82px;
+      height: 82px;
+      border-width: 7px;
+    }
+    .steering-wheel-hub {
+      width: 22px;
+      height: 22px;
     }
     .pedal-controls-group {
-      gap: 6px;
+      gap: 8px;
     }
-    .btn-drive-touch {
+    .pedal-btn {
       width: 44px;
-      height: 44px;
-      font-size: 1rem;
+      height: 66px;
+      font-size: 0.62rem;
+    }
+    .pedal-btn.pedal-accel {
+      height: 76px;
     }
   }
 
@@ -834,16 +835,18 @@ let bottomCockpitBar = document.createElement('div');
 bottomCockpitBar.className = 'bottom-cockpit-bar';
 bottomCockpitBar.style.display = 'none';
 bottomCockpitBar.innerHTML = `
-  <div class="steering-wheel-group">
-    <button class="btn-drive-touch" id="btnTouchLeft">⬅️</button>
-    <div class="steering-wheel-visual" id="steeringWheelVisual">
-      <div class="steering-wheel-hub"></div>
-    </div>
-    <button class="btn-drive-touch" id="btnTouchRight">➡️</button>
+  <div class="steering-wheel-visual" id="steeringWheelVisual">
+    <div class="steering-wheel-hub"></div>
   </div>
   <div class="pedal-controls-group">
-    <button class="btn-drive-touch btn-accel" id="btnTouchUp">⬆️</button>
-    <button class="btn-drive-touch btn-brake" id="btnTouchDown">⬇️</button>
+    <button class="pedal-btn pedal-brake" id="btnTouchDown">
+      <span>⬇</span>
+      <span>FREIO</span>
+    </button>
+    <button class="pedal-btn pedal-accel" id="btnTouchUp">
+      <span>⬆</span>
+      <span>ACEL</span>
+    </button>
   </div>
 `;
 document.body.appendChild(bottomCockpitBar);
@@ -864,7 +867,6 @@ let busLat = 0;
 let currentSpeedKmh = 0;
 let isAutopilotMoving = false;
 
-// Velocidades mantidas exatamente conforme definido
 let cruiseSpeedKmh = 90;
 let boostSpeedKmh = 140;
 
@@ -878,7 +880,6 @@ let targetHeading = 0;
 let smoothHeading = 0;
 let currentCameraBearing = 0;
 
-// Correção lateral limitada para não deslizar para fora da rota no modo linha
 let lineLateralCorrectionMeters = 0;
 const MAX_LINE_LATERAL_METERS = 3.2;
 let steeringWheelAngle = 0;
@@ -977,7 +978,7 @@ function updateBusMarkerIcon() {
   busMarker.getElement().src = getBusSvg(preset.bodyColor, preset.stripeColor, currentVehicleType, activeLetreiroText);
 }
 
-function bindTouch(elementId, keyName) {
+function bindPedalTouch(elementId, keyName) {
   const el = document.getElementById(elementId);
   if (!el) return;
   el.addEventListener('pointerdown', (e) => {
@@ -994,10 +995,57 @@ function bindTouch(elementId, keyName) {
   el.addEventListener('pointerleave', stopTouch);
 }
 
-bindTouch('btnTouchUp', 'Up');
-bindTouch('btnTouchDown', 'Down');
-bindTouch('btnTouchLeft', 'Left');
-bindTouch('btnTouchRight', 'Right');
+bindPedalTouch('btnTouchUp', 'Up');
+bindPedalTouch('btnTouchDown', 'Down');
+
+// Controle interativo direto no volante (arrastar/tocar esquerda ou direita do volante)
+const steeringWheelEl = document.getElementById('steeringWheelVisual');
+let activeWheelPointerId = null;
+let wheelStartX = 0;
+
+steeringWheelEl.addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  activeWheelPointerId = e.pointerId;
+  wheelStartX = e.clientX;
+  steeringWheelEl.setPointerCapture(e.pointerId);
+
+  const rect = steeringWheelEl.getBoundingClientRect();
+  const relX = e.clientX - (rect.left + rect.width / 2);
+  if (relX < -8) {
+    keysPressed.Left = true;
+    keysPressed.Right = false;
+  } else if (relX > 8) {
+    keysPressed.Right = true;
+    keysPressed.Left = false;
+  }
+});
+
+steeringWheelEl.addEventListener('pointermove', (e) => {
+  if (e.pointerId !== activeWheelPointerId) return;
+  const deltaX = e.clientX - wheelStartX;
+  if (deltaX < -6) {
+    keysPressed.Left = true;
+    keysPressed.Right = false;
+  } else if (deltaX > 6) {
+    keysPressed.Right = true;
+    keysPressed.Left = false;
+  } else {
+    keysPressed.Left = false;
+    keysPressed.Right = false;
+  }
+});
+
+function releaseSteeringWheel(e) {
+  if (e.pointerId === activeWheelPointerId) {
+    activeWheelPointerId = null;
+    keysPressed.Left = false;
+    keysPressed.Right = false;
+  }
+}
+
+steeringWheelEl.addEventListener('pointerup', releaseSteeringWheel);
+steeringWheelEl.addEventListener('pointercancel', releaseSteeringWheel);
 
 document.getElementById('btnSelectLineMode').addEventListener('click', () => {
   refreshLinesDropdown();
@@ -1347,10 +1395,10 @@ function updateSteeringWheelVisual() {
   const wheelEl = document.getElementById('steeringWheelVisual');
   if (!wheelEl) return;
   let targetAngle = 0;
-  if (keysPressed.Left) targetAngle = -35;
-  else if (keysPressed.Right) targetAngle = 35;
+  if (keysPressed.Left) targetAngle = -40;
+  else if (keysPressed.Right) targetAngle = 40;
   else if (currentGameMode === 'line') {
-    targetAngle = Math.max(-35, Math.min(35, (lineLateralCorrectionMeters / MAX_LINE_LATERAL_METERS) * 35));
+    targetAngle = Math.max(-40, Math.min(40, (lineLateralCorrectionMeters / MAX_LINE_LATERAL_METERS) * 40));
   }
   steeringWheelAngle += (targetAngle - steeringWheelAngle) * 0.25;
   wheelEl.style.transform = `rotate(${steeringWheelAngle.toFixed(1)}deg)`;
@@ -1445,14 +1493,12 @@ function gameLoop(now) {
         }
       }
 
-      // Correção lateral limitada para aproximar do meio-fio sem deslizar fora da rota
       const lateralAdjustRate = 2.8;
       if (keysPressed.Left) {
         lineLateralCorrectionMeters = Math.max(-MAX_LINE_LATERAL_METERS, lineLateralCorrectionMeters - lateralAdjustRate * deltaTime);
       } else if (keysPressed.Right) {
         lineLateralCorrectionMeters = Math.min(MAX_LINE_LATERAL_METERS, lineLateralCorrectionMeters + lateralAdjustRate * deltaTime);
       } else {
-        // Retorna suavemente ao eixo da rota quando não há comando lateral ativo
         lineLateralCorrectionMeters += (0 - lineLateralCorrectionMeters) * Math.min(1, 3.5 * deltaTime);
       }
 
@@ -1468,8 +1514,8 @@ function gameLoop(now) {
     }
   } else {
     if (currentSpeedKmh > 0 || keysPressed.Up || keysPressed.Down || keysPressed.Left || keysPressed.Right) {
-      if (keysPressed.Left) vehicleHeading = (vehicleHeading - 45 * deltaTime + 360) % 360;
-      if (keysPressed.Right) vehicleHeading = (vehicleHeading + 45 * deltaTime) % 360;
+      if (keysPressed.Left) vehicleHeading = (vehicleHeading - 35 * deltaTime + 360) % 360;
+      if (keysPressed.Right) vehicleHeading = (vehicleHeading + 35 * deltaTime) % 360;
 
       const speedMps = (currentSpeedKmh / 3.6) * speedMultiplier;
       const metersToMove = speedMps * deltaTime;
