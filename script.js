@@ -1,6 +1,6 @@
 // ============================================================
 // ARQUIVO: script.js
-// MOTOR DE SIMULAÇÃO - CÂMERA SUAVIZADA (SEM TREMORES)
+// MOTOR DE SIMULAÇÃO - VOLANTE INFERIOR, CORREÇÃO SEM DESLIZE E VELOCIDADES MANTIDAS
 // ============================================================
 
 const cssStyles = `
@@ -175,6 +175,7 @@ const cssStyles = `
     font-size: 0.78rem;
     box-shadow: 0 4px 14px rgba(0,0,0,0.45);
     white-space: nowrap;
+    max-width: calc(100vw - 16px);
   }
 
   .btn-toggle-hud {
@@ -191,7 +192,7 @@ const cssStyles = `
   .hud {
     position: absolute !important;
     top: 60px !important;
-    left: 15px !important;
+    left: 12px !important;
     z-index: 999999 !important;
     background: rgba(15, 23, 42, 0.92) !important;
     backdrop-filter: blur(8px);
@@ -201,7 +202,7 @@ const cssStyles = `
     border-radius: 12px !important;
     border: 1px solid rgba(255, 255, 255, 0.25) !important;
     width: 260px;
-    max-width: calc(100vw - 30px);
+    max-width: calc(100vw - 24px);
     display: none;
     box-shadow: 0 10px 25px rgba(0,0,0,0.5);
   }
@@ -363,7 +364,7 @@ const cssStyles = `
 
   .speedometer-container {
     position: absolute !important;
-    bottom: 20px !important;
+    top: 56px !important;
     left: 50% !important;
     transform: translateX(-50%) !important;
     z-index: 999999 !important;
@@ -371,9 +372,9 @@ const cssStyles = `
     backdrop-filter: blur(6px);
     -webkit-backdrop-filter: blur(6px);
     color: #38bdf8 !important;
-    padding: 8px 22px !important;
-    border-radius: 25px !important;
-    font-size: 1.6rem !important;
+    padding: 6px 18px !important;
+    border-radius: 20px !important;
+    font-size: 1.35rem !important;
     font-weight: 800 !important;
     border: 2px solid #38bdf8 !important;
     display: flex;
@@ -384,45 +385,101 @@ const cssStyles = `
   }
 
   .speed-unit {
-    font-size: 0.85rem;
+    font-size: 0.8rem;
     font-weight: 600;
     color: #94a3b8;
   }
 
-  .mobile-controls-left {
-    position: absolute !important;
-    bottom: 25px !important;
-    left: 12px !important;
+  /* Barra inferior centralizada com volante e acelerador/freio sempre visíveis */
+  .bottom-cockpit-bar {
+    position: fixed !important;
+    bottom: calc(14px + env(safe-area-inset-bottom, 0px)) !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
     z-index: 999999 !important;
     display: flex;
-    gap: 12px;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    padding: 8px 14px;
+    background: rgba(15, 23, 42, 0.85);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    border-radius: 28px;
+    max-width: calc(100vw - 16px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.65);
   }
 
-  .mobile-controls-right {
-    position: absolute !important;
-    bottom: 85px !important;
-    right: 15px !important;
-    z-index: 999999 !important;
+  .steering-wheel-group {
     display: flex;
-    flex-direction: column;
-    gap: 14px;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .steering-wheel-visual {
+    width: 68px;
+    height: 68px;
+    border-radius: 50%;
+    border: 6px solid #e2e8f0;
+    background: radial-gradient(circle at center, rgba(30, 41, 59, 0.95) 35%, rgba(15, 23, 42, 0.95) 100%);
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: inset 0 0 8px rgba(0,0,0,0.8), 0 2px 8px rgba(0,0,0,0.6);
+    transition: transform 0.08s linear;
+    flex-shrink: 0;
+  }
+
+  .steering-wheel-visual::before {
+    content: "";
+    position: absolute;
+    width: 100%;
+    height: 5px;
+    background: #94a3b8;
+    border-radius: 2px;
+  }
+
+  .steering-wheel-visual::after {
+    content: "";
+    position: absolute;
+    width: 5px;
+    height: 55%;
+    bottom: 0;
+    background: #94a3b8;
+    border-radius: 2px;
+  }
+
+  .steering-wheel-hub {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #38bdf8;
+    border: 2px solid #0f172a;
+    z-index: 2;
+  }
+
+  .pedal-controls-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
   }
 
   .btn-drive-touch {
-    width: 62px;
-    height: 62px;
-    background: rgba(15, 23, 42, 0.9);
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
+    width: 52px;
+    height: 52px;
+    background: rgba(30, 41, 59, 0.95);
     border: 2px solid #38bdf8;
     border-radius: 50%;
     color: #ffffff;
-    font-size: 1.4rem;
+    font-size: 1.2rem;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
     box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+    flex-shrink: 0;
   }
 
   .btn-drive-touch:active {
@@ -432,7 +489,7 @@ const cssStyles = `
 
   .btn-drive-touch.btn-accel {
     border-color: #10b981;
-    background: rgba(16, 185, 129, 0.5);
+    background: rgba(16, 185, 129, 0.45);
   }
 
   .btn-drive-touch.btn-accel:active {
@@ -441,11 +498,34 @@ const cssStyles = `
 
   .btn-drive-touch.btn-brake {
     border-color: #ef4444;
-    background: rgba(239, 68, 68, 0.5);
+    background: rgba(239, 68, 68, 0.45);
   }
 
   .btn-drive-touch.btn-brake:active {
     background: rgba(239, 68, 68, 0.9);
+  }
+
+  @media (max-width: 480px) {
+    .bottom-cockpit-bar {
+      gap: 8px;
+      padding: 6px 10px;
+    }
+    .steering-wheel-group {
+      gap: 5px;
+    }
+    .steering-wheel-visual {
+      width: 54px;
+      height: 54px;
+      border-width: 5px;
+    }
+    .pedal-controls-group {
+      gap: 6px;
+    }
+    .btn-drive-touch {
+      width: 44px;
+      height: 44px;
+      font-size: 1rem;
+    }
   }
 
   .alert-toast {
@@ -750,23 +830,23 @@ speedBox.style.display = 'none';
 speedBox.innerHTML = '<span id="speedValue">0</span><span class="speed-unit">km/h</span>';
 document.body.appendChild(speedBox);
 
-let leftControlsContainer = document.createElement('div');
-leftControlsContainer.className = 'mobile-controls-left';
-leftControlsContainer.style.display = 'none';
-leftControlsContainer.innerHTML = `
-  <button class="btn-drive-touch" id="btnTouchLeft">⬅️</button>
-  <button class="btn-drive-touch" id="btnTouchRight">➡️</button>
+let bottomCockpitBar = document.createElement('div');
+bottomCockpitBar.className = 'bottom-cockpit-bar';
+bottomCockpitBar.style.display = 'none';
+bottomCockpitBar.innerHTML = `
+  <div class="steering-wheel-group">
+    <button class="btn-drive-touch" id="btnTouchLeft">⬅️</button>
+    <div class="steering-wheel-visual" id="steeringWheelVisual">
+      <div class="steering-wheel-hub"></div>
+    </div>
+    <button class="btn-drive-touch" id="btnTouchRight">➡️</button>
+  </div>
+  <div class="pedal-controls-group">
+    <button class="btn-drive-touch btn-accel" id="btnTouchUp">⬆️</button>
+    <button class="btn-drive-touch btn-brake" id="btnTouchDown">⬇️</button>
+  </div>
 `;
-document.body.appendChild(leftControlsContainer);
-
-let rightControlsContainer = document.createElement('div');
-rightControlsContainer.className = 'mobile-controls-right';
-rightControlsContainer.style.display = 'none';
-rightControlsContainer.innerHTML = `
-  <button class="btn-drive-touch btn-accel" id="btnTouchUp">⬆️</button>
-  <button class="btn-drive-touch btn-brake" id="btnTouchDown">⬇️</button>
-`;
-document.body.appendChild(rightControlsContainer);
+document.body.appendChild(bottomCockpitBar);
 
 let map = null;
 let busMarker = null;
@@ -784,6 +864,7 @@ let busLat = 0;
 let currentSpeedKmh = 0;
 let isAutopilotMoving = false;
 
+// Velocidades mantidas exatamente conforme definido
 let cruiseSpeedKmh = 90;
 let boostSpeedKmh = 140;
 
@@ -795,9 +876,12 @@ let segProgressMeters = 0;
 let currentSegLength = 0;
 let targetHeading = 0;
 let smoothHeading = 0;
-let currentCameraBearing = 0; // Armazena o ângulo atual suave da câmera para evitar tremores
+let currentCameraBearing = 0;
 
-let manualHeadingOffset = 0; 
+// Correção lateral limitada para não deslizar para fora da rota no modo linha
+let lineLateralCorrectionMeters = 0;
+const MAX_LINE_LATERAL_METERS = 3.2;
+let steeringWheelAngle = 0;
 
 let isLineFinished = false;
 let isTripActive = false;
@@ -993,7 +1077,8 @@ document.getElementById('btnStartLineMode').addEventListener('click', () => {
   isAutopilotMoving = false;
   currentSpeedKmh = 0;
   distanceCoveredKm = 0;
-  manualHeadingOffset = 0;
+  lineLateralCorrectionMeters = 0;
+  steeringWheelAngle = 0;
 
   targetHeading = calculateBearing(activePath[0], activePath[1]);
   smoothHeading = targetHeading;
@@ -1021,7 +1106,8 @@ document.getElementById('btnStartFreeMode').addEventListener('click', async () =
   speedMultiplier = 1.0;
   isTripActive = true;
   vehicleHeading = 0;
-  manualHeadingOffset = 0;
+  lineLateralCorrectionMeters = 0;
+  steeringWheelAngle = 0;
   currentCameraBearing = 0;
   updateTripStatus();
   startTripTimer();
@@ -1045,9 +1131,8 @@ function startSimulation(startCoords) {
   setupModal.style.display = 'none';
   
   mobileTopBar.style.display = 'flex';
-  rightControlsContainer.style.display = 'flex';
+  bottomCockpitBar.style.display = 'flex';
   speedBox.style.display = 'flex';
-  leftControlsContainer.style.display = 'flex'; 
 
   if (currentGameMode === 'free') {
     btnTripToggle.style.display = 'none';
@@ -1084,7 +1169,8 @@ function exitGame() {
   vehicleHeading = 0;
   distanceCoveredKm = 0;
   speedMultiplier = 1.0;
-  manualHeadingOffset = 0;
+  lineLateralCorrectionMeters = 0;
+  steeringWheelAngle = 0;
   document.getElementById('tripTimerDisplay').textContent = '00:00';
   document.getElementById('miniTimerDisplay').textContent = '00:00';
   document.getElementById('kmCoveredDisplay').textContent = '0.00 km';
@@ -1095,8 +1181,7 @@ function exitGame() {
   hudContainer.classList.remove('mobile-visible');
   speedBox.style.display = 'none';
   mobileTopBar.style.display = 'none';
-  leftControlsContainer.style.display = 'none';
-  rightControlsContainer.style.display = 'none';
+  bottomCockpitBar.style.display = 'none';
   mapBanner.style.display = 'none';
 
   document.getElementById('cardLineMode').style.display = 'none';
@@ -1258,6 +1343,19 @@ function handleAccelerate() {
   updateTripStatus();
 }
 
+function updateSteeringWheelVisual() {
+  const wheelEl = document.getElementById('steeringWheelVisual');
+  if (!wheelEl) return;
+  let targetAngle = 0;
+  if (keysPressed.Left) targetAngle = -35;
+  else if (keysPressed.Right) targetAngle = 35;
+  else if (currentGameMode === 'line') {
+    targetAngle = Math.max(-35, Math.min(35, (lineLateralCorrectionMeters / MAX_LINE_LATERAL_METERS) * 35));
+  }
+  steeringWheelAngle += (targetAngle - steeringWheelAngle) * 0.25;
+  wheelEl.style.transform = `rotate(${steeringWheelAngle.toFixed(1)}deg)`;
+}
+
 let lastFrameTime = performance.now();
 
 function gameLoop(now) {
@@ -1280,15 +1378,6 @@ function gameLoop(now) {
     updateTripStatus();
   }
 
-  // Esterçamento sutil e suave
-  const turnRate = 18; 
-  if (keysPressed.Left) {
-    manualHeadingOffset -= turnRate * deltaTime;
-  }
-  if (keysPressed.Right) {
-    manualHeadingOffset += turnRate * deltaTime;
-  }
-
   if (isTripActive && isAutopilotMoving && !isLineFinished) {
     if (keysPressed.Down) {
       desiredSpeed = 0;
@@ -1309,8 +1398,8 @@ function gameLoop(now) {
     currentSpeedKmh = Math.max(currentSpeedKmh - 40 * deltaTime, desiredSpeed);
   }
 
-  let pureBusLng = busLng;
-  let pureBusLat = busLat;
+  let renderLng = busLng;
+  let renderLat = busLat;
 
   if (currentGameMode === 'line') {
     if (currentSpeedKmh > 0 && !isLineFinished && isTripActive) {
@@ -1332,8 +1421,8 @@ function gameLoop(now) {
           remainingDistance = 0;
 
           const ratio = currentSegLength > 0 ? (segProgressMeters / currentSegLength) : 0;
-          pureBusLng = p1[0] + (p2[0] - p1[0]) * ratio;
-          pureBusLat = p1[1] + (p2[1] - p1[1]) * ratio;
+          busLng = p1[0] + (p2[0] - p1[0]) * ratio;
+          busLat = p1[1] + (p2[1] - p1[1]) * ratio;
 
           targetHeading = calculateBearing(p1, p2);
         } else {
@@ -1342,40 +1431,45 @@ function gameLoop(now) {
           segProgressMeters = 0;
 
           if (currentSegIndex >= activePath.length - 1) {
-            pureBusLng = activePath[activePath.length - 1][0];
-            pureBusLat = activePath[activePath.length - 1][1];
+            busLng = activePath[activePath.length - 1][0];
+            busLat = activePath[activePath.length - 1][1];
             isLineFinished = true;
             mostrarRelatorioFinal();
             break;
           } else {
             currentSegLength = getMetersBetween(activePath[currentSegIndex], activePath[currentSegIndex + 1]);
-            pureBusLng = activePath[currentSegIndex][0];
-            pureBusLat = activePath[currentSegIndex][1];
+            busLng = activePath[currentSegIndex][0];
+            busLat = activePath[currentSegIndex][1];
             targetHeading = calculateBearing(activePath[currentSegIndex], activePath[currentSegIndex + 1]);
           }
         }
       }
 
-      if (Math.abs(manualHeadingOffset) > 0.1) {
-        const speedMps = (currentSpeedKmh / 3.6) * speedMultiplier;
-        const metersToMove = speedMps * deltaTime;
-        const metersPerDegreeLat = 111320;
-        const metersPerDegreeLng = 111320 * Math.cos(busLat * (Math.PI / 180));
-        const activeRad = ((targetHeading + manualHeadingOffset) * Math.PI) / 180;
-
-        busLng += (metersToMove * Math.sin(activeRad)) / metersPerDegreeLng;
-        busLat += (metersToMove * Math.cos(activeRad)) / metersPerDegreeLat;
+      // Correção lateral limitada para aproximar do meio-fio sem deslizar fora da rota
+      const lateralAdjustRate = 2.8;
+      if (keysPressed.Left) {
+        lineLateralCorrectionMeters = Math.max(-MAX_LINE_LATERAL_METERS, lineLateralCorrectionMeters - lateralAdjustRate * deltaTime);
+      } else if (keysPressed.Right) {
+        lineLateralCorrectionMeters = Math.min(MAX_LINE_LATERAL_METERS, lineLateralCorrectionMeters + lateralAdjustRate * deltaTime);
       } else {
-        busLng = pureBusLng;
-        busLat = pureBusLat;
+        // Retorna suavemente ao eixo da rota quando não há comando lateral ativo
+        lineLateralCorrectionMeters += (0 - lineLateralCorrectionMeters) * Math.min(1, 3.5 * deltaTime);
       }
 
-      smoothHeading = lerpHeading(smoothHeading, targetHeading + manualHeadingOffset, 3.0 * deltaTime);
+      smoothHeading = lerpHeading(smoothHeading, targetHeading, 6.0 * deltaTime);
+
+      const perpHeading = (smoothHeading + 90) % 360;
+      const perpRad = (perpHeading * Math.PI) / 180;
+      const metersPerDegreeLat = 111320;
+      const metersPerDegreeLng = 111320 * Math.cos(busLat * (Math.PI / 180));
+
+      renderLng = busLng + (lineLateralCorrectionMeters * Math.sin(perpRad)) / metersPerDegreeLng;
+      renderLat = busLat + (lineLateralCorrectionMeters * Math.cos(perpRad)) / metersPerDegreeLat;
     }
   } else {
     if (currentSpeedKmh > 0 || keysPressed.Up || keysPressed.Down || keysPressed.Left || keysPressed.Right) {
-      if (keysPressed.Left) vehicleHeading = (vehicleHeading - 35 * deltaTime + 360) % 360;
-      if (keysPressed.Right) vehicleHeading = (vehicleHeading + 35 * deltaTime) % 360;
+      if (keysPressed.Left) vehicleHeading = (vehicleHeading - 45 * deltaTime + 360) % 360;
+      if (keysPressed.Right) vehicleHeading = (vehicleHeading + 45 * deltaTime) % 360;
 
       const speedMps = (currentSpeedKmh / 3.6) * speedMultiplier;
       const metersToMove = speedMps * deltaTime;
@@ -1386,9 +1480,13 @@ function gameLoop(now) {
       busLng += (metersToMove * Math.sin(rad)) / metersPerDegreeLng;
       busLat += (metersToMove * Math.cos(rad)) / metersPerDegreeLat;
     }
+    renderLng = busLng;
+    renderLat = busLat;
   }
 
-  const distStep = getMetersBetween(prev, [busLng, busLat]) / 1000;
+  updateSteeringWheelVisual();
+
+  const distStep = getMetersBetween(prev, [renderLng, renderLat]) / 1000;
   if (!isNaN(distStep)) {
     distanceCoveredKm += distStep;
   }
@@ -1401,7 +1499,7 @@ function gameLoop(now) {
   document.getElementById('speedValue').textContent = speedRounded;
   document.getElementById('miniSpeedDisplay').textContent = speedRounded;
 
-  const currentCoords = [busLng, busLat];
+  const currentCoords = [renderLng, renderLat];
   if (busMarker) {
     busMarker.setLngLat(currentCoords);
   }
@@ -1414,9 +1512,7 @@ function gameLoop(now) {
   }
 
   const rawTargetBearing = currentGameMode === 'line' ? smoothHeading : vehicleHeading;
-  
-  // Interpolação suave do ângulo da câmera (evita solavancos e tremores na tela)
-  currentCameraBearing = lerpHeading(currentCameraBearing, rawTargetBearing, 4.0 * deltaTime);
+  currentCameraBearing = lerpHeading(currentCameraBearing, rawTargetBearing, 5.0 * deltaTime);
 
   if (busMarker && busMarker.getElement()) {
     if (currentCameraMode === 'street' && currentZoomLevel <= 18.5) {
