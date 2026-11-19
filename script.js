@@ -1,6 +1,6 @@
 // ============================================================
 // ARQUIVO: script.js
-// MOTOR DE SIMULAÇÃO - VOLANTE AMPLIADO, PEDAIS AO LADO E SEM BOTÕES DE SETA
+// MOTOR DE SIMULAÇÃO - VOLANTE AMPLIADO, DIREÇÃO SOLTA E CONTENÇÃO SUAVE
 // ============================================================
 
 const cssStyles = `
@@ -390,7 +390,6 @@ const cssStyles = `
     color: #94a3b8;
   }
 
-  /* Barra inferior centralizada: volante ampliado + pedais de freio e acelerador ao lado */
   .bottom-cockpit-bar {
     position: fixed !important;
     bottom: calc(14px + env(safe-area-inset-bottom, 0px)) !important;
@@ -400,29 +399,29 @@ const cssStyles = `
     display: flex;
     align-items: flex-end;
     justify-content: center;
-    gap: 18px;
-    padding: 10px 18px;
+    gap: 20px;
+    padding: 12px 20px;
     background: rgba(15, 23, 42, 0.88);
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
     border: 1px solid rgba(148, 163, 184, 0.35);
-    border-radius: 32px;
-    max-width: calc(100vw - 16px);
+    border-radius: 36px;
+    max-width: calc(100vw - 14px);
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.65);
   }
 
   .steering-wheel-visual {
-    width: 96px;
-    height: 96px;
+    width: 118px;
+    height: 118px;
     border-radius: 50%;
-    border: 8px solid #e2e8f0;
+    border: 9px solid #e2e8f0;
     background: radial-gradient(circle at center, rgba(30, 41, 59, 0.96) 34%, rgba(15, 23, 42, 0.96) 100%);
     position: relative;
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: inset 0 0 10px rgba(0,0,0,0.85), 0 4px 12px rgba(0,0,0,0.65);
-    transition: transform 0.08s linear;
+    box-shadow: inset 0 0 12px rgba(0,0,0,0.85), 0 4px 14px rgba(0,0,0,0.65);
+    transition: transform 0.04s ease-out;
     flex-shrink: 0;
     cursor: pointer;
   }
@@ -431,7 +430,7 @@ const cssStyles = `
     content: "";
     position: absolute;
     width: 100%;
-    height: 7px;
+    height: 8px;
     background: #94a3b8;
     border-radius: 2px;
   }
@@ -439,7 +438,7 @@ const cssStyles = `
   .steering-wheel-visual::after {
     content: "";
     position: absolute;
-    width: 7px;
+    width: 8px;
     height: 55%;
     bottom: 0;
     background: #94a3b8;
@@ -447,8 +446,8 @@ const cssStyles = `
   }
 
   .steering-wheel-hub {
-    width: 26px;
-    height: 26px;
+    width: 30px;
+    height: 30px;
     border-radius: 50%;
     background: #38bdf8;
     border: 3px solid #0f172a;
@@ -462,8 +461,8 @@ const cssStyles = `
   }
 
   .pedal-btn {
-    width: 50px;
-    height: 76px;
+    width: 52px;
+    height: 78px;
     border-radius: 10px;
     color: #ffffff;
     font-size: 0.7rem;
@@ -492,7 +491,7 @@ const cssStyles = `
   }
 
   .pedal-btn.pedal-accel {
-    height: 86px;
+    height: 88px;
     background: linear-gradient(180deg, rgba(5, 150, 105, 0.85) 0%, rgba(6, 95, 70, 0.95) 100%);
     border-color: #34d399;
   }
@@ -505,27 +504,27 @@ const cssStyles = `
   @media (max-width: 480px) {
     .bottom-cockpit-bar {
       gap: 12px;
-      padding: 8px 14px;
+      padding: 10px 14px;
     }
     .steering-wheel-visual {
-      width: 82px;
-      height: 82px;
-      border-width: 7px;
+      width: 100px;
+      height: 100px;
+      border-width: 8px;
     }
     .steering-wheel-hub {
-      width: 22px;
-      height: 22px;
+      width: 26px;
+      height: 26px;
     }
     .pedal-controls-group {
       gap: 8px;
     }
     .pedal-btn {
       width: 44px;
-      height: 66px;
+      height: 68px;
       font-size: 0.62rem;
     }
     .pedal-btn.pedal-accel {
-      height: 76px;
+      height: 78px;
     }
   }
 
@@ -880,9 +879,11 @@ let targetHeading = 0;
 let smoothHeading = 0;
 let currentCameraBearing = 0;
 
+// Contenção suave dentro do limite determinado do trajeto
 let lineLateralCorrectionMeters = 0;
-const MAX_LINE_LATERAL_METERS = 3.2;
+const MAX_LINE_LATERAL_METERS = 2.4;
 let steeringWheelAngle = 0;
+let looseSteerInput = 0; // Entrada leve e solta do volante (-1 a +1)
 
 let isLineFinished = false;
 let isTripActive = false;
@@ -998,10 +999,30 @@ function bindPedalTouch(elementId, keyName) {
 bindPedalTouch('btnTouchUp', 'Up');
 bindPedalTouch('btnTouchDown', 'Down');
 
-// Controle interativo direto no volante (arrastar/tocar esquerda ou direita do volante)
+// Volante solto e sensível ao toque/arrasto
 const steeringWheelEl = document.getElementById('steeringWheelVisual');
 let activeWheelPointerId = null;
 let wheelStartX = 0;
+
+function applyWheelPosition(clientX) {
+  const rect = steeringWheelEl.getBoundingClientRect();
+  const centerX = rect.left + rect.width / 2;
+  const maxRadius = rect.width / 2;
+  const deltaFromCenter = clientX - centerX;
+  const normalized = Math.max(-1, Math.min(1, deltaFromCenter / (maxRadius * 0.65)));
+
+  looseSteerInput = normalized;
+  if (normalized < -0.12) {
+    keysPressed.Left = true;
+    keysPressed.Right = false;
+  } else if (normalized > 0.12) {
+    keysPressed.Right = true;
+    keysPressed.Left = false;
+  } else {
+    keysPressed.Left = false;
+    keysPressed.Right = false;
+  }
+}
 
 steeringWheelEl.addEventListener('pointerdown', (e) => {
   e.preventDefault();
@@ -1009,36 +1030,18 @@ steeringWheelEl.addEventListener('pointerdown', (e) => {
   activeWheelPointerId = e.pointerId;
   wheelStartX = e.clientX;
   steeringWheelEl.setPointerCapture(e.pointerId);
-
-  const rect = steeringWheelEl.getBoundingClientRect();
-  const relX = e.clientX - (rect.left + rect.width / 2);
-  if (relX < -8) {
-    keysPressed.Left = true;
-    keysPressed.Right = false;
-  } else if (relX > 8) {
-    keysPressed.Right = true;
-    keysPressed.Left = false;
-  }
+  applyWheelPosition(e.clientX);
 });
 
 steeringWheelEl.addEventListener('pointermove', (e) => {
   if (e.pointerId !== activeWheelPointerId) return;
-  const deltaX = e.clientX - wheelStartX;
-  if (deltaX < -6) {
-    keysPressed.Left = true;
-    keysPressed.Right = false;
-  } else if (deltaX > 6) {
-    keysPressed.Right = true;
-    keysPressed.Left = false;
-  } else {
-    keysPressed.Left = false;
-    keysPressed.Right = false;
-  }
+  applyWheelPosition(e.clientX);
 });
 
 function releaseSteeringWheel(e) {
   if (e.pointerId === activeWheelPointerId) {
     activeWheelPointerId = null;
+    looseSteerInput = 0;
     keysPressed.Left = false;
     keysPressed.Right = false;
   }
@@ -1127,6 +1130,7 @@ document.getElementById('btnStartLineMode').addEventListener('click', () => {
   distanceCoveredKm = 0;
   lineLateralCorrectionMeters = 0;
   steeringWheelAngle = 0;
+  looseSteerInput = 0;
 
   targetHeading = calculateBearing(activePath[0], activePath[1]);
   smoothHeading = targetHeading;
@@ -1156,6 +1160,7 @@ document.getElementById('btnStartFreeMode').addEventListener('click', async () =
   vehicleHeading = 0;
   lineLateralCorrectionMeters = 0;
   steeringWheelAngle = 0;
+  looseSteerInput = 0;
   currentCameraBearing = 0;
   updateTripStatus();
   startTripTimer();
@@ -1219,6 +1224,7 @@ function exitGame() {
   speedMultiplier = 1.0;
   lineLateralCorrectionMeters = 0;
   steeringWheelAngle = 0;
+  looseSteerInput = 0;
   document.getElementById('tripTimerDisplay').textContent = '00:00';
   document.getElementById('miniTimerDisplay').textContent = '00:00';
   document.getElementById('kmCoveredDisplay').textContent = '0.00 km';
@@ -1391,16 +1397,22 @@ function handleAccelerate() {
   updateTripStatus();
 }
 
+function getEffectiveSteerFactor() {
+  if (Math.abs(looseSteerInput) > 0.05) return looseSteerInput;
+  if (keysPressed.Left) return -1;
+  if (keysPressed.Right) return 1;
+  return 0;
+}
+
 function updateSteeringWheelVisual() {
   const wheelEl = document.getElementById('steeringWheelVisual');
   if (!wheelEl) return;
-  let targetAngle = 0;
-  if (keysPressed.Left) targetAngle = -40;
-  else if (keysPressed.Right) targetAngle = 40;
-  else if (currentGameMode === 'line') {
-    targetAngle = Math.max(-40, Math.min(40, (lineLateralCorrectionMeters / MAX_LINE_LATERAL_METERS) * 40));
+  const steerFactor = getEffectiveSteerFactor();
+  let targetAngle = steerFactor * 75;
+  if (Math.abs(steerFactor) < 0.05 && currentGameMode === 'line') {
+    targetAngle = Math.max(-35, Math.min(35, (lineLateralCorrectionMeters / MAX_LINE_LATERAL_METERS) * 35));
   }
-  steeringWheelAngle += (targetAngle - steeringWheelAngle) * 0.25;
+  steeringWheelAngle += (targetAngle - steeringWheelAngle) * 0.35;
   wheelEl.style.transform = `rotate(${steeringWheelAngle.toFixed(1)}deg)`;
 }
 
@@ -1448,6 +1460,7 @@ function gameLoop(now) {
 
   let renderLng = busLng;
   let renderLat = busLat;
+  const steerFactor = getEffectiveSteerFactor();
 
   if (currentGameMode === 'line') {
     if (currentSpeedKmh > 0 && !isLineFinished && isTripActive) {
@@ -1493,18 +1506,20 @@ function gameLoop(now) {
         }
       }
 
-      const lateralAdjustRate = 2.8;
-      if (keysPressed.Left) {
-        lineLateralCorrectionMeters = Math.max(-MAX_LINE_LATERAL_METERS, lineLateralCorrectionMeters - lateralAdjustRate * deltaTime);
-      } else if (keysPressed.Right) {
-        lineLateralCorrectionMeters = Math.min(MAX_LINE_LATERAL_METERS, lineLateralCorrectionMeters + lateralAdjustRate * deltaTime);
+      // Deslocamento lateral solto, porém contido suavemente no limite do trajeto
+      const lateralRate = 2.4;
+      if (Math.abs(steerFactor) > 0.05) {
+        const targetOffset = steerFactor * MAX_LINE_LATERAL_METERS;
+        lineLateralCorrectionMeters += (targetOffset - lineLateralCorrectionMeters) * Math.min(1, lateralRate * deltaTime);
+        lineLateralCorrectionMeters = Math.max(-MAX_LINE_LATERAL_METERS, Math.min(MAX_LINE_LATERAL_METERS, lineLateralCorrectionMeters));
       } else {
-        lineLateralCorrectionMeters += (0 - lineLateralCorrectionMeters) * Math.min(1, 3.5 * deltaTime);
+        lineLateralCorrectionMeters += (0 - lineLateralCorrectionMeters) * Math.min(1, 2.6 * deltaTime);
       }
 
-      smoothHeading = lerpHeading(smoothHeading, targetHeading, 6.0 * deltaTime);
+      const headingWithSteer = (targetHeading + steerFactor * 12 + 360) % 360;
+      smoothHeading = lerpHeading(smoothHeading, headingWithSteer, 7.5 * deltaTime);
 
-      const perpHeading = (smoothHeading + 90) % 360;
+      const perpHeading = (targetHeading + 90) % 360;
       const perpRad = (perpHeading * Math.PI) / 180;
       const metersPerDegreeLat = 111320;
       const metersPerDegreeLng = 111320 * Math.cos(busLat * (Math.PI / 180));
@@ -1513,9 +1528,10 @@ function gameLoop(now) {
       renderLat = busLat + (lineLateralCorrectionMeters * Math.cos(perpRad)) / metersPerDegreeLat;
     }
   } else {
-    if (currentSpeedKmh > 0 || keysPressed.Up || keysPressed.Down || keysPressed.Left || keysPressed.Right) {
-      if (keysPressed.Left) vehicleHeading = (vehicleHeading - 35 * deltaTime + 360) % 360;
-      if (keysPressed.Right) vehicleHeading = (vehicleHeading + 35 * deltaTime) % 360;
+    if (currentSpeedKmh > 0 || keysPressed.Up || keysPressed.Down || Math.abs(steerFactor) > 0.05) {
+      if (Math.abs(steerFactor) > 0.05) {
+        vehicleHeading = (vehicleHeading + steerFactor * 52 * deltaTime + 360) % 360;
+      }
 
       const speedMps = (currentSpeedKmh / 3.6) * speedMultiplier;
       const metersToMove = speedMps * deltaTime;
@@ -1558,7 +1574,7 @@ function gameLoop(now) {
   }
 
   const rawTargetBearing = currentGameMode === 'line' ? smoothHeading : vehicleHeading;
-  currentCameraBearing = lerpHeading(currentCameraBearing, rawTargetBearing, 5.0 * deltaTime);
+  currentCameraBearing = lerpHeading(currentCameraBearing, rawTargetBearing, 5.5 * deltaTime);
 
   if (busMarker && busMarker.getElement()) {
     if (currentCameraMode === 'street' && currentZoomLevel <= 18.5) {
@@ -1602,13 +1618,25 @@ window.addEventListener('keydown', (e) => {
     keysPressed.Up = true;
   }
   if (['ArrowDown', 'KeyS'].includes(e.code)) keysPressed.Down = true;
-  if (['ArrowLeft', 'KeyA'].includes(e.code)) keysPressed.Left = true;
-  if (['ArrowRight', 'KeyD'].includes(e.code)) keysPressed.Right = true;
+  if (['ArrowLeft', 'KeyA'].includes(e.code)) {
+    keysPressed.Left = true;
+    looseSteerInput = -1;
+  }
+  if (['ArrowRight', 'KeyD'].includes(e.code)) {
+    keysPressed.Right = true;
+    looseSteerInput = 1;
+  }
 });
 
 window.addEventListener('keyup', (e) => {
   if (['ArrowUp', 'KeyW'].includes(e.code)) keysPressed.Up = false;
   if (['ArrowDown', 'KeyS'].includes(e.code)) keysPressed.Down = false;
-  if (['ArrowLeft', 'KeyA'].includes(e.code)) keysPressed.Left = false;
-  if (['ArrowRight', 'KeyD'].includes(e.code)) keysPressed.Right = false;
+  if (['ArrowLeft', 'KeyA'].includes(e.code)) {
+    keysPressed.Left = false;
+    if (!keysPressed.Right) looseSteerInput = 0;
+  }
+  if (['ArrowRight', 'KeyD'].includes(e.code)) {
+    keysPressed.Right = false;
+    if (!keysPressed.Left) looseSteerInput = 0;
+  }
 });
