@@ -1,6 +1,6 @@
 // ============================================================
 // ARQUIVO: script.js
-// MOTOR DE SIMULAÇÃO - MODO LINHA FIEL AO TRAJETO E VOLANTE/PEDAIS MANTIDOS
+// MOTOR DE SIMULAÇÃO - PARADAS EM PONTOS DE REFERÊNCIA E D-PAD EM CRUZ
 // ============================================================
 
 const cssStyles = `
@@ -156,6 +156,30 @@ const cssStyles = `
     max-width: 90vw !important;
   }
 
+  .stop-reference-banner {
+    position: fixed;
+    top: 54px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 999999;
+    background: rgba(15, 23, 42, 0.92);
+    border: 1.5px solid #f59e0b;
+    color: #fbbf24;
+    padding: 6px 14px;
+    border-radius: 16px;
+    font-size: 0.76rem;
+    font-weight: 700;
+    display: none;
+    align-items: center;
+    gap: 6px;
+    max-width: calc(100vw - 20px);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    pointer-events: none;
+  }
+
   .mobile-top-bar {
     position: absolute;
     top: 12px;
@@ -191,7 +215,7 @@ const cssStyles = `
 
   .hud {
     position: absolute !important;
-    top: 60px !important;
+    top: 88px !important;
     left: 12px !important;
     z-index: 999999 !important;
     background: rgba(15, 23, 42, 0.92) !important;
@@ -364,7 +388,7 @@ const cssStyles = `
 
   .speedometer-container {
     position: absolute !important;
-    top: 56px !important;
+    top: 88px !important;
     left: 50% !important;
     transform: translateX(-50%) !important;
     z-index: 999999 !important;
@@ -390,68 +414,118 @@ const cssStyles = `
     color: #94a3b8;
   }
 
+  /* Barra inferior centralizada: D-pad em cruz baseado no modelo + pedais ao lado */
   .bottom-cockpit-bar {
     position: fixed !important;
-    bottom: calc(14px + env(safe-area-inset-bottom, 0px)) !important;
+    bottom: calc(12px + env(safe-area-inset-bottom, 0px)) !important;
     left: 50% !important;
     transform: translateX(-50%) !important;
     z-index: 999999 !important;
     display: flex;
-    align-items: flex-end;
+    align-items: center;
     justify-content: center;
-    gap: 20px;
-    padding: 12px 20px;
-    background: rgba(15, 23, 42, 0.88);
+    gap: 16px;
+    padding: 10px 16px;
+    background: rgba(15, 23, 42, 0.86);
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
     border: 1px solid rgba(148, 163, 184, 0.35);
-    border-radius: 36px;
-    max-width: calc(100vw - 14px);
+    border-radius: 28px;
+    max-width: calc(100vw - 12px);
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.65);
   }
 
-  .steering-wheel-visual {
-    width: 118px;
-    height: 118px;
-    border-radius: 50%;
-    border: 9px solid #e2e8f0;
-    background: radial-gradient(circle at center, rgba(30, 41, 59, 0.96) 34%, rgba(15, 23, 42, 0.96) 100%);
+  /* D-Pad em cruz inspirado na imagem enviada */
+  .cross-dpad {
+    --pad-size: 112px;
+    --arm-w: 36px;
+    --arm-l: 40px;
     position: relative;
+    width: var(--pad-size);
+    height: var(--pad-size);
+    flex-shrink: 0;
+  }
+
+  .dpad-arm-btn {
+    position: absolute;
+    background: #090d16;
+    border: 3px solid #e2e8f0;
+    cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: inset 0 0 12px rgba(0,0,0,0.85), 0 4px 14px rgba(0,0,0,0.65);
-    transition: transform 0.04s ease-out;
-    flex-shrink: 0;
-    cursor: pointer;
+    color: #f8fafc;
+    font-size: 0.78rem;
+    font-weight: 900;
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.7);
+    transition: transform 0.06s ease, background 0.1s ease, border-color 0.1s ease;
   }
 
-  .steering-wheel-visual::before {
-    content: "";
-    position: absolute;
-    width: 100%;
-    height: 8px;
-    background: #94a3b8;
-    border-radius: 2px;
-  }
-
-  .steering-wheel-visual::after {
-    content: "";
-    position: absolute;
-    width: 8px;
-    height: 55%;
-    bottom: 0;
-    background: #94a3b8;
-    border-radius: 2px;
-  }
-
-  .steering-wheel-hub {
-    width: 30px;
-    height: 30px;
-    border-radius: 50%;
+  .dpad-arm-btn:active,
+  .dpad-arm-btn.pressed {
     background: #38bdf8;
-    border: 3px solid #0f172a;
-    z-index: 2;
+    border-color: #ffffff;
+    color: #0f172a;
+  }
+
+  /* Cima: ponta chanfrada para baixo no centro */
+  .dpad-up {
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: var(--arm-w);
+    height: var(--arm-l);
+    clip-path: polygon(0% 0%, 100% 0%, 100% 72%, 50% 100%, 0% 72%);
+  }
+
+  .dpad-up:active,
+  .dpad-up.pressed {
+    transform: translateX(-50%) scale(0.95);
+  }
+
+  /* Baixo: ponta chanfrada para cima no centro */
+  .dpad-down {
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: var(--arm-w);
+    height: var(--arm-l);
+    clip-path: polygon(50% 0%, 100% 28%, 100% 100%, 0% 100%, 0% 28%);
+  }
+
+  .dpad-down:active,
+  .dpad-down.pressed {
+    transform: translateX(-50%) scale(0.95);
+  }
+
+  /* Esquerda: ponta chanfrada para a direita no centro */
+  .dpad-left {
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: var(--arm-l);
+    height: var(--arm-w);
+    clip-path: polygon(0% 0%, 72% 0%, 100% 50%, 72% 100%, 0% 100%);
+  }
+
+  .dpad-left:active,
+  .dpad-left.pressed {
+    transform: translateY(-50%) scale(0.95);
+  }
+
+  /* Direita: ponta chanfrada para a esquerda no centro */
+  .dpad-right {
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: var(--arm-l);
+    height: var(--arm-w);
+    clip-path: polygon(28% 0%, 100% 0%, 100% 100%, 28% 100%, 0% 50%);
+  }
+
+  .dpad-right:active,
+  .dpad-right.pressed {
+    transform: translateY(-50%) scale(0.95);
   }
 
   .pedal-controls-group {
@@ -462,10 +536,10 @@ const cssStyles = `
 
   .pedal-btn {
     width: 52px;
-    height: 78px;
+    height: 76px;
     border-radius: 10px;
     color: #ffffff;
-    font-size: 0.7rem;
+    font-size: 0.68rem;
     font-weight: 800;
     letter-spacing: 0.5px;
     display: flex;
@@ -485,52 +559,62 @@ const cssStyles = `
     border-color: #f87171;
   }
 
-  .pedal-btn.pedal-brake:active {
+  .pedal-btn.pedal-brake:active,
+  .pedal-btn.pedal-brake.pressed {
     background: rgba(239, 68, 68, 0.95);
     transform: translateY(3px) scale(0.97);
   }
 
   .pedal-btn.pedal-accel {
-    height: 88px;
+    height: 86px;
     background: linear-gradient(180deg, rgba(5, 150, 105, 0.85) 0%, rgba(6, 95, 70, 0.95) 100%);
     border-color: #34d399;
   }
 
-  .pedal-btn.pedal-accel:active {
+  .pedal-btn.pedal-accel:active,
+  .pedal-btn.pedal-accel.pressed {
     background: rgba(16, 185, 129, 0.95);
     transform: translateY(3px) scale(0.97);
   }
 
-  @media (max-width: 480px) {
+  @media (max-width: 520px) {
     .bottom-cockpit-bar {
-      gap: 12px;
-      padding: 10px 14px;
+      gap: 10px;
+      padding: 8px 12px;
     }
-    .steering-wheel-visual {
-      width: 100px;
-      height: 100px;
-      border-width: 8px;
+    .cross-dpad {
+      --pad-size: 92px;
+      --arm-w: 30px;
+      --arm-l: 33px;
     }
-    .steering-wheel-hub {
-      width: 26px;
-      height: 26px;
+    .dpad-arm-btn {
+      font-size: 0.68rem;
+      border-width: 2.5px;
     }
     .pedal-controls-group {
-      gap: 8px;
+      gap: 7px;
     }
     .pedal-btn {
       width: 44px;
-      height: 68px;
-      font-size: 0.62rem;
+      height: 66px;
+      font-size: 0.58rem;
     }
     .pedal-btn.pedal-accel {
-      height: 78px;
+      height: 76px;
+    }
+  }
+
+  @media (min-width: 900px) {
+    .cross-dpad {
+      --pad-size: 124px;
+      --arm-w: 40px;
+      --arm-l: 45px;
     }
   }
 
   .alert-toast {
     position: fixed;
-    top: 70px;
+    top: 132px;
     left: 50%;
     transform: translateX(-50%);
     background: #3b82f6;
@@ -644,8 +728,13 @@ function showAlert(message) {
   alertToast.style.display = 'block';
   setTimeout(() => {
     alertToast.style.display = 'none';
-  }, 1800);
+  }, 2200);
 }
+
+const stopRefBanner = document.createElement('div');
+stopRefBanner.className = 'stop-reference-banner';
+stopRefBanner.id = 'stopReferenceBanner';
+document.body.appendChild(stopRefBanner);
 
 const COLOR_PRESETS = {
   'vermelho': { name: 'Vermelho', bodyColor: '#ff2c2c', stripeColor: '#ff2c2c' },
@@ -657,6 +746,15 @@ const COLOR_PRESETS = {
   'preto': { name: 'Preto', bodyColor: '#000000', stripeColor: '#000000' },
   'trem_laranja': { name: 'Trem Laranja', bodyColor: '#2A1974', stripeColor: '#EA7302' }
 };
+
+const REFERENCE_STOP_LABELS = [
+  "Ponto Centro Comercial",
+  "Ponto Avenida Principal",
+  "Ponto do Bairro / Residencial",
+  "Ponto de Integração / Comércio",
+  "Ponto da Avenida Central",
+  "Ponto de Bairro / Escola"
+];
 
 function getLinesDatabase() {
   return window.linesDatabase || {};
@@ -834,13 +932,16 @@ let bottomCockpitBar = document.createElement('div');
 bottomCockpitBar.className = 'bottom-cockpit-bar';
 bottomCockpitBar.style.display = 'none';
 bottomCockpitBar.innerHTML = `
-  <div class="steering-wheel-visual" id="steeringWheelVisual">
-    <div class="steering-wheel-hub"></div>
+  <div class="cross-dpad" aria-label="Controle Direcional">
+    <button class="dpad-arm-btn dpad-up" id="btnDpadUp" title="Acelerar">▲</button>
+    <button class="dpad-arm-btn dpad-left" id="btnDpadLeft" title="Esquerda">◀</button>
+    <button class="dpad-arm-btn dpad-right" id="btnDpadRight" title="Direita">▶</button>
+    <button class="dpad-arm-btn dpad-down" id="btnDpadDown" title="Frear / Ré">▼</button>
   </div>
   <div class="pedal-controls-group">
     <button class="pedal-btn pedal-brake" id="btnTouchDown">
       <span>⬇</span>
-      <span>FREIO</span>
+      <span id="labelBrakeReverse">FREIO</span>
     </button>
     <button class="pedal-btn pedal-accel" id="btnTouchUp">
       <span>⬆</span>
@@ -868,6 +969,7 @@ let isAutopilotMoving = false;
 
 let cruiseSpeedKmh = 90;
 let boostSpeedKmh = 140;
+const MAX_REVERSE_SPEED_KMH = -25;
 
 let vehicleHeading = 0; 
 let distanceCoveredKm = 0;
@@ -879,9 +981,15 @@ let targetHeading = 0;
 let smoothHeading = 0;
 let currentCameraBearing = 0;
 
-let steeringWheelAngle = 0;
-let looseSteerInput = 0;
-let previousSmoothHeading = 0;
+// Contenção lateral limitada no modo linha
+let lineLateralCorrectionMeters = 0;
+const MAX_LINE_LATERAL_METERS = 2.4;
+
+// Paradas aleatórias nos pontos de referência ao longo da rota
+let scheduledStops = [];
+let isStoppedAtReference = false;
+let stopRemainingSeconds = 0;
+let currentStopLabel = "";
 
 let isLineFinished = false;
 let isTripActive = false;
@@ -895,6 +1003,57 @@ let currentCameraMode = 'street';
 let currentZoomLevel = 19.8; 
 
 const keysPressed = { Up: false, Down: false, Left: false, Right: false };
+
+function generateReferenceStops(path) {
+  scheduledStops = [];
+  if (!path || path.length < 12) return;
+
+  const totalPoints = path.length;
+  const numStops = Math.min(6, Math.max(3, Math.floor(totalPoints / 65)));
+  const sectorSize = Math.floor((totalPoints - 6) / numStops);
+
+  const shuffledLabels = [...REFERENCE_STOP_LABELS].sort(() => Math.random() - 0.5);
+
+  for (let i = 0; i < numStops; i++) {
+    const startIdx = 3 + i * sectorSize;
+    const endIdx = Math.min(totalPoints - 3, startIdx + sectorSize - 2);
+    if (endIdx <= startIdx) continue;
+
+    const pickedIdx = startIdx + Math.floor(Math.random() * (endIdx - startIdx + 1));
+    const durationSec = 4 + Math.floor(Math.random() * 4); // 4 a 7 segundos por parada
+    scheduledStops.push({
+      segIndex: pickedIdx,
+      label: shuffledLabels[i % shuffledLabels.length],
+      durationSec,
+      triggered: false
+    });
+  }
+}
+
+function updateStopBanner() {
+  if (currentGameMode !== 'line') {
+    stopRefBanner.style.display = 'none';
+    return;
+  }
+
+  if (isStoppedAtReference) {
+    stopRefBanner.style.display = 'flex';
+    stopRefBanner.textContent = `🛑 ${currentStopLabel} (${Math.ceil(stopRemainingSeconds)}s)`;
+    return;
+  }
+
+  const nextStop = scheduledStops.find(s => !s.triggered);
+  if (nextStop && isTripActive && !isLineFinished) {
+    const distSegs = Math.max(0, nextStop.segIndex - currentSegIndex);
+    if (distSegs <= 25) {
+      stopRefBanner.style.display = 'flex';
+      stopRefBanner.textContent = `📍 Próxima: ${nextStop.label}`;
+      return;
+    }
+  }
+
+  stopRefBanner.style.display = 'none';
+}
 
 function calculateBearing(startCoord, endCoord) {
   const [startLng, startLat] = startCoord;
@@ -977,76 +1136,32 @@ function updateBusMarkerIcon() {
   busMarker.getElement().src = getBusSvg(preset.bodyColor, preset.stripeColor, currentVehicleType, activeLetreiroText);
 }
 
-function bindPedalTouch(elementId, keyName) {
+function bindControlTouch(elementId, keyName) {
   const el = document.getElementById(elementId);
   if (!el) return;
   el.addEventListener('pointerdown', (e) => {
     e.preventDefault();
+    e.stopPropagation();
     if (keyName === 'Up') handleAccelerate();
     keysPressed[keyName] = true;
+    el.classList.add('pressed');
   });
   const stopTouch = (e) => {
     e.preventDefault();
     keysPressed[keyName] = false;
+    el.classList.remove('pressed');
   };
   el.addEventListener('pointerup', stopTouch);
   el.addEventListener('pointercancel', stopTouch);
   el.addEventListener('pointerleave', stopTouch);
 }
 
-bindPedalTouch('btnTouchUp', 'Up');
-bindPedalTouch('btnTouchDown', 'Down');
-
-// Controle interativo no volante (ativo no Modo Livre e visual no Modo Linha)
-const steeringWheelEl = document.getElementById('steeringWheelVisual');
-let activeWheelPointerId = null;
-
-function applyWheelPosition(clientX) {
-  if (currentGameMode === 'line') return;
-  const rect = steeringWheelEl.getBoundingClientRect();
-  const centerX = rect.left + rect.width / 2;
-  const maxRadius = rect.width / 2;
-  const deltaFromCenter = clientX - centerX;
-  const normalized = Math.max(-1, Math.min(1, deltaFromCenter / (maxRadius * 0.65)));
-
-  looseSteerInput = normalized;
-  if (normalized < -0.12) {
-    keysPressed.Left = true;
-    keysPressed.Right = false;
-  } else if (normalized > 0.12) {
-    keysPressed.Right = true;
-    keysPressed.Left = false;
-  } else {
-    keysPressed.Left = false;
-    keysPressed.Right = false;
-  }
-}
-
-steeringWheelEl.addEventListener('pointerdown', (e) => {
-  e.preventDefault();
-  e.stopPropagation();
-  if (currentGameMode === 'line') return;
-  activeWheelPointerId = e.pointerId;
-  steeringWheelEl.setPointerCapture(e.pointerId);
-  applyWheelPosition(e.clientX);
-});
-
-steeringWheelEl.addEventListener('pointermove', (e) => {
-  if (e.pointerId !== activeWheelPointerId) return;
-  applyWheelPosition(e.clientX);
-});
-
-function releaseSteeringWheel(e) {
-  if (e.pointerId === activeWheelPointerId) {
-    activeWheelPointerId = null;
-    looseSteerInput = 0;
-    keysPressed.Left = false;
-    keysPressed.Right = false;
-  }
-}
-
-steeringWheelEl.addEventListener('pointerup', releaseSteeringWheel);
-steeringWheelEl.addEventListener('pointercancel', releaseSteeringWheel);
+bindControlTouch('btnTouchUp', 'Up');
+bindControlTouch('btnTouchDown', 'Down');
+bindControlTouch('btnDpadUp', 'Up');
+bindControlTouch('btnDpadDown', 'Down');
+bindControlTouch('btnDpadLeft', 'Left');
+bindControlTouch('btnDpadRight', 'Right');
 
 document.getElementById('btnSelectLineMode').addEventListener('click', () => {
   refreshLinesDropdown();
@@ -1080,9 +1195,12 @@ btnTripToggle.addEventListener('click', () => {
   } else {
     isTripActive = false;
     isAutopilotMoving = false;
+    isStoppedAtReference = false;
+    stopRemainingSeconds = 0;
     currentSpeedKmh = 0;
     stopTripTimer();
     updateTripStatus();
+    updateStopBanner();
   }
 });
 
@@ -1117,7 +1235,13 @@ document.getElementById('btnStartLineMode').addEventListener('click', () => {
     return;
   }
 
+  generateReferenceStops(activePath);
+  isStoppedAtReference = false;
+  stopRemainingSeconds = 0;
+  currentStopLabel = "";
+
   document.getElementById('lineBadgeDisplay').textContent = `${lineData.nome}`;
+  document.getElementById('labelBrakeReverse').textContent = 'FREIO';
   currentSegIndex = 0;
   segProgressMeters = 0;
   currentSegLength = getMetersBetween(activePath[0], activePath[1]);
@@ -1126,16 +1250,15 @@ document.getElementById('btnStartLineMode').addEventListener('click', () => {
   isAutopilotMoving = false;
   currentSpeedKmh = 0;
   distanceCoveredKm = 0;
-  steeringWheelAngle = 0;
-  looseSteerInput = 0;
+  lineLateralCorrectionMeters = 0;
 
   targetHeading = calculateBearing(activePath[0], activePath[1]);
   smoothHeading = targetHeading;
-  previousSmoothHeading = targetHeading;
   vehicleHeading = targetHeading;
   currentCameraBearing = targetHeading;
 
   updateTripStatus();
+  updateStopBanner();
   startSimulation(activePath[0]);
 });
 
@@ -1147,17 +1270,22 @@ document.getElementById('btnStartFreeMode').addEventListener('click', async () =
   const locationQuery = document.getElementById('inputFreeLocation').value.trim();
 
   document.getElementById('lineBadgeDisplay').textContent = `Modo Livre`;
+  document.getElementById('labelBrakeReverse').textContent = 'FREIO/RÉ';
+
+  scheduledStops = [];
+  isStoppedAtReference = false;
+  stopRemainingSeconds = 0;
+  stopRefBanner.style.display = 'none';
 
   currentSpeedKmh = 0;
-  isAutopilotMoving = true;
+  isAutopilotMoving = false;
   distanceCoveredKm = 0;
   cruiseSpeedKmh = 90;
   boostSpeedKmh = 140;
   speedMultiplier = 1.0;
   isTripActive = true;
   vehicleHeading = 0;
-  steeringWheelAngle = 0;
-  looseSteerInput = 0;
+  lineLateralCorrectionMeters = 0;
   currentCameraBearing = 0;
   updateTripStatus();
   startTripTimer();
@@ -1216,11 +1344,12 @@ function exitGame() {
   currentSpeedKmh = 0;
   isAutopilotMoving = false;
   isTripActive = false;
+  isStoppedAtReference = false;
+  stopRemainingSeconds = 0;
   vehicleHeading = 0;
   distanceCoveredKm = 0;
   speedMultiplier = 1.0;
-  steeringWheelAngle = 0;
-  looseSteerInput = 0;
+  lineLateralCorrectionMeters = 0;
   document.getElementById('tripTimerDisplay').textContent = '00:00';
   document.getElementById('miniTimerDisplay').textContent = '00:00';
   document.getElementById('kmCoveredDisplay').textContent = '0.00 km';
@@ -1233,6 +1362,7 @@ function exitGame() {
   mobileTopBar.style.display = 'none';
   bottomCockpitBar.style.display = 'none';
   mapBanner.style.display = 'none';
+  stopRefBanner.style.display = 'none';
 
   document.getElementById('cardLineMode').style.display = 'none';
   document.getElementById('cardFreeMode').style.display = 'none';
@@ -1246,6 +1376,8 @@ function mostrarRelatorioFinal() {
   stopTripTimer();
   isTripActive = false;
   isAutopilotMoving = false;
+  isStoppedAtReference = false;
+  stopRefBanner.style.display = 'none';
   currentSpeedKmh = 0;
 
   const tempoStr = document.getElementById('tripTimerDisplay').textContent;
@@ -1375,6 +1507,11 @@ function updateTripStatus() {
     badge.textContent = 'Viagem Concluída';
     btnTripToggle.className = 'btn-trip-toggle start';
     btnTripToggle.textContent = '🔄 Reiniciar Viagem';
+  } else if (isStoppedAtReference) {
+    badge.className = 'trip-status-badge stopped';
+    badge.textContent = 'Parado no Ponto';
+    btnTripToggle.className = 'btn-trip-toggle stop';
+    btnTripToggle.textContent = '🛑 Encerrar Viagem';
   } else {
     badge.className = 'trip-status-badge running';
     badge.textContent = 'Em Viagem';
@@ -1391,34 +1528,6 @@ function handleAccelerate() {
   mapBanner.style.display = 'none';
   isAutopilotMoving = true;
   updateTripStatus();
-}
-
-function getEffectiveSteerFactor() {
-  if (currentGameMode === 'line') return 0;
-  if (Math.abs(looseSteerInput) > 0.05) return looseSteerInput;
-  if (keysPressed.Left) return -1;
-  if (keysPressed.Right) return 1;
-  return 0;
-}
-
-function updateSteeringWheelVisual(deltaTime) {
-  const wheelEl = document.getElementById('steeringWheelVisual');
-  if (!wheelEl) return;
-
-  let targetAngle = 0;
-  if (currentGameMode === 'line') {
-    let headingDelta = (smoothHeading - previousSmoothHeading + 360) % 360;
-    if (headingDelta > 180) headingDelta -= 360;
-    const angularVel = deltaTime > 0 ? headingDelta / deltaTime : 0;
-    targetAngle = Math.max(-45, Math.min(45, angularVel * 0.8));
-    previousSmoothHeading = smoothHeading;
-  } else {
-    const steerFactor = getEffectiveSteerFactor();
-    targetAngle = steerFactor * 75;
-  }
-
-  steeringWheelAngle += (targetAngle - steeringWheelAngle) * 0.35;
-  wheelEl.style.transform = `rotate(${steeringWheelAngle.toFixed(1)}deg)`;
 }
 
 let lastFrameTime = performance.now();
@@ -1443,77 +1552,152 @@ function gameLoop(now) {
     updateTripStatus();
   }
 
-  if (isTripActive && isAutopilotMoving && !isLineFinished) {
-    if (keysPressed.Down) {
-      desiredSpeed = 0;
-      currentSpeedKmh = Math.max(currentSpeedKmh - 60 * deltaTime, 0);
-      if (currentSpeedKmh <= 2) {
-        isAutopilotMoving = false;
-      }
-    } else if (keysPressed.Up) {
-      desiredSpeed = boostSpeedKmh;
-    } else {
-      desiredSpeed = cruiseSpeedKmh;
-    }
-  }
-
-  if (currentSpeedKmh < desiredSpeed) {
-    currentSpeedKmh = Math.min(currentSpeedKmh + 50 * deltaTime, desiredSpeed);
-  } else if (currentSpeedKmh > desiredSpeed) {
-    currentSpeedKmh = Math.max(currentSpeedKmh - 40 * deltaTime, desiredSpeed);
-  }
+  let renderLng = busLng;
+  let renderLat = busLat;
 
   if (currentGameMode === 'line') {
-    if (currentSpeedKmh > 0 && !isLineFinished && isTripActive) {
-      const speedMps = (currentSpeedKmh / 3.6) * speedMultiplier;
-      let remainingDistance = speedMps * deltaTime;
+    // Verifica se atingiu algum ponto de referência programado no trajeto
+    if (isTripActive && !isLineFinished && !isStoppedAtReference) {
+      const hitStop = scheduledStops.find(s => !s.triggered && currentSegIndex >= s.segIndex);
+      if (hitStop) {
+        hitStop.triggered = true;
+        isStoppedAtReference = true;
+        stopRemainingSeconds = hitStop.durationSec;
+        currentStopLabel = hitStop.label;
+        currentSpeedKmh = 0;
+        updateTripStatus();
+        updateStopBanner();
+      }
+    }
 
-      while (remainingDistance > 0 && currentSegIndex < activePath.length - 1) {
-        const p1 = activePath[currentSegIndex];
-        const p2 = activePath[currentSegIndex + 1];
-
-        if (currentSegLength <= 0) {
-          currentSegLength = getMetersBetween(p1, p2);
-        }
-
-        const distanceLeftInSeg = currentSegLength - segProgressMeters;
-
-        if (remainingDistance < distanceLeftInSeg) {
-          segProgressMeters += remainingDistance;
-          remainingDistance = 0;
-
-          const ratio = currentSegLength > 0 ? (segProgressMeters / currentSegLength) : 0;
-          busLng = p1[0] + (p2[0] - p1[0]) * ratio;
-          busLat = p1[1] + (p2[1] - p1[1]) * ratio;
-
-          targetHeading = calculateBearing(p1, p2);
-        } else {
-          remainingDistance -= distanceLeftInSeg;
-          currentSegIndex++;
-          segProgressMeters = 0;
-
-          if (currentSegIndex >= activePath.length - 1) {
-            busLng = activePath[activePath.length - 1][0];
-            busLat = activePath[activePath.length - 1][1];
-            isLineFinished = true;
-            mostrarRelatorioFinal();
-            break;
-          } else {
-            currentSegLength = getMetersBetween(activePath[currentSegIndex], activePath[currentSegIndex + 1]);
-            busLng = activePath[currentSegIndex][0];
-            busLat = activePath[currentSegIndex][1];
-            targetHeading = calculateBearing(activePath[currentSegIndex], activePath[currentSegIndex + 1]);
+    if (isStoppedAtReference) {
+      currentSpeedKmh = 0;
+      stopRemainingSeconds -= deltaTime;
+      updateStopBanner();
+      if (stopRemainingSeconds <= 0) {
+        isStoppedAtReference = false;
+        stopRemainingSeconds = 0;
+        currentStopLabel = "";
+        isAutopilotMoving = true;
+        updateTripStatus();
+        updateStopBanner();
+      }
+    } else {
+      if (isTripActive && isAutopilotMoving && !isLineFinished) {
+        if (keysPressed.Down) {
+          desiredSpeed = 0;
+          currentSpeedKmh = Math.max(currentSpeedKmh - 60 * deltaTime, 0);
+          if (currentSpeedKmh <= 2) {
+            isAutopilotMoving = false;
           }
+        } else if (keysPressed.Up) {
+          desiredSpeed = boostSpeedKmh;
+        } else {
+          desiredSpeed = cruiseSpeedKmh;
         }
       }
 
-      smoothHeading = lerpHeading(smoothHeading, targetHeading, 6.0 * deltaTime);
+      if (currentSpeedKmh < desiredSpeed) {
+        currentSpeedKmh = Math.min(currentSpeedKmh + 50 * deltaTime, desiredSpeed);
+      } else if (currentSpeedKmh > desiredSpeed) {
+        currentSpeedKmh = Math.max(currentSpeedKmh - 40 * deltaTime, desiredSpeed);
+      }
+
+      if (currentSpeedKmh > 0 && !isLineFinished && isTripActive) {
+        const speedMps = (currentSpeedKmh / 3.6) * speedMultiplier;
+        let remainingDistance = speedMps * deltaTime;
+
+        while (remainingDistance > 0 && currentSegIndex < activePath.length - 1) {
+          const p1 = activePath[currentSegIndex];
+          const p2 = activePath[currentSegIndex + 1];
+
+          if (currentSegLength <= 0) {
+            currentSegLength = getMetersBetween(p1, p2);
+          }
+
+          const distanceLeftInSeg = currentSegLength - segProgressMeters;
+
+          if (remainingDistance < distanceLeftInSeg) {
+            segProgressMeters += remainingDistance;
+            remainingDistance = 0;
+
+            const ratio = currentSegLength > 0 ? (segProgressMeters / currentSegLength) : 0;
+            busLng = p1[0] + (p2[0] - p1[0]) * ratio;
+            busLat = p1[1] + (p2[1] - p1[1]) * ratio;
+
+            targetHeading = calculateBearing(p1, p2);
+          } else {
+            remainingDistance -= distanceLeftInSeg;
+            currentSegIndex++;
+            segProgressMeters = 0;
+
+            if (currentSegIndex >= activePath.length - 1) {
+              busLng = activePath[activePath.length - 1][0];
+              busLat = activePath[activePath.length - 1][1];
+              isLineFinished = true;
+              mostrarRelatorioFinal();
+              break;
+            } else {
+              currentSegLength = getMetersBetween(activePath[currentSegIndex], activePath[currentSegIndex + 1]);
+              busLng = activePath[currentSegIndex][0];
+              busLat = activePath[currentSegIndex][1];
+              targetHeading = calculateBearing(activePath[currentSegIndex], activePath[currentSegIndex + 1]);
+            }
+          }
+        }
+
+        const lateralRate = 2.4;
+        if (keysPressed.Left) {
+          lineLateralCorrectionMeters = Math.max(-MAX_LINE_LATERAL_METERS, lineLateralCorrectionMeters - lateralRate * deltaTime);
+        } else if (keysPressed.Right) {
+          lineLateralCorrectionMeters = Math.min(MAX_LINE_LATERAL_METERS, lineLateralCorrectionMeters + lateralRate * deltaTime);
+        } else {
+          lineLateralCorrectionMeters += (0 - lineLateralCorrectionMeters) * Math.min(1, 2.6 * deltaTime);
+        }
+
+        smoothHeading = lerpHeading(smoothHeading, targetHeading, 6.0 * deltaTime);
+
+        const perpHeading = (targetHeading + 90) % 360;
+        const perpRad = (perpHeading * Math.PI) / 180;
+        const metersPerDegreeLat = 111320;
+        const metersPerDegreeLng = 111320 * Math.cos(busLat * (Math.PI / 180));
+
+        renderLng = busLng + (lineLateralCorrectionMeters * Math.sin(perpRad)) / metersPerDegreeLng;
+        renderLat = busLat + (lineLateralCorrectionMeters * Math.cos(perpRad)) / metersPerDegreeLat;
+      }
+
+      updateStopBanner();
     }
   } else {
-    const steerFactor = getEffectiveSteerFactor();
-    if (currentSpeedKmh > 0 || keysPressed.Up || keysPressed.Down || Math.abs(steerFactor) > 0.05) {
-      if (Math.abs(steerFactor) > 0.05) {
-        vehicleHeading = (vehicleHeading + steerFactor * 52 * deltaTime + 360) % 360;
+    // MODO LIVRE: Suporta aceleração frontal, frenagem e marcha ré ao segurar freio
+    if (keysPressed.Up) {
+      if (currentSpeedKmh < 0) {
+        currentSpeedKmh = Math.min(currentSpeedKmh + 65 * deltaTime, 0);
+      } else {
+        desiredSpeed = boostSpeedKmh;
+        currentSpeedKmh = Math.min(currentSpeedKmh + 50 * deltaTime, desiredSpeed);
+      }
+    } else if (keysPressed.Down) {
+      if (currentSpeedKmh > 0) {
+        currentSpeedKmh = Math.max(currentSpeedKmh - 70 * deltaTime, 0);
+      } else {
+        currentSpeedKmh = Math.max(currentSpeedKmh - 30 * deltaTime, MAX_REVERSE_SPEED_KMH);
+      }
+    } else {
+      if (currentSpeedKmh > 0) {
+        currentSpeedKmh = Math.max(currentSpeedKmh - 25 * deltaTime, 0);
+      } else if (currentSpeedKmh < 0) {
+        currentSpeedKmh = Math.min(currentSpeedKmh + 25 * deltaTime, 0);
+      }
+    }
+
+    if (Math.abs(currentSpeedKmh) > 0.1 || keysPressed.Left || keysPressed.Right) {
+      const reverseDirFactor = currentSpeedKmh < -0.5 ? -1 : 1;
+      if (keysPressed.Left) {
+        vehicleHeading = (vehicleHeading - 48 * reverseDirFactor * deltaTime + 360) % 360;
+      }
+      if (keysPressed.Right) {
+        vehicleHeading = (vehicleHeading + 48 * reverseDirFactor * deltaTime + 360) % 360;
       }
 
       const speedMps = (currentSpeedKmh / 3.6) * speedMultiplier;
@@ -1525,24 +1709,27 @@ function gameLoop(now) {
       busLng += (metersToMove * Math.sin(rad)) / metersPerDegreeLng;
       busLat += (metersToMove * Math.cos(rad)) / metersPerDegreeLat;
     }
+
+    renderLng = busLng;
+    renderLat = busLat;
   }
 
-  updateSteeringWheelVisual(deltaTime);
-
-  const distStep = getMetersBetween(prev, [busLng, busLat]) / 1000;
+  const distStep = getMetersBetween(prev, [renderLng, renderLat]) / 1000;
   if (!isNaN(distStep)) {
     distanceCoveredKm += distStep;
   }
 
   const distFormatted = `${distanceCoveredKm.toFixed(2)} km`;
-  const speedRounded = Math.round(currentSpeedKmh);
+  const isReversing = currentGameMode === 'free' && currentSpeedKmh < -0.5;
+  const speedRounded = Math.round(Math.abs(currentSpeedKmh));
+  const speedDisplay = isReversing ? `R ${speedRounded}` : `${speedRounded}`;
 
   document.getElementById('kmCoveredDisplay').textContent = distFormatted;
   document.getElementById('miniKmDisplay').textContent = distFormatted;
-  document.getElementById('speedValue').textContent = speedRounded;
-  document.getElementById('miniSpeedDisplay').textContent = speedRounded;
+  document.getElementById('speedValue').textContent = speedDisplay;
+  document.getElementById('miniSpeedDisplay').textContent = speedDisplay;
 
-  const currentCoords = [busLng, busLat];
+  const currentCoords = [renderLng, renderLat];
   if (busMarker) {
     busMarker.setLngLat(currentCoords);
   }
@@ -1597,29 +1784,37 @@ window.addEventListener('keydown', (e) => {
   if (['ArrowUp', 'KeyW'].includes(e.code)) {
     if (!keysPressed.Up) handleAccelerate();
     keysPressed.Up = true;
+    document.getElementById('btnDpadUp')?.classList.add('pressed');
   }
-  if (['ArrowDown', 'KeyS'].includes(e.code)) keysPressed.Down = true;
-  if (currentGameMode === 'free') {
-    if (['ArrowLeft', 'KeyA'].includes(e.code)) {
-      keysPressed.Left = true;
-      looseSteerInput = -1;
-    }
-    if (['ArrowRight', 'KeyD'].includes(e.code)) {
-      keysPressed.Right = true;
-      looseSteerInput = 1;
-    }
+  if (['ArrowDown', 'KeyS'].includes(e.code)) {
+    keysPressed.Down = true;
+    document.getElementById('btnDpadDown')?.classList.add('pressed');
+  }
+  if (['ArrowLeft', 'KeyA'].includes(e.code)) {
+    keysPressed.Left = true;
+    document.getElementById('btnDpadLeft')?.classList.add('pressed');
+  }
+  if (['ArrowRight', 'KeyD'].includes(e.code)) {
+    keysPressed.Right = true;
+    document.getElementById('btnDpadRight')?.classList.add('pressed');
   }
 });
 
 window.addEventListener('keyup', (e) => {
-  if (['ArrowUp', 'KeyW'].includes(e.code)) keysPressed.Up = false;
-  if (['ArrowDown', 'KeyS'].includes(e.code)) keysPressed.Down = false;
+  if (['ArrowUp', 'KeyW'].includes(e.code)) {
+    keysPressed.Up = false;
+    document.getElementById('btnDpadUp')?.classList.remove('pressed');
+  }
+  if (['ArrowDown', 'KeyS'].includes(e.code)) {
+    keysPressed.Down = false;
+    document.getElementById('btnDpadDown')?.classList.remove('pressed');
+  }
   if (['ArrowLeft', 'KeyA'].includes(e.code)) {
     keysPressed.Left = false;
-    if (!keysPressed.Right) looseSteerInput = 0;
+    document.getElementById('btnDpadLeft')?.classList.remove('pressed');
   }
   if (['ArrowRight', 'KeyD'].includes(e.code)) {
     keysPressed.Right = false;
-    if (!keysPressed.Left) looseSteerInput = 0;
+    document.getElementById('btnDpadRight')?.classList.remove('pressed');
   }
 });
