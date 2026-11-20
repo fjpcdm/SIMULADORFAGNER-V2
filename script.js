@@ -1,6 +1,6 @@
 // ============================================================
 // ARQUIVO: script.js
-// MOTOR DE SIMULAÇÃO - PARADAS EM PONTOS DE REFERÊNCIA E D-PAD EM CRUZ
+// MOTOR DE SIMULAÇÃO - FOCO EM PONTO DE REFERÊNCIA, AVISO CURTO E D-PAD EM CRUZ
 // ============================================================
 
 const cssStyles = `
@@ -158,25 +158,28 @@ const cssStyles = `
 
   .stop-reference-banner {
     position: fixed;
-    top: 54px;
+    top: 52px;
     left: 50%;
     transform: translateX(-50%);
     z-index: 999999;
-    background: rgba(15, 23, 42, 0.92);
-    border: 1.5px solid #f59e0b;
-    color: #fbbf24;
-    padding: 6px 14px;
-    border-radius: 16px;
-    font-size: 0.76rem;
-    font-weight: 700;
+    background: rgba(15, 23, 42, 0.84);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    border: 1px solid rgba(251, 191, 36, 0.65);
+    color: #fde68a;
+    padding: 5px 12px;
+    border-radius: 12px;
+    font-size: 0.72rem;
+    font-weight: 600;
     display: none;
     align-items: center;
-    gap: 6px;
-    max-width: calc(100vw - 20px);
+    justify-content: center;
+    gap: 5px;
+    max-width: calc(100vw - 24px);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.4);
     pointer-events: none;
   }
 
@@ -414,7 +417,6 @@ const cssStyles = `
     color: #94a3b8;
   }
 
-  /* Barra inferior centralizada: D-pad em cruz baseado no modelo + pedais ao lado */
   .bottom-cockpit-bar {
     position: fixed !important;
     bottom: calc(12px + env(safe-area-inset-bottom, 0px)) !important;
@@ -424,22 +426,20 @@ const cssStyles = `
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 16px;
-    padding: 10px 16px;
+    padding: 10px 14px;
     background: rgba(15, 23, 42, 0.86);
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
     border: 1px solid rgba(148, 163, 184, 0.35);
-    border-radius: 28px;
-    max-width: calc(100vw - 12px);
+    border-radius: 30px;
+    max-width: calc(100vw - 14px);
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.65);
   }
 
-  /* D-Pad em cruz inspirado na imagem enviada */
   .cross-dpad {
-    --pad-size: 112px;
-    --arm-w: 36px;
-    --arm-l: 40px;
+    --pad-size: 124px;
+    --arm-w: 40px;
+    --arm-l: 45px;
     position: relative;
     width: var(--pad-size);
     height: var(--pad-size);
@@ -455,7 +455,7 @@ const cssStyles = `
     align-items: center;
     justify-content: center;
     color: #f8fafc;
-    font-size: 0.78rem;
+    font-size: 0.84rem;
     font-weight: 900;
     box-shadow: 0 3px 8px rgba(0, 0, 0, 0.7);
     transition: transform 0.06s ease, background 0.1s ease, border-color 0.1s ease;
@@ -468,7 +468,6 @@ const cssStyles = `
     color: #0f172a;
   }
 
-  /* Cima: ponta chanfrada para baixo no centro */
   .dpad-up {
     top: 0;
     left: 50%;
@@ -483,7 +482,6 @@ const cssStyles = `
     transform: translateX(-50%) scale(0.95);
   }
 
-  /* Baixo: ponta chanfrada para cima no centro */
   .dpad-down {
     bottom: 0;
     left: 50%;
@@ -498,7 +496,6 @@ const cssStyles = `
     transform: translateX(-50%) scale(0.95);
   }
 
-  /* Esquerda: ponta chanfrada para a direita no centro */
   .dpad-left {
     left: 0;
     top: 50%;
@@ -513,7 +510,6 @@ const cssStyles = `
     transform: translateY(-50%) scale(0.95);
   }
 
-  /* Direita: ponta chanfrada para a esquerda no centro */
   .dpad-right {
     right: 0;
     top: 50%;
@@ -528,87 +524,26 @@ const cssStyles = `
     transform: translateY(-50%) scale(0.95);
   }
 
-  .pedal-controls-group {
-    display: flex;
-    align-items: flex-end;
-    gap: 10px;
-  }
-
-  .pedal-btn {
-    width: 52px;
-    height: 76px;
-    border-radius: 10px;
-    color: #ffffff;
-    font-size: 0.68rem;
-    font-weight: 800;
-    letter-spacing: 0.5px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 4px;
-    cursor: pointer;
-    box-shadow: 0 5px 12px rgba(0,0,0,0.55);
-    flex-shrink: 0;
-    border: 2px solid #cbd5e1;
-    transition: transform 0.08s ease, background 0.1s ease;
-  }
-
-  .pedal-btn.pedal-brake {
-    background: linear-gradient(180deg, rgba(185, 28, 28, 0.85) 0%, rgba(127, 29, 29, 0.95) 100%);
-    border-color: #f87171;
-  }
-
-  .pedal-btn.pedal-brake:active,
-  .pedal-btn.pedal-brake.pressed {
-    background: rgba(239, 68, 68, 0.95);
-    transform: translateY(3px) scale(0.97);
-  }
-
-  .pedal-btn.pedal-accel {
-    height: 86px;
-    background: linear-gradient(180deg, rgba(5, 150, 105, 0.85) 0%, rgba(6, 95, 70, 0.95) 100%);
-    border-color: #34d399;
-  }
-
-  .pedal-btn.pedal-accel:active,
-  .pedal-btn.pedal-accel.pressed {
-    background: rgba(16, 185, 129, 0.95);
-    transform: translateY(3px) scale(0.97);
-  }
-
-  @media (max-width: 520px) {
+  @media (max-width: 480px) {
     .bottom-cockpit-bar {
-      gap: 10px;
       padding: 8px 12px;
     }
     .cross-dpad {
-      --pad-size: 92px;
-      --arm-w: 30px;
-      --arm-l: 33px;
+      --pad-size: 102px;
+      --arm-w: 33px;
+      --arm-l: 37px;
     }
     .dpad-arm-btn {
-      font-size: 0.68rem;
+      font-size: 0.72rem;
       border-width: 2.5px;
-    }
-    .pedal-controls-group {
-      gap: 7px;
-    }
-    .pedal-btn {
-      width: 44px;
-      height: 66px;
-      font-size: 0.58rem;
-    }
-    .pedal-btn.pedal-accel {
-      height: 76px;
     }
   }
 
   @media (min-width: 900px) {
     .cross-dpad {
-      --pad-size: 124px;
-      --arm-w: 40px;
-      --arm-l: 45px;
+      --pad-size: 136px;
+      --arm-w: 44px;
+      --arm-l: 50px;
     }
   }
 
@@ -747,14 +682,19 @@ const COLOR_PRESETS = {
   'trem_laranja': { name: 'Trem Laranja', bodyColor: '#2A1974', stripeColor: '#EA7302' }
 };
 
-const REFERENCE_STOP_LABELS = [
-  "Ponto Centro Comercial",
-  "Ponto Avenida Principal",
-  "Ponto do Bairro / Residencial",
-  "Ponto de Integração / Comércio",
-  "Ponto da Avenida Central",
-  "Ponto de Bairro / Escola"
+const FALLBACK_REFERENCE_PLACES = [
+  "Escola Municipal Vila Ideal",
+  "Centro Comercial",
+  "Ponto do Mercado",
+  "Ponto de Integração",
+  "Praça Principal",
+  "Posto e Comércio Local",
+  "Ponto da Escola",
+  "Ponto da Igreja"
 ];
+
+const MAX_STOPS_PER_TRIP = 50;
+const NEXT_STOP_TOAST_SECONDS = 4;
 
 function getLinesDatabase() {
   return window.linesDatabase || {};
@@ -770,6 +710,20 @@ function extractCoordinates(rawTrajeto) {
     if (lineFeature) return lineFeature.geometry.coordinates;
   }
   return [];
+}
+
+function extractReferenceOnly(rawText, fallbackName) {
+  let text = typeof rawText === 'string'
+    ? rawText.replace(/^pr[óo]xima\s+parada[:\s-]*/i, '').trim()
+    : (fallbackName || "");
+
+  if (text.includes("|")) {
+    const parts = text.split("|");
+    const refPart = parts[parts.length - 1].trim();
+    if (refPart) text = refPart;
+  }
+
+  return text || fallbackName || "Ponto de Referência";
 }
 
 const setupModal = document.createElement('div');
@@ -938,16 +892,6 @@ bottomCockpitBar.innerHTML = `
     <button class="dpad-arm-btn dpad-right" id="btnDpadRight" title="Direita">▶</button>
     <button class="dpad-arm-btn dpad-down" id="btnDpadDown" title="Frear / Ré">▼</button>
   </div>
-  <div class="pedal-controls-group">
-    <button class="pedal-btn pedal-brake" id="btnTouchDown">
-      <span>⬇</span>
-      <span id="labelBrakeReverse">FREIO</span>
-    </button>
-    <button class="pedal-btn pedal-accel" id="btnTouchUp">
-      <span>⬆</span>
-      <span>ACEL</span>
-    </button>
-  </div>
 `;
 document.body.appendChild(bottomCockpitBar);
 
@@ -981,15 +925,16 @@ let targetHeading = 0;
 let smoothHeading = 0;
 let currentCameraBearing = 0;
 
-// Contenção lateral limitada no modo linha
 let lineLateralCorrectionMeters = 0;
 const MAX_LINE_LATERAL_METERS = 2.4;
 
-// Paradas aleatórias nos pontos de referência ao longo da rota
+// Controle de paradas de referência e aviso curto após arrancar
 let scheduledStops = [];
 let isStoppedAtReference = false;
 let stopRemainingSeconds = 0;
 let currentStopLabel = "";
+let nextStopToastRemaining = 0;
+let nextStopToastLabel = "";
 
 let isLineFinished = false;
 let isTripActive = false;
@@ -1004,52 +949,82 @@ let currentZoomLevel = 19.8;
 
 const keysPressed = { Up: false, Down: false, Left: false, Right: false };
 
-function generateReferenceStops(path) {
+function generateReferenceStops(path, customStops = null) {
   scheduledStops = [];
-  if (!path || path.length < 12) return;
+  if (!path || path.length < 2) return;
 
   const totalPoints = path.length;
-  const numStops = Math.min(6, Math.max(3, Math.floor(totalPoints / 65)));
-  const sectorSize = Math.floor((totalPoints - 6) / numStops);
+  const hasCustom = Array.isArray(customStops) && customStops.length > 0;
+  const maxAllowed = Math.max(1, totalPoints - 1);
 
-  const shuffledLabels = [...REFERENCE_STOP_LABELS].sort(() => Math.random() - 0.5);
+  const desiredCount = hasCustom
+    ? Math.min(customStops.length, MAX_STOPS_PER_TRIP, maxAllowed)
+    : Math.min(MAX_STOPS_PER_TRIP, Math.max(10, Math.floor(totalPoints / 16)), maxAllowed);
 
-  for (let i = 0; i < numStops; i++) {
-    const startIdx = 3 + i * sectorSize;
-    const endIdx = Math.min(totalPoints - 3, startIdx + sectorSize - 2);
-    if (endIdx <= startIdx) continue;
+  const step = desiredCount > 1 ? (totalPoints - 1) / desiredCount : 0;
+  const shuffledFallbacks = [...FALLBACK_REFERENCE_PLACES].sort(() => Math.random() - 0.5);
 
-    const pickedIdx = startIdx + Math.floor(Math.random() * (endIdx - startIdx + 1));
-    const durationSec = 4 + Math.floor(Math.random() * 4); // 4 a 7 segundos por parada
+  for (let i = 0; i < desiredCount; i++) {
+    const fallbackRef = shuffledFallbacks[i % shuffledFallbacks.length];
+    const baseIdx = hasCustom
+      ? Math.round((i + 0.5) * step)
+      : 1 + Math.floor(i * (Math.max(1, totalPoints - 3) / desiredCount));
+
+    const jitter = hasCustom
+      ? 0
+      : Math.floor(Math.random() * Math.max(1, Math.floor((totalPoints - 3) / desiredCount * 0.45)));
+
+    const pickedIdx = Math.min(totalPoints - 1, Math.max(0, baseIdx + jitter));
+    const customEntry = hasCustom ? customStops[i] : null;
+
+    let rawLabel = fallbackRef;
+    if (typeof customEntry === 'string') {
+      rawLabel = customEntry;
+    } else if (customEntry && typeof customEntry === 'object') {
+      rawLabel = customEntry.nome || customEntry.label || fallbackRef;
+    }
+
+    const labelText = extractReferenceOnly(rawLabel, fallbackRef);
+    const durationSec = 3 + Math.floor(Math.random() * 3); // 3 a 5 segundos por parada
+
     scheduledStops.push({
       segIndex: pickedIdx,
-      label: shuffledLabels[i % shuffledLabels.length],
+      label: labelText,
       durationSec,
       triggered: false
     });
   }
+
+  scheduledStops.sort((a, b) => a.segIndex - b.segIndex);
+}
+
+function triggerNextStopToastIfAvailable() {
+  const nextStop = scheduledStops.find(s => !s.triggered);
+  if (nextStop && isTripActive && !isLineFinished) {
+    nextStopToastLabel = nextStop.label;
+    nextStopToastRemaining = NEXT_STOP_TOAST_SECONDS;
+  } else {
+    nextStopToastRemaining = 0;
+    nextStopToastLabel = "";
+  }
 }
 
 function updateStopBanner() {
-  if (currentGameMode !== 'line') {
+  if (currentGameMode !== 'line' || !isTripActive || isLineFinished) {
     stopRefBanner.style.display = 'none';
     return;
   }
 
   if (isStoppedAtReference) {
     stopRefBanner.style.display = 'flex';
-    stopRefBanner.textContent = `🛑 ${currentStopLabel} (${Math.ceil(stopRemainingSeconds)}s)`;
+    stopRefBanner.textContent = `${currentStopLabel} (${Math.ceil(stopRemainingSeconds)}s)`;
     return;
   }
 
-  const nextStop = scheduledStops.find(s => !s.triggered);
-  if (nextStop && isTripActive && !isLineFinished) {
-    const distSegs = Math.max(0, nextStop.segIndex - currentSegIndex);
-    if (distSegs <= 25) {
-      stopRefBanner.style.display = 'flex';
-      stopRefBanner.textContent = `📍 Próxima: ${nextStop.label}`;
-      return;
-    }
+  if (nextStopToastRemaining > 0 && nextStopToastLabel) {
+    stopRefBanner.style.display = 'flex';
+    stopRefBanner.textContent = `Proxima parada: ${nextStopToastLabel}`;
+    return;
   }
 
   stopRefBanner.style.display = 'none';
@@ -1156,8 +1131,6 @@ function bindControlTouch(elementId, keyName) {
   el.addEventListener('pointerleave', stopTouch);
 }
 
-bindControlTouch('btnTouchUp', 'Up');
-bindControlTouch('btnTouchDown', 'Down');
 bindControlTouch('btnDpadUp', 'Up');
 bindControlTouch('btnDpadDown', 'Down');
 bindControlTouch('btnDpadLeft', 'Left');
@@ -1190,13 +1163,16 @@ btnTripToggle.addEventListener('click', () => {
     isTripActive = true;
     isLineFinished = false;
     isAutopilotMoving = true;
+    triggerNextStopToastIfAvailable();
     startTripTimer();
     updateTripStatus();
+    updateStopBanner();
   } else {
     isTripActive = false;
     isAutopilotMoving = false;
     isStoppedAtReference = false;
     stopRemainingSeconds = 0;
+    nextStopToastRemaining = 0;
     currentSpeedKmh = 0;
     stopTripTimer();
     updateTripStatus();
@@ -1235,13 +1211,15 @@ document.getElementById('btnStartLineMode').addEventListener('click', () => {
     return;
   }
 
-  generateReferenceStops(activePath);
+  const customStops = lineData.pontosParada || lineData.paradas || null;
+  generateReferenceStops(activePath, customStops);
   isStoppedAtReference = false;
   stopRemainingSeconds = 0;
   currentStopLabel = "";
+  nextStopToastRemaining = 0;
+  nextStopToastLabel = "";
 
   document.getElementById('lineBadgeDisplay').textContent = `${lineData.nome}`;
-  document.getElementById('labelBrakeReverse').textContent = 'FREIO';
   currentSegIndex = 0;
   segProgressMeters = 0;
   currentSegLength = getMetersBetween(activePath[0], activePath[1]);
@@ -1270,11 +1248,11 @@ document.getElementById('btnStartFreeMode').addEventListener('click', async () =
   const locationQuery = document.getElementById('inputFreeLocation').value.trim();
 
   document.getElementById('lineBadgeDisplay').textContent = `Modo Livre`;
-  document.getElementById('labelBrakeReverse').textContent = 'FREIO/RÉ';
 
   scheduledStops = [];
   isStoppedAtReference = false;
   stopRemainingSeconds = 0;
+  nextStopToastRemaining = 0;
   stopRefBanner.style.display = 'none';
 
   currentSpeedKmh = 0;
@@ -1346,6 +1324,7 @@ function exitGame() {
   isTripActive = false;
   isStoppedAtReference = false;
   stopRemainingSeconds = 0;
+  nextStopToastRemaining = 0;
   vehicleHeading = 0;
   distanceCoveredKm = 0;
   speedMultiplier = 1.0;
@@ -1377,6 +1356,7 @@ function mostrarRelatorioFinal() {
   isTripActive = false;
   isAutopilotMoving = false;
   isStoppedAtReference = false;
+  nextStopToastRemaining = 0;
   stopRefBanner.style.display = 'none';
   currentSpeedKmh = 0;
 
@@ -1524,10 +1504,12 @@ function handleAccelerate() {
   if (!isTripActive && currentGameMode === 'line') {
     isTripActive = true;
     startTripTimer();
+    triggerNextStopToastIfAvailable();
   }
   mapBanner.style.display = 'none';
   isAutopilotMoving = true;
   updateTripStatus();
+  updateStopBanner();
 }
 
 let lastFrameTime = performance.now();
@@ -1546,6 +1528,7 @@ function gameLoop(now) {
     if (!isTripActive && currentGameMode === 'line') {
       isTripActive = true;
       startTripTimer();
+      triggerNextStopToastIfAvailable();
     }
     mapBanner.style.display = 'none';
     isAutopilotMoving = true;
@@ -1556,7 +1539,6 @@ function gameLoop(now) {
   let renderLat = busLat;
 
   if (currentGameMode === 'line') {
-    // Verifica se atingiu algum ponto de referência programado no trajeto
     if (isTripActive && !isLineFinished && !isStoppedAtReference) {
       const hitStop = scheduledStops.find(s => !s.triggered && currentSegIndex >= s.segIndex);
       if (hitStop) {
@@ -1564,6 +1546,7 @@ function gameLoop(now) {
         isStoppedAtReference = true;
         stopRemainingSeconds = hitStop.durationSec;
         currentStopLabel = hitStop.label;
+        nextStopToastRemaining = 0;
         currentSpeedKmh = 0;
         updateTripStatus();
         updateStopBanner();
@@ -1579,10 +1562,15 @@ function gameLoop(now) {
         stopRemainingSeconds = 0;
         currentStopLabel = "";
         isAutopilotMoving = true;
+        triggerNextStopToastIfAvailable();
         updateTripStatus();
         updateStopBanner();
       }
     } else {
+      if (nextStopToastRemaining > 0) {
+        nextStopToastRemaining = Math.max(0, nextStopToastRemaining - deltaTime);
+      }
+
       if (isTripActive && isAutopilotMoving && !isLineFinished) {
         if (keysPressed.Down) {
           desiredSpeed = 0;
@@ -1669,7 +1657,6 @@ function gameLoop(now) {
       updateStopBanner();
     }
   } else {
-    // MODO LIVRE: Suporta aceleração frontal, frenagem e marcha ré ao segurar freio
     if (keysPressed.Up) {
       if (currentSpeedKmh < 0) {
         currentSpeedKmh = Math.min(currentSpeedKmh + 65 * deltaTime, 0);
