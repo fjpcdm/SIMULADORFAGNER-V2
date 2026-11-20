@@ -1,6 +1,6 @@
 // ============================================================
 // ARQUIVO: script.js
-// MOTOR DE SIMULAÇÃO - FOCO EM PONTO DE REFERÊNCIA, AVISO CURTO E D-PAD EM CRUZ
+// MOTOR DE SIMULAÇÃO - SINCRONIA POR DISTÂNCIA REAL DA ROTA
 // ============================================================
 
 const cssStyles = `
@@ -921,6 +921,8 @@ let distanceCoveredKm = 0;
 let currentSegIndex = 0;
 let segProgressMeters = 0;
 let currentSegLength = 0;
+let totalRouteMeters = 0;
+let routeTraveledMeters = 0;
 let targetHeading = 0;
 let smoothHeading = 0;
 let currentCameraBearing = 0;
@@ -928,7 +930,6 @@ let currentCameraBearing = 0;
 let lineLateralCorrectionMeters = 0;
 const MAX_LINE_LATERAL_METERS = 2.4;
 
-// Controle de paradas de referência e aviso curto após arrancar
 let scheduledStops = [];
 let isStoppedAtReference = false;
 let stopRemainingSeconds = 0;
@@ -949,53 +950,62 @@ let currentZoomLevel = 19.8;
 
 const keysPressed = { Up: false, Down: false, Left: false, Right: false };
 
+function computeTotalRouteMeters(path) {
+  if (!path || path.length < 2) return 0;
+  let sum = 0;
+  for (let i = 0; i < path.length - 1; i++) {
+    sum += getMetersBetween(path[i], path[i + 1]);
+  }
+  return sum;
+}
+
 function generateReferenceStops(path, customStops = null) {
   scheduledStops = [];
-  if (!path || path.length < 2) return;
+  totalRouteMeters = computeTotalRouteMeters(path);
+  routeTraveledMeters = 0;
 
-  const totalPoints = path.length;
+  if (!path || path.length < 2 || totalRouteMeters <= 0) return;
+
   const hasCustom = Array.isArray(customStops) && customStops.length > 0;
-  const maxAllowed = Math.max(1, totalPoints - 1);
+  const count = hasCustom
+    ? Math.min(customStops.length, MAX_STOPS_PER_TRIP)
+    : Math.min(MAX_STOPS_PER_TRIP, 12);
 
-  const desiredCount = hasCustom
-    ? Math.min(customStops.length, MAX_STOPS_PER_TRIP, maxAllowed)
-    : Math.min(MAX_STOPS_PER_TRIP, Math.max(10, Math.floor(totalPoints / 16)), maxAllowed);
-
-  const step = desiredCount > 1 ? (totalPoints - 1) / desiredCount : 0;
   const shuffledFallbacks = [...FALLBACK_REFERENCE_PLACES].sort(() => Math.random() - 0.5);
 
-  for (let i = 0; i < desiredCount; i++) {
+  for (let i = 0; i < count; i++) {
     const fallbackRef = shuffledFallbacks[i % shuffledFallbacks.length];
-    const baseIdx = hasCustom
-      ? Math.round((i + 0.5) * step)
-      : 1 + Math.floor(i * (Math.max(1, totalPoints - 3) / desiredCount));
-
-    const jitter = hasCustom
-      ? 0
-      : Math.floor(Math.random() * Math.max(1, Math.floor((totalPoints - 3) / desiredCount * 0.45)));
-
-    const pickedIdx = Math.min(totalPoints - 1, Math.max(0, baseIdx + jitter));
     const customEntry = hasCustom ? customStops[i] : null;
 
     let rawLabel = fallbackRef;
+    let explicitRatio = null;
+
     if (typeof customEntry === 'string') {
       rawLabel = customEntry;
     } else if (customEntry && typeof customEntry === 'object') {
       rawLabel = customEntry.nome || customEntry.label || fallbackRef;
+      if (typeof customEntry.posicao === 'number' && !isNaN(customEntry.posicao)) {
+        explicitRatio = Math.max(0.02, Math.min(0.98, customEntry.posicao));
+      }
     }
 
+    const ratio = explicitRatio !== null
+      ? explicitRatio
+      : ((i + 0.5) / count);
+
+    const targetMeters = totalRouteMeters * ratio;
     const labelText = extractReferenceOnly(rawLabel, fallbackRef);
     const durationSec = 3 + Math.floor(Math.random() * 3); // 3 a 5 segundos por parada
 
     scheduledStops.push({
-      segIndex: pickedIdx,
+      targetMeters,
       label: labelText,
       durationSec,
       triggered: false
     });
   }
 
-  scheduledStops.sort((a, b) => a.segIndex - b.segIndex);
+  scheduledStops.sort((a, b) => a.targetMeters - b.targetMeters);
 }
 
 function triggerNextStopToastIfAvailable() {
@@ -1539,20 +1549,6 @@ function gameLoop(now) {
   let renderLat = busLat;
 
   if (currentGameMode === 'line') {
-    if (isTripActive && !isLineFinished && !isStoppedAtReference) {
-      const hitStop = scheduledStops.find(s => !s.triggered && currentSegIndex >= s.segIndex);
-      if (hitStop) {
-        hitStop.triggered = true;
-        isStoppedAtReference = true;
-        stopRemainingSeconds = hitStop.durationSec;
-        currentStopLabel = hitStop.label;
-        nextStopToastRemaining = 0;
-        currentSpeedKmh = 0;
-        updateTripStatus();
-        updateStopBanner();
-      }
-    }
-
     if (isStoppedAtReference) {
       currentSpeedKmh = 0;
       stopRemainingSeconds -= deltaTime;
@@ -1607,6 +1603,7 @@ function gameLoop(now) {
 
           if (remainingDistance < distanceLeftInSeg) {
             segProgressMeters += remainingDistance;
+            routeTraveledMeters += remainingDistance;
             remainingDistance = 0;
 
             const ratio = currentSegLength > 0 ? (segProgressMeters / currentSegLength) : 0;
@@ -1616,12 +1613,14 @@ function gameLoop(now) {
             targetHeading = calculateBearing(p1, p2);
           } else {
             remainingDistance -= distanceLeftInSeg;
+            routeTraveledMeters += distanceLeftInSeg;
             currentSegIndex++;
             segProgressMeters = 0;
 
             if (currentSegIndex >= activePath.length - 1) {
               busLng = activePath[activePath.length - 1][0];
               busLat = activePath[activePath.length - 1][1];
+              routeTraveledMeters = totalRouteMeters;
               isLineFinished = true;
               mostrarRelatorioFinal();
               break;
@@ -1631,6 +1630,19 @@ function gameLoop(now) {
               busLat = activePath[currentSegIndex][1];
               targetHeading = calculateBearing(activePath[currentSegIndex], activePath[currentSegIndex + 1]);
             }
+          }
+
+          const hitStop = scheduledStops.find(s => !s.triggered && routeTraveledMeters >= s.targetMeters);
+          if (hitStop && !isLineFinished) {
+            hitStop.triggered = true;
+            isStoppedAtReference = true;
+            stopRemainingSeconds = hitStop.durationSec;
+            currentStopLabel = hitStop.label;
+            nextStopToastRemaining = 0;
+            currentSpeedKmh = 0;
+            updateTripStatus();
+            updateStopBanner();
+            break;
           }
         }
 
