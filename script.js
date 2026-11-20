@@ -1,6 +1,6 @@
 // ============================================================
 // ARQUIVO: script.js
-// MOTOR DE SIMULAÇÃO - SINCRONIA POR DISTÂNCIA REAL DA ROTA
+// MOTOR DE SIMULAÇÃO - PARADAS POR COORDENADA REAL NO MAPA
 // ============================================================
 
 const cssStyles = `
@@ -682,18 +682,8 @@ const COLOR_PRESETS = {
   'trem_laranja': { name: 'Trem Laranja', bodyColor: '#2A1974', stripeColor: '#EA7302' }
 };
 
-const FALLBACK_REFERENCE_PLACES = [
-  "Escola Municipal Vila Ideal",
-  "Centro Comercial",
-  "Ponto do Mercado",
-  "Ponto de Integração",
-  "Praça Principal",
-  "Posto e Comércio Local",
-  "Ponto da Escola",
-  "Ponto da Igreja"
-];
-
 const MAX_STOPS_PER_TRIP = 50;
+const STOP_TRIGGER_RADIUS_METERS = 25;
 const NEXT_STOP_TOAST_SECONDS = 4;
 
 function getLinesDatabase() {
@@ -724,6 +714,32 @@ function extractReferenceOnly(rawText, fallbackName) {
   }
 
   return text || fallbackName || "Ponto de Referência";
+}
+
+function normalizeStopCoords(entry) {
+  if (!entry || typeof entry !== 'object') return null;
+
+  if (Array.isArray(entry.coords) && entry.coords.length >= 2) {
+    const lon = Number(entry.coords[0]);
+    const lat = Number(entry.coords[1]);
+    if (!isNaN(lon) && !isNaN(lat)) return [lon, lat];
+  }
+
+  if (Array.isArray(entry.coordenadas) && entry.coordenadas.length >= 2) {
+    const lon = Number(entry.coordenadas[0]);
+    const lat = Number(entry.coordenadas[1]);
+    if (!isNaN(lon) && !isNaN(lat)) return [lon, lat];
+  }
+
+  if (typeof entry.lon === 'number' && typeof entry.lat === 'number') {
+    if (!isNaN(entry.lon) && !isNaN(entry.lat)) return [entry.lon, entry.lat];
+  }
+
+  if (typeof entry.lng === 'number' && typeof entry.lat === 'number') {
+    if (!isNaN(entry.lng) && !isNaN(entry.lat)) return [entry.lng, entry.lat];
+  }
+
+  return null;
 }
 
 const setupModal = document.createElement('div');
@@ -921,8 +937,6 @@ let distanceCoveredKm = 0;
 let currentSegIndex = 0;
 let segProgressMeters = 0;
 let currentSegLength = 0;
-let totalRouteMeters = 0;
-let routeTraveledMeters = 0;
 let targetHeading = 0;
 let smoothHeading = 0;
 let currentCameraBearing = 0;
@@ -950,62 +964,36 @@ let currentZoomLevel = 19.8;
 
 const keysPressed = { Up: false, Down: false, Left: false, Right: false };
 
-function computeTotalRouteMeters(path) {
-  if (!path || path.length < 2) return 0;
-  let sum = 0;
-  for (let i = 0; i < path.length - 1; i++) {
-    sum += getMetersBetween(path[i], path[i + 1]);
-  }
-  return sum;
-}
-
-function generateReferenceStops(path, customStops = null) {
+function loadStopsForRoute(customStops) {
   scheduledStops = [];
-  totalRouteMeters = computeTotalRouteMeters(path);
-  routeTraveledMeters = 0;
+  if (!Array.isArray(customStops) || customStops.length === 0) return;
 
-  if (!path || path.length < 2 || totalRouteMeters <= 0) return;
+  const limited = customStops.slice(0, MAX_STOPS_PER_TRIP);
 
-  const hasCustom = Array.isArray(customStops) && customStops.length > 0;
-  const count = hasCustom
-    ? Math.min(customStops.length, MAX_STOPS_PER_TRIP)
-    : Math.min(MAX_STOPS_PER_TRIP, 12);
+  limited.forEach((entry, idx) => {
+    const fallbackName = `Ponto de Referência ${idx + 1}`;
+    let rawLabel = fallbackName;
+    let coords = null;
 
-  const shuffledFallbacks = [...FALLBACK_REFERENCE_PLACES].sort(() => Math.random() - 0.5);
-
-  for (let i = 0; i < count; i++) {
-    const fallbackRef = shuffledFallbacks[i % shuffledFallbacks.length];
-    const customEntry = hasCustom ? customStops[i] : null;
-
-    let rawLabel = fallbackRef;
-    let explicitRatio = null;
-
-    if (typeof customEntry === 'string') {
-      rawLabel = customEntry;
-    } else if (customEntry && typeof customEntry === 'object') {
-      rawLabel = customEntry.nome || customEntry.label || fallbackRef;
-      if (typeof customEntry.posicao === 'number' && !isNaN(customEntry.posicao)) {
-        explicitRatio = Math.max(0.02, Math.min(0.98, customEntry.posicao));
-      }
+    if (typeof entry === 'string') {
+      rawLabel = entry;
+    } else if (entry && typeof entry === 'object') {
+      rawLabel = entry.nome || entry.label || entry.referencia || fallbackName;
+      coords = normalizeStopCoords(entry);
     }
 
-    const ratio = explicitRatio !== null
-      ? explicitRatio
-      : ((i + 0.5) / count);
+    if (!coords) return;
 
-    const targetMeters = totalRouteMeters * ratio;
-    const labelText = extractReferenceOnly(rawLabel, fallbackRef);
+    const labelText = extractReferenceOnly(rawLabel, fallbackName);
     const durationSec = 3 + Math.floor(Math.random() * 3); // 3 a 5 segundos por parada
 
     scheduledStops.push({
-      targetMeters,
+      coords,
       label: labelText,
       durationSec,
       triggered: false
     });
-  }
-
-  scheduledStops.sort((a, b) => a.targetMeters - b.targetMeters);
+  });
 }
 
 function triggerNextStopToastIfAvailable() {
@@ -1222,7 +1210,7 @@ document.getElementById('btnStartLineMode').addEventListener('click', () => {
   }
 
   const customStops = lineData.pontosParada || lineData.paradas || null;
-  generateReferenceStops(activePath, customStops);
+  loadStopsForRoute(customStops);
   isStoppedAtReference = false;
   stopRemainingSeconds = 0;
   currentStopLabel = "";
@@ -1603,7 +1591,6 @@ function gameLoop(now) {
 
           if (remainingDistance < distanceLeftInSeg) {
             segProgressMeters += remainingDistance;
-            routeTraveledMeters += remainingDistance;
             remainingDistance = 0;
 
             const ratio = currentSegLength > 0 ? (segProgressMeters / currentSegLength) : 0;
@@ -1613,14 +1600,12 @@ function gameLoop(now) {
             targetHeading = calculateBearing(p1, p2);
           } else {
             remainingDistance -= distanceLeftInSeg;
-            routeTraveledMeters += distanceLeftInSeg;
             currentSegIndex++;
             segProgressMeters = 0;
 
             if (currentSegIndex >= activePath.length - 1) {
               busLng = activePath[activePath.length - 1][0];
               busLat = activePath[activePath.length - 1][1];
-              routeTraveledMeters = totalRouteMeters;
               isLineFinished = true;
               mostrarRelatorioFinal();
               break;
@@ -1630,19 +1615,6 @@ function gameLoop(now) {
               busLat = activePath[currentSegIndex][1];
               targetHeading = calculateBearing(activePath[currentSegIndex], activePath[currentSegIndex + 1]);
             }
-          }
-
-          const hitStop = scheduledStops.find(s => !s.triggered && routeTraveledMeters >= s.targetMeters);
-          if (hitStop && !isLineFinished) {
-            hitStop.triggered = true;
-            isStoppedAtReference = true;
-            stopRemainingSeconds = hitStop.durationSec;
-            currentStopLabel = hitStop.label;
-            nextStopToastRemaining = 0;
-            currentSpeedKmh = 0;
-            updateTripStatus();
-            updateStopBanner();
-            break;
           }
         }
 
@@ -1664,6 +1636,23 @@ function gameLoop(now) {
 
         renderLng = busLng + (lineLateralCorrectionMeters * Math.sin(perpRad)) / metersPerDegreeLng;
         renderLat = busLat + (lineLateralCorrectionMeters * Math.cos(perpRad)) / metersPerDegreeLat;
+
+        if (!isLineFinished) {
+          const nextStop = scheduledStops.find(s => !s.triggered);
+          if (nextStop) {
+            const distToStop = getMetersBetween([renderLng, renderLat], nextStop.coords);
+            if (distToStop <= STOP_TRIGGER_RADIUS_METERS) {
+              nextStop.triggered = true;
+              isStoppedAtReference = true;
+              stopRemainingSeconds = nextStop.durationSec;
+              currentStopLabel = nextStop.label;
+              nextStopToastRemaining = 0;
+              currentSpeedKmh = 0;
+              updateTripStatus();
+              updateStopBanner();
+            }
+          }
+        }
       }
 
       updateStopBanner();
