@@ -612,8 +612,8 @@ const cssStyles = `
   }
 
   .bus-marker-img {
-    width: 14px !important;
-    height: 42px !important;
+    width: 15px !important;
+    height: 45px !important;
     display: block !important;
     filter: drop-shadow(0px 3px 6px rgba(0, 0, 0, 0.95));
   }
@@ -1003,7 +1003,7 @@ let tripStartRealTimeStr = '';
 let speedMultiplier = 1.0;
 
 let currentCameraMode = 'street';
-let currentZoomLevel = 19.8;
+let currentZoomLevel = 20.3;
 
 const keysPressed = { Up: false, Down: false, Left: false, Right: false };
 
@@ -1022,6 +1022,16 @@ function lerpHeading(current, target, factor) {
   let diff = (target - current + 360) % 360;
   if (diff > 180) diff -= 360;
   return (current + diff * factor + 360) % 360;
+}
+
+function offsetCoordForward(lng, lat, bearingDeg, metersForward) {
+  const rad = (bearingDeg * Math.PI) / 180;
+  const metersPerDegreeLat = 111320;
+  const metersPerDegreeLng = 111320 * Math.cos(lat * (Math.PI / 180));
+  return [
+    lng + (metersForward * Math.sin(rad)) / metersPerDegreeLng,
+    lat + (metersForward * Math.cos(rad)) / metersPerDegreeLat
+  ];
 }
 
 function startTripTimer() {
@@ -1060,10 +1070,14 @@ function setCameraMode(mode) {
   });
   if (mode === 'street') {
     document.getElementById('btnCamStreet').classList.add('active');
-    currentZoomLevel = 19.8;
+    currentZoomLevel = 20.3;
+    document.getElementById('btnZoomNear').classList.add('active');
+    document.getElementById('btnZoomFar').classList.remove('active');
   } else if (mode === 'top') {
     document.getElementById('btnCamTop').classList.add('active');
     currentZoomLevel = 18.5;
+    document.getElementById('btnZoomNear').classList.add('active');
+    document.getElementById('btnZoomFar').classList.remove('active');
   }
 }
 
@@ -1368,8 +1382,15 @@ function initMap(startCoords) {
     map = null;
   }
 
+  const initialBearing = currentGameMode === 'line' ? smoothHeading : vehicleHeading;
+  const initialCenter = currentCameraMode === 'street'
+    ? offsetCoordForward(startCoords[0], startCoords[1], initialBearing, 11)
+    : startCoords;
+
   map = new maplibregl.Map({
     container: 'map',
+    antialias: true,
+    maxPitch: 85,
     style: {
       version: 8,
       sources: {
@@ -1382,15 +1403,28 @@ function initMap(startCoords) {
             'https://mt3.google.com/vt/lyrs=y,h&x={x}&y={y}&z={z}'
           ],
           tileSize: 256,
-          maxzoom: 22
+          maxzoom: 21
         }
       },
-      layers: [{ id: 'google-hybrid-layer', type: 'raster', source: 'google-hybrid-source', minzoom: 0, maxzoom: 22 }]
+      layers: [
+        {
+          id: 'google-hybrid-layer',
+          type: 'raster',
+          source: 'google-hybrid-source',
+          minzoom: 0,
+          maxzoom: 22,
+          paint: {
+            'raster-resampling': 'linear',
+            'raster-contrast': 0.06,
+            'raster-saturation': 0.08
+          }
+        }
+      ]
     },
-    center: startCoords,
+    center: initialCenter,
     zoom: currentZoomLevel,
-    pitch: 70,
-    bearing: currentGameMode === 'line' ? smoothHeading : vehicleHeading,
+    pitch: currentCameraMode === 'street' ? 79 : 25,
+    bearing: initialBearing,
     renderWorldCopies: false
   });
 
@@ -1626,9 +1660,9 @@ function gameLoop(now) {
     busMarker.setLngLat(currentCoords);
   }
 
-  let targetPitch = 70;
+  let targetPitch = 79;
   if (currentCameraMode === 'street') {
-    targetPitch = 74;
+    targetPitch = 79;
   } else if (currentCameraMode === 'top') {
     targetPitch = 25;
   }
@@ -1637,15 +1671,19 @@ function gameLoop(now) {
   currentCameraBearing = lerpHeading(currentCameraBearing, rawTargetBearing, 5.5 * deltaTime);
 
   if (busMarker && busMarker.getElement()) {
-    if (currentCameraMode === 'street' && currentZoomLevel <= 18.5) {
+    if (currentCameraMode === 'street' && currentZoomLevel <= 18.8) {
       busMarker.getElement().style.transform = 'scale(0.85)';
     } else {
-      busMarker.getElement().style.transform = 'scale(1)';
+      busMarker.getElement().style.transform = 'scale(1.08)';
     }
   }
 
+  const cameraCenter = currentCameraMode === 'street'
+    ? offsetCoordForward(renderLng, renderLat, currentCameraBearing, 11)
+    : currentCoords;
+
   map.jumpTo({
-    center: currentCoords,
+    center: cameraCenter,
     bearing: currentCameraBearing,
     pitch: targetPitch,
     zoom: currentZoomLevel
@@ -1658,7 +1696,7 @@ function gameLoop(now) {
 
 document.getElementById('btnZoomNear').addEventListener('pointerdown', (e) => {
   e.stopPropagation();
-  if (currentCameraMode === 'street') currentZoomLevel = 20.2;
+  if (currentCameraMode === 'street') currentZoomLevel = 20.7;
   else currentZoomLevel = 19.2;
   document.getElementById('btnZoomNear').classList.add('active');
   document.getElementById('btnZoomFar').classList.remove('active');
@@ -1666,7 +1704,7 @@ document.getElementById('btnZoomNear').addEventListener('pointerdown', (e) => {
 
 document.getElementById('btnZoomFar').addEventListener('pointerdown', (e) => {
   e.stopPropagation();
-  if (currentCameraMode === 'street') currentZoomLevel = 18.2;
+  if (currentCameraMode === 'street') currentZoomLevel = 18.6;
   else currentZoomLevel = 17.5;
   document.getElementById('btnZoomFar').classList.add('active');
   document.getElementById('btnZoomNear').classList.remove('active');
