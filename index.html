@@ -49,28 +49,39 @@
     .menu-direito, #menu-direito {
       position: absolute;
       right: 15px;
-      bottom: 140px; 
+      bottom: 140px;
       z-index: 10;
+    }
+
+    /* Seletor de arquivo de rota (apenas trajeto, sem paradas) */
+    #rota-file-input {
+      display: none;
     }
   </style>
 </head>
 <body>
-  
+
   <div id="map"></div>
+
+  <!-- Entrada oculta para carregar arquivo de trajeto (.gpx, .geojson, .json) -->
+  <input type="file" id="rota-file-input" accept=".gpx,.geojson,.json" />
 
   <!-- Biblioteca MapLibre GL JS -->
   <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
   <!-- 1º Carrega o banco de linhas -->
-  <script src="dados_rotas.js"></script>
+  <script src="dados_rotas.js?v=2"></script>
   <!-- Script do Jogo -->
-  <script src="script.js"></script>
-    
+  <script src="script.js?v=2"></script>
+
   <!-- Funcionar offline (Service Worker) -->
   <script>
-    if ('serviceWorker' in navigator) {
+    if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js')
-          .then(reg => console.log('Modo Offline Ativado!', reg.scope))
+        navigator.serviceWorker.register('./sw.js?v=2')
+          .then(reg => {
+            console.log('Modo Offline Ativado!', reg.scope);
+            reg.update().catch(() => {});
+          })
           .catch(err => console.log('Erro ao ativar modo offline:', err));
       });
     }
