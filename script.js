@@ -1,7 +1,10 @@
 // ============================================================
 // ARQUIVO: script.js
-// MOTOR DE SIMULAÇÃO - PARADAS POR COORDENADA REAL NO MAPA
+// MOTOR DE SIMULAÇÃO - MODO TRAJETO (SEM PARADAS) + PERSISTÊNCIA
 // ============================================================
+
+const STORAGE_KEY_STATE = 'simulador_bus_estado_v2';
+const STORAGE_KEY_CUSTOM_ROUTE = 'simulador_bus_rota_carregada_v2';
 
 const cssStyles = `
   * {
@@ -112,6 +115,26 @@ const cssStyles = `
     font-size: 0.9rem;
   }
 
+  .btn-load-file {
+    width: 100%;
+    padding: 10px 12px;
+    background: #1e3a5f;
+    border: 1px dashed #38bdf8;
+    border-radius: 8px;
+    color: #e0f2fe;
+    font-size: 0.85rem;
+    font-weight: bold;
+    cursor: pointer;
+    text-align: center;
+  }
+
+  .loaded-file-info {
+    margin-top: 6px;
+    font-size: 0.78rem;
+    color: #34d399;
+    word-break: break-word;
+  }
+
   .btn-start-sim {
     width: 100%;
     padding: 12px;
@@ -154,33 +177,6 @@ const cssStyles = `
     border: 2px solid #ffffff !important;
     text-align: center !important;
     max-width: 90vw !important;
-  }
-
-  .stop-reference-banner {
-    position: fixed;
-    top: 52px;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 999999;
-    background: rgba(15, 23, 42, 0.84);
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
-    border: 1px solid rgba(251, 191, 36, 0.65);
-    color: #fde68a;
-    padding: 5px 12px;
-    border-radius: 12px;
-    font-size: 0.72rem;
-    font-weight: 600;
-    display: none;
-    align-items: center;
-    justify-content: center;
-    gap: 5px;
-    max-width: calc(100vw - 24px);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.4);
-    pointer-events: none;
   }
 
   .mobile-top-bar {
@@ -666,11 +662,6 @@ function showAlert(message) {
   }, 2200);
 }
 
-const stopRefBanner = document.createElement('div');
-stopRefBanner.className = 'stop-reference-banner';
-stopRefBanner.id = 'stopReferenceBanner';
-document.body.appendChild(stopRefBanner);
-
 const COLOR_PRESETS = {
   'vermelho': { name: 'Vermelho', bodyColor: '#ff2c2c', stripeColor: '#ff2c2c' },
   'azul': { name: 'Azul', bodyColor: '#1883ff', stripeColor: '#1883ff' },
@@ -682,64 +673,102 @@ const COLOR_PRESETS = {
   'trem_laranja': { name: 'Trem Laranja', bodyColor: '#2A1974', stripeColor: '#EA7302' }
 };
 
-const MAX_STOPS_PER_TRIP = 50;
-const STOP_TRIGGER_RADIUS_METERS = 25;
-const NEXT_STOP_TOAST_SECONDS = 4;
-
 function getLinesDatabase() {
   return window.linesDatabase || {};
 }
 
+function isValidCoordPair(pt) {
+  return (
+    Array.isArray(pt) &&
+    pt.length >= 2 &&
+    typeof pt[0] === 'number' &&
+    typeof pt[1] === 'number' &&
+    Number.isFinite(pt[0]) &&
+    Number.isFinite(pt[1])
+  );
+}
+
+// Extrai APENAS o trajeto (ignora paradas completamente)
 function extractCoordinates(rawTrajeto) {
   if (!rawTrajeto) return [];
-  if (Array.isArray(rawTrajeto) && Array.isArray(rawTrajeto[0]) && typeof rawTrajeto[0][0] === 'number') {
-    return rawTrajeto;
+  if (Array.isArray(rawTrajeto) && rawTrajeto.length > 0 && Array.isArray(rawTrajeto[0]) && typeof rawTrajeto[0][0] === 'number') {
+    return rawTrajeto.filter(isValidCoordPair).map(p => [Number(p[0]), Number(p[1])]);
   }
-  if (Array.isArray(rawTrajeto) && rawTrajeto[0] && rawTrajeto[0].features) {
+  if (Array.isArray(rawTrajeto) && rawTrajeto[0] && Array.isArray(rawTrajeto[0].features)) {
     const lineFeature = rawTrajeto[0].features.find(f => f.geometry && f.geometry.type === 'LineString');
-    if (lineFeature) return lineFeature.geometry.coordinates;
+    if (lineFeature && Array.isArray(lineFeature.geometry.coordinates)) {
+      return lineFeature.geometry.coordinates.filter(isValidCoordPair).map(p => [Number(p[0]), Number(p[1])]);
+    }
+  }
+  if (typeof rawTrajeto === 'object' && rawTrajeto !== null) {
+    if (rawTrajeto.type === 'FeatureCollection' && Array.isArray(rawTrajeto.features)) {
+      const lineFeature = rawTrajeto.features.find(f => f.geometry && f.geometry.type === 'LineString');
+      if (lineFeature && Array.isArray(lineFeature.geometry.coordinates)) {
+        return lineFeature.geometry.coordinates.filter(isValidCoordPair).map(p => [Number(p[0]), Number(p[1])]);
+      }
+    }
+    if (rawTrajeto.type === 'Feature' && rawTrajeto.geometry && rawTrajeto.geometry.type === 'LineString') {
+      return (rawTrajeto.geometry.coordinates || []).filter(isValidCoordPair).map(p => [Number(p[0]), Number(p[1])]);
+    }
+    if (rawTrajeto.type === 'LineString' && Array.isArray(rawTrajeto.coordinates)) {
+      return rawTrajeto.coordinates.filter(isValidCoordPair).map(p => [Number(p[0]), Number(p[1])]);
+    }
   }
   return [];
 }
 
-function extractReferenceOnly(rawText, fallbackName) {
-  let text = typeof rawText === 'string'
-    ? rawText.replace(/^pr[óo]xima\s+parada[:\s-]*/i, '').trim()
-    : (fallbackName || "");
-
-  if (text.includes("|")) {
-    const parts = text.split("|");
-    const refPart = parts[parts.length - 1].trim();
-    if (refPart) text = refPart;
-  }
-
-  return text || fallbackName || "Ponto de Referência";
+function parseGpxCoordinates(xmlText) {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(xmlText, 'application/xml');
+  const points = Array.from(doc.querySelectorAll('trkpt'));
+  return points
+    .map(pt => {
+      const lon = parseFloat(pt.getAttribute('lon'));
+      const lat = parseFloat(pt.getAttribute('lat'));
+      return Number.isFinite(lon) && Number.isFinite(lat) ? [lon, lat] : null;
+    })
+    .filter(Boolean);
 }
 
-function normalizeStopCoords(entry) {
-  if (!entry || typeof entry !== 'object') return null;
-
-  if (Array.isArray(entry.coords) && entry.coords.length >= 2) {
-    const lon = Number(entry.coords[0]);
-    const lat = Number(entry.coords[1]);
-    if (!isNaN(lon) && !isNaN(lat)) return [lon, lat];
+function saveUserPreferences(patch = {}) {
+  try {
+    const current = loadUserPreferences();
+    const merged = { ...current, ...patch };
+    localStorage.setItem(STORAGE_KEY_STATE, JSON.stringify(merged));
+  } catch (e) {
+    // Ignora erro de quota/privacidade
   }
+}
 
-  if (Array.isArray(entry.coordenadas) && entry.coordenadas.length >= 2) {
-    const lon = Number(entry.coordenadas[0]);
-    const lat = Number(entry.coordenadas[1]);
-    if (!isNaN(lon) && !isNaN(lat)) return [lon, lat];
+function loadUserPreferences() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_STATE);
+    return raw ? JSON.parse(raw) : {};
+  } catch (e) {
+    return {};
   }
+}
 
-  if (typeof entry.lon === 'number' && typeof entry.lat === 'number') {
-    if (!isNaN(entry.lon) && !isNaN(entry.lat)) return [entry.lon, entry.lat];
+function saveCustomRouteToStorage(routeObj) {
+  try {
+    localStorage.setItem(STORAGE_KEY_CUSTOM_ROUTE, JSON.stringify(routeObj));
+  } catch (e) {
+    showAlert('Rota carregada, mas grande demais para salvar no navegador.');
   }
+}
 
-  if (typeof entry.lng === 'number' && typeof entry.lat === 'number') {
-    if (!isNaN(entry.lng) && !isNaN(entry.lat)) return [entry.lng, entry.lat];
+function loadCustomRouteFromStorage() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_CUSTOM_ROUTE);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed && Array.isArray(parsed.trajeto) && parsed.trajeto.length >= 2) {
+      return parsed;
+    }
+    return null;
+  } catch (e) {
+    return null;
   }
-
-  return null;
 }
 
 const setupModal = document.createElement('div');
@@ -754,13 +783,13 @@ setupModal.innerHTML = `
   <div class="setup-card" id="cardMainMenu">
     <h2>🚍 Simulador de Ônibus & Trem</h2>
     <div class="mode-selection-box">
-      <button class="btn-mode-select" id="btnSelectLineMode">📍 Modo Linha</button>
+      <button class="btn-mode-select" id="btnSelectLineMode">🛣️ Modo Trajeto</button>
       <button class="btn-mode-select" id="btnSelectFreeMode">🗺️ Modo Livre</button>
     </div>
   </div>
 
   <div class="setup-card" id="cardLineMode" style="display: none;">
-    <h2>🚍 Modo Linha</h2>
+    <h2>🛣️ Modo Trajeto</h2>
     <div class="form-group">
       <label>Tipo de Linha de Operação:</label>
       <select id="selectCategoryType">
@@ -771,6 +800,11 @@ setupModal.innerHTML = `
     <div class="form-group">
       <label>Selecione a Linha:</label>
       <select id="selectLine"></select>
+    </div>
+    <div class="form-group">
+      <label>Arquivo de Trajeto (GPX / GeoJSON / JSON):</label>
+      <button type="button" class="btn-load-file" id="btnTriggerRouteFile">📂 Carregar Arquivo de Trajeto</button>
+      <div class="loaded-file-info" id="loadedRouteInfo" style="display: none;"></div>
     </div>
     <div class="form-group">
       <label>Cor do Veículo:</label>
@@ -796,17 +830,39 @@ setupModal.innerHTML = `
 `;
 document.body.appendChild(setupModal);
 
+let loadedCustomRoute = loadCustomRouteFromStorage();
+
+function updateLoadedRouteInfoUI() {
+  const infoEl = document.getElementById('loadedRouteInfo');
+  if (!infoEl) return;
+  if (loadedCustomRoute && Array.isArray(loadedCustomRoute.trajeto) && loadedCustomRoute.trajeto.length >= 2) {
+    infoEl.style.display = 'block';
+    infoEl.textContent = `Arquivo ativo: ${loadedCustomRoute.nome} (${loadedCustomRoute.trajeto.length} pontos)`;
+  } else {
+    infoEl.style.display = 'none';
+    infoEl.textContent = '';
+  }
+}
+
 function refreshLinesDropdown() {
   const select = document.getElementById('selectLine');
   const catSelect = document.getElementById('selectCategoryType');
   if (!select || !catSelect) return;
 
-  const selectedCategory = catSelect.value; 
+  const selectedCategory = catSelect.value;
   const db = getLinesDatabase();
   const keys = Object.keys(db);
+  const prefs = loadUserPreferences();
 
   select.innerHTML = '';
-  
+
+  if (loadedCustomRoute && Array.isArray(loadedCustomRoute.trajeto) && loadedCustomRoute.trajeto.length >= 2) {
+    const customOpt = document.createElement('option');
+    customOpt.value = '__ARQUIVO_TRAJETO__';
+    customOpt.textContent = `📁 [Arquivo] ${loadedCustomRoute.nome}`;
+    select.appendChild(customOpt);
+  }
+
   const filteredKeys = keys.filter(key => {
     const tipo = (db[key].tipo || 'urbano').toLowerCase();
     if (selectedCategory === 'rodoviario') {
@@ -816,10 +872,10 @@ function refreshLinesDropdown() {
     }
   });
 
-  if (filteredKeys.length === 0) {
+  if (filteredKeys.length === 0 && select.options.length === 0) {
     const opt = document.createElement('option');
-    opt.value = "";
-    opt.textContent = "Nenhuma linha encontrada nesta categoria";
+    opt.value = '';
+    opt.textContent = 'Nenhuma linha encontrada nesta categoria';
     select.appendChild(opt);
     return;
   }
@@ -830,12 +886,111 @@ function refreshLinesDropdown() {
     opt.textContent = db[key].nome;
     select.appendChild(opt);
   });
+
+  if (prefs.lastLineKey && Array.from(select.options).some(o => o.value === prefs.lastLineKey)) {
+    select.value = prefs.lastLineKey;
+  }
 }
 
-document.getElementById('selectCategoryType').addEventListener('change', refreshLinesDropdown);
+function applySavedPreferencesToUI() {
+  const prefs = loadUserPreferences();
+  const catSelect = document.getElementById('selectCategoryType');
+  const colorLineSelect = document.getElementById('selectColorLine');
+  const colorFreeSelect = document.getElementById('selectColorFree');
+  const freeLocInput = document.getElementById('inputFreeLocation');
 
-refreshLinesDropdown();
-setTimeout(refreshLinesDropdown, 250);
+  if (prefs.categoryType && catSelect) {
+    catSelect.value = prefs.categoryType;
+  }
+  if (prefs.colorLine && colorLineSelect && COLOR_PRESETS[prefs.colorLine]) {
+    colorLineSelect.value = prefs.colorLine;
+  }
+  if (prefs.colorFree && colorFreeSelect && COLOR_PRESETS[prefs.colorFree]) {
+    colorFreeSelect.value = prefs.colorFree;
+  }
+  if (prefs.freeLocation && freeLocInput) {
+    freeLocInput.value = prefs.freeLocation;
+  }
+
+  updateLoadedRouteInfoUI();
+  refreshLinesDropdown();
+}
+
+document.getElementById('selectCategoryType').addEventListener('change', (e) => {
+  saveUserPreferences({ categoryType: e.target.value });
+  refreshLinesDropdown();
+});
+
+document.getElementById('selectLine').addEventListener('change', (e) => {
+  saveUserPreferences({ lastLineKey: e.target.value });
+});
+
+document.getElementById('selectColorLine').addEventListener('change', (e) => {
+  saveUserPreferences({ colorLine: e.target.value });
+});
+
+document.getElementById('selectColorFree').addEventListener('change', (e) => {
+  saveUserPreferences({ colorFree: e.target.value });
+});
+
+document.getElementById('inputFreeLocation').addEventListener('change', (e) => {
+  saveUserPreferences({ freeLocation: e.target.value.trim() });
+});
+
+const fileInputEl = document.getElementById('rota-file-input');
+document.getElementById('btnTriggerRouteFile').addEventListener('click', () => {
+  if (fileInputEl) {
+    fileInputEl.value = '';
+    fileInputEl.click();
+  }
+});
+
+if (fileInputEl) {
+  fileInputEl.addEventListener('change', (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const content = String(ev.target.result || '');
+      let coords = [];
+
+      if (file.name.toLowerCase().endsWith('.gpx') || content.trim().startsWith('<')) {
+        coords = parseGpxCoordinates(content);
+      } else {
+        try {
+          const parsedJson = JSON.parse(content);
+          coords = extractCoordinates(parsedJson.trajeto || parsedJson);
+        } catch (err) {
+          coords = [];
+        }
+      }
+
+      if (!Array.isArray(coords) || coords.length < 2) {
+        showAlert('Arquivo sem trajeto válido (mínimo 2 pontos).');
+        return;
+      }
+
+      const cleanName = file.name.replace(/\.(gpx|geojson|json)$/i, '');
+      loadedCustomRoute = {
+        nome: cleanName,
+        tipo: document.getElementById('selectCategoryType').value || 'urbano',
+        trajeto: coords
+      };
+
+      saveCustomRouteToStorage(loadedCustomRoute);
+      saveUserPreferences({ lastLineKey: '__ARQUIVO_TRAJETO__' });
+      updateLoadedRouteInfoUI();
+      refreshLinesDropdown();
+      document.getElementById('selectLine').value = '__ARQUIVO_TRAJETO__';
+      showAlert(`Trajeto carregado: ${cleanName}`);
+    };
+    reader.readAsText(file);
+  });
+}
+
+applySavedPreferencesToUI();
+setTimeout(applySavedPreferencesToUI, 250);
 
 const mapBanner = document.createElement('div');
 mapBanner.className = 'map-instruction-banner';
@@ -861,7 +1016,7 @@ hudContainer.style.display = 'none';
 document.body.appendChild(hudContainer);
 
 hudContainer.innerHTML = `
-  <h2>🚍 Linha Operacional</h2>
+  <h2>🛣️ Trajeto Operacional</h2>
   <div class="line-badge" id="lineBadgeDisplay">---</div>
 
   <div class="trip-info-box">
@@ -915,10 +1070,10 @@ let map = null;
 let busMarker = null;
 let animationFrameId = null;
 
-let currentGameMode = 'line'; 
+let currentGameMode = 'line';
 let activePresetKey = 'vermelho';
-let currentVehicleType = 'urbano'; 
-let activeLetreiroText = "EXECUTIVO";
+let currentVehicleType = 'urbano';
+let activeLetreiroText = 'EXECUTIVO';
 
 let activePath = [];
 let busLng = 0;
@@ -931,7 +1086,7 @@ let cruiseSpeedKmh = 90;
 let boostSpeedKmh = 140;
 const MAX_REVERSE_SPEED_KMH = -25;
 
-let vehicleHeading = 0; 
+let vehicleHeading = 0;
 let distanceCoveredKm = 0;
 
 let currentSegIndex = 0;
@@ -944,89 +1099,18 @@ let currentCameraBearing = 0;
 let lineLateralCorrectionMeters = 0;
 const MAX_LINE_LATERAL_METERS = 2.4;
 
-let scheduledStops = [];
-let isStoppedAtReference = false;
-let stopRemainingSeconds = 0;
-let currentStopLabel = "";
-let nextStopToastRemaining = 0;
-let nextStopToastLabel = "";
-
 let isLineFinished = false;
 let isTripActive = false;
 
 let tripStartTime = null;
 let tripTimerInterval = null;
-let tripStartRealTimeStr = "";
+let tripStartRealTimeStr = '';
 let speedMultiplier = 1.0;
 
-let currentCameraMode = 'street'; 
-let currentZoomLevel = 19.8; 
+let currentCameraMode = 'street';
+let currentZoomLevel = 19.8;
 
 const keysPressed = { Up: false, Down: false, Left: false, Right: false };
-
-function loadStopsForRoute(customStops) {
-  scheduledStops = [];
-  if (!Array.isArray(customStops) || customStops.length === 0) return;
-
-  const limited = customStops.slice(0, MAX_STOPS_PER_TRIP);
-
-  limited.forEach((entry, idx) => {
-    const fallbackName = `Ponto de Referência ${idx + 1}`;
-    let rawLabel = fallbackName;
-    let coords = null;
-
-    if (typeof entry === 'string') {
-      rawLabel = entry;
-    } else if (entry && typeof entry === 'object') {
-      rawLabel = entry.nome || entry.label || entry.referencia || fallbackName;
-      coords = normalizeStopCoords(entry);
-    }
-
-    if (!coords) return;
-
-    const labelText = extractReferenceOnly(rawLabel, fallbackName);
-    const durationSec = 3 + Math.floor(Math.random() * 3); // 3 a 5 segundos por parada
-
-    scheduledStops.push({
-      coords,
-      label: labelText,
-      durationSec,
-      triggered: false
-    });
-  });
-}
-
-function triggerNextStopToastIfAvailable() {
-  const nextStop = scheduledStops.find(s => !s.triggered);
-  if (nextStop && isTripActive && !isLineFinished) {
-    nextStopToastLabel = nextStop.label;
-    nextStopToastRemaining = NEXT_STOP_TOAST_SECONDS;
-  } else {
-    nextStopToastRemaining = 0;
-    nextStopToastLabel = "";
-  }
-}
-
-function updateStopBanner() {
-  if (currentGameMode !== 'line' || !isTripActive || isLineFinished) {
-    stopRefBanner.style.display = 'none';
-    return;
-  }
-
-  if (isStoppedAtReference) {
-    stopRefBanner.style.display = 'flex';
-    stopRefBanner.textContent = `${currentStopLabel} (${Math.ceil(stopRemainingSeconds)}s)`;
-    return;
-  }
-
-  if (nextStopToastRemaining > 0 && nextStopToastLabel) {
-    stopRefBanner.style.display = 'flex';
-    stopRefBanner.textContent = `Proxima parada: ${nextStopToastLabel}`;
-    return;
-  }
-
-  stopRefBanner.style.display = 'none';
-}
 
 function calculateBearing(startCoord, endCoord) {
   const [startLng, startLat] = startCoord;
@@ -1060,7 +1144,7 @@ function getMetersBetween(coord1, coord2) {
 function startTripTimer() {
   tripStartTime = Date.now();
   const nowObj = new Date();
-  tripStartRealTimeStr = String(nowObj.getHours()).padStart(2, '0') + ":" + String(nowObj.getMinutes()).padStart(2, '0');
+  tripStartRealTimeStr = String(nowObj.getHours()).padStart(2, '0') + ':' + String(nowObj.getMinutes()).padStart(2, '0');
 
   if (tripTimerInterval) clearInterval(tripTimerInterval);
   tripTimerInterval = setInterval(() => {
@@ -1096,7 +1180,7 @@ function setCameraMode(mode) {
     currentZoomLevel = 19.8;
   } else if (mode === 'top') {
     document.getElementById('btnCamTop').classList.add('active');
-    currentZoomLevel = 18.5; 
+    currentZoomLevel = 18.5;
   }
 }
 
@@ -1161,20 +1245,14 @@ btnTripToggle.addEventListener('click', () => {
     isTripActive = true;
     isLineFinished = false;
     isAutopilotMoving = true;
-    triggerNextStopToastIfAvailable();
     startTripTimer();
     updateTripStatus();
-    updateStopBanner();
   } else {
     isTripActive = false;
     isAutopilotMoving = false;
-    isStoppedAtReference = false;
-    stopRemainingSeconds = 0;
-    nextStopToastRemaining = 0;
     currentSpeedKmh = 0;
     stopTripTimer();
     updateTripStatus();
-    updateStopBanner();
   }
 });
 
@@ -1182,16 +1260,23 @@ document.getElementById('btnStartLineMode').addEventListener('click', () => {
   currentGameMode = 'line';
   const selectedKey = document.getElementById('selectLine').value;
   activePresetKey = document.getElementById('selectColorLine').value || 'vermelho';
+  saveUserPreferences({ lastLineKey: selectedKey, colorLine: activePresetKey });
 
-  const db = getLinesDatabase();
-  const lineData = db[selectedKey] || Object.values(db)[0];
+  let lineData = null;
+  if (selectedKey === '__ARQUIVO_TRAJETO__' && loadedCustomRoute) {
+    lineData = loadedCustomRoute;
+  } else {
+    const db = getLinesDatabase();
+    lineData = db[selectedKey] || Object.values(db)[0];
+  }
+
   if (!lineData) {
-    showAlert("Nenhuma linha cadastrada disponível no dados_rotas.js.");
+    showAlert('Nenhuma linha ou trajeto disponível.');
     return;
   }
 
   currentVehicleType = lineData.tipo === 'rodoviario' ? 'rodoviario' : 'urbano';
-  activeLetreiroText = lineData.nome || "LINHA MUNICIPAL";
+  activeLetreiroText = lineData.nome || 'LINHA MUNICIPAL';
 
   if (currentVehicleType === 'rodoviario') {
     cruiseSpeedKmh = 140;
@@ -1205,17 +1290,9 @@ document.getElementById('btnStartLineMode').addEventListener('click', () => {
   speedMultiplier = 1.0;
 
   if (activePath.length < 2) {
-    showAlert("A linha selecionada não possui coordenadas de trajeto válidas.");
+    showAlert('A linha selecionada não possui coordenadas de trajeto válidas.');
     return;
   }
-
-  const customStops = lineData.pontosParada || lineData.paradas || null;
-  loadStopsForRoute(customStops);
-  isStoppedAtReference = false;
-  stopRemainingSeconds = 0;
-  currentStopLabel = "";
-  nextStopToastRemaining = 0;
-  nextStopToastLabel = "";
 
   document.getElementById('lineBadgeDisplay').textContent = `${lineData.nome}`;
   currentSegIndex = 0;
@@ -1234,24 +1311,18 @@ document.getElementById('btnStartLineMode').addEventListener('click', () => {
   currentCameraBearing = targetHeading;
 
   updateTripStatus();
-  updateStopBanner();
   startSimulation(activePath[0]);
 });
 
 document.getElementById('btnStartFreeMode').addEventListener('click', async () => {
   currentGameMode = 'free';
   currentVehicleType = 'urbano';
-  activeLetreiroText = "EXECUTIVO LIVRE";
+  activeLetreiroText = 'EXECUTIVO LIVRE';
   activePresetKey = document.getElementById('selectColorFree').value || 'vermelho';
   const locationQuery = document.getElementById('inputFreeLocation').value.trim();
+  saveUserPreferences({ colorFree: activePresetKey, freeLocation: locationQuery });
 
-  document.getElementById('lineBadgeDisplay').textContent = `Modo Livre`;
-
-  scheduledStops = [];
-  isStoppedAtReference = false;
-  stopRemainingSeconds = 0;
-  nextStopToastRemaining = 0;
-  stopRefBanner.style.display = 'none';
+  document.getElementById('lineBadgeDisplay').textContent = 'Modo Livre';
 
   currentSpeedKmh = 0;
   isAutopilotMoving = false;
@@ -1283,7 +1354,7 @@ document.getElementById('btnStartFreeMode').addEventListener('click', async () =
 
 function startSimulation(startCoords) {
   setupModal.style.display = 'none';
-  
+
   mobileTopBar.style.display = 'flex';
   bottomCockpitBar.style.display = 'flex';
   speedBox.style.display = 'flex';
@@ -1320,9 +1391,6 @@ function exitGame() {
   currentSpeedKmh = 0;
   isAutopilotMoving = false;
   isTripActive = false;
-  isStoppedAtReference = false;
-  stopRemainingSeconds = 0;
-  nextStopToastRemaining = 0;
   vehicleHeading = 0;
   distanceCoveredKm = 0;
   speedMultiplier = 1.0;
@@ -1339,7 +1407,6 @@ function exitGame() {
   mobileTopBar.style.display = 'none';
   bottomCockpitBar.style.display = 'none';
   mapBanner.style.display = 'none';
-  stopRefBanner.style.display = 'none';
 
   document.getElementById('cardLineMode').style.display = 'none';
   document.getElementById('cardFreeMode').style.display = 'none';
@@ -1353,17 +1420,14 @@ function mostrarRelatorioFinal() {
   stopTripTimer();
   isTripActive = false;
   isAutopilotMoving = false;
-  isStoppedAtReference = false;
-  nextStopToastRemaining = 0;
-  stopRefBanner.style.display = 'none';
   currentSpeedKmh = 0;
 
   const tempoStr = document.getElementById('tripTimerDisplay').textContent;
   const kmStr = document.getElementById('kmCoveredDisplay').textContent;
   const nomeLinha = document.getElementById('lineBadgeDisplay').textContent;
-  
+
   const nowObj = new Date();
-  const chegadaStr = String(nowObj.getHours()).padStart(2, '0') + ":" + String(nowObj.getMinutes()).padStart(2, '0');
+  const chegadaStr = String(nowObj.getHours()).padStart(2, '0') + ':' + String(nowObj.getMinutes()).padStart(2, '0');
 
   const reportOverlay = document.createElement('div');
   reportOverlay.className = 'report-modal-overlay';
@@ -1371,10 +1435,10 @@ function mostrarRelatorioFinal() {
     <div class="report-card">
       <h2>🏆 Viagem Concluída!</h2>
       <p style="color: #94a3b8; font-size: 0.9rem;">Relatório Oficial de Operação</p>
-      
+
       <div class="report-stats">
         <span>Linha: <strong>${nomeLinha}</strong></span>
-        <span>Horário de Saída: <strong>${tripStartRealTimeStr || "00:00"}</strong></span>
+        <span>Horário de Saída: <strong>${tripStartRealTimeStr || '00:00'}</strong></span>
         <span>Horário de Chegada: <strong>${chegadaStr}</strong></span>
         <span>Tempo da Viagem: <strong>${tempoStr}</strong></span>
         <span>Km Rodados: <strong>${kmStr}</strong></span>
@@ -1407,12 +1471,12 @@ function getBusSvg(bodyColor, stripeColor, tipo = 'urbano', letreiroText = 'EXEC
 
       <rect x="24" y="16" width="52" height="14" rx="2" fill="#000000" stroke="#38bdf8" stroke-width="0.8" />
       <text x="50" y="26" fill="#4ade80" font-size="8" font-weight="bold" font-family="monospace" text-anchor="middle">${letreiroText}</text>
-      
+
       <rect x="12" y="46" width="8" height="25" rx="2" fill="#38bdf8" opacity="0.6" />
       <rect x="80" y="46" width="8" height="25" rx="2" fill="#38bdf8" opacity="0.6" />
       <rect x="12" y="80" width="8" height="25" rx="2" fill="#38bdf8" opacity="0.6" />
       <rect x="80" y="80" width="8" height="25" rx="2" fill="#38bdf8" opacity="0.6" />
-      
+
       <rect x="14" y="3" width="12" height="4" rx="1" fill="#fbbf24" />
       <rect x="74" y="3" width="12" height="4" rx="1" fill="#fbbf24" />
       <rect x="16" y="193" width="10" height="3" fill="#ef4444" rx="1" />
@@ -1485,11 +1549,6 @@ function updateTripStatus() {
     badge.textContent = 'Viagem Concluída';
     btnTripToggle.className = 'btn-trip-toggle start';
     btnTripToggle.textContent = '🔄 Reiniciar Viagem';
-  } else if (isStoppedAtReference) {
-    badge.className = 'trip-status-badge stopped';
-    badge.textContent = 'Parado no Ponto';
-    btnTripToggle.className = 'btn-trip-toggle stop';
-    btnTripToggle.textContent = '🛑 Encerrar Viagem';
   } else {
     badge.className = 'trip-status-badge running';
     badge.textContent = 'Em Viagem';
@@ -1502,12 +1561,10 @@ function handleAccelerate() {
   if (!isTripActive && currentGameMode === 'line') {
     isTripActive = true;
     startTripTimer();
-    triggerNextStopToastIfAvailable();
   }
   mapBanner.style.display = 'none';
   isAutopilotMoving = true;
   updateTripStatus();
-  updateStopBanner();
 }
 
 let lastFrameTime = performance.now();
@@ -1526,7 +1583,6 @@ function gameLoop(now) {
     if (!isTripActive && currentGameMode === 'line') {
       isTripActive = true;
       startTripTimer();
-      triggerNextStopToastIfAvailable();
     }
     mapBanner.style.display = 'none';
     isAutopilotMoving = true;
@@ -1537,125 +1593,87 @@ function gameLoop(now) {
   let renderLat = busLat;
 
   if (currentGameMode === 'line') {
-    if (isStoppedAtReference) {
-      currentSpeedKmh = 0;
-      stopRemainingSeconds -= deltaTime;
-      updateStopBanner();
-      if (stopRemainingSeconds <= 0) {
-        isStoppedAtReference = false;
-        stopRemainingSeconds = 0;
-        currentStopLabel = "";
-        isAutopilotMoving = true;
-        triggerNextStopToastIfAvailable();
-        updateTripStatus();
-        updateStopBanner();
-      }
-    } else {
-      if (nextStopToastRemaining > 0) {
-        nextStopToastRemaining = Math.max(0, nextStopToastRemaining - deltaTime);
-      }
-
-      if (isTripActive && isAutopilotMoving && !isLineFinished) {
-        if (keysPressed.Down) {
-          desiredSpeed = 0;
-          currentSpeedKmh = Math.max(currentSpeedKmh - 60 * deltaTime, 0);
-          if (currentSpeedKmh <= 2) {
-            isAutopilotMoving = false;
-          }
-        } else if (keysPressed.Up) {
-          desiredSpeed = boostSpeedKmh;
-        } else {
-          desiredSpeed = cruiseSpeedKmh;
+    if (isTripActive && isAutopilotMoving && !isLineFinished) {
+      if (keysPressed.Down) {
+        desiredSpeed = 0;
+        currentSpeedKmh = Math.max(currentSpeedKmh - 60 * deltaTime, 0);
+        if (currentSpeedKmh <= 2) {
+          isAutopilotMoving = false;
         }
+      } else if (keysPressed.Up) {
+        desiredSpeed = boostSpeedKmh;
+      } else {
+        desiredSpeed = cruiseSpeedKmh;
       }
+    }
 
-      if (currentSpeedKmh < desiredSpeed) {
-        currentSpeedKmh = Math.min(currentSpeedKmh + 50 * deltaTime, desiredSpeed);
-      } else if (currentSpeedKmh > desiredSpeed) {
-        currentSpeedKmh = Math.max(currentSpeedKmh - 40 * deltaTime, desiredSpeed);
-      }
+    if (currentSpeedKmh < desiredSpeed) {
+      currentSpeedKmh = Math.min(currentSpeedKmh + 50 * deltaTime, desiredSpeed);
+    } else if (currentSpeedKmh > desiredSpeed) {
+      currentSpeedKmh = Math.max(currentSpeedKmh - 40 * deltaTime, desiredSpeed);
+    }
 
-      if (currentSpeedKmh > 0 && !isLineFinished && isTripActive) {
-        const speedMps = (currentSpeedKmh / 3.6) * speedMultiplier;
-        let remainingDistance = speedMps * deltaTime;
+    if (currentSpeedKmh > 0 && !isLineFinished && isTripActive) {
+      const speedMps = (currentSpeedKmh / 3.6) * speedMultiplier;
+      let remainingDistance = speedMps * deltaTime;
 
-        while (remainingDistance > 0 && currentSegIndex < activePath.length - 1) {
-          const p1 = activePath[currentSegIndex];
-          const p2 = activePath[currentSegIndex + 1];
+      while (remainingDistance > 0 && currentSegIndex < activePath.length - 1) {
+        const p1 = activePath[currentSegIndex];
+        const p2 = activePath[currentSegIndex + 1];
 
-          if (currentSegLength <= 0) {
-            currentSegLength = getMetersBetween(p1, p2);
-          }
+        if (currentSegLength <= 0) {
+          currentSegLength = getMetersBetween(p1, p2);
+        }
 
-          const distanceLeftInSeg = currentSegLength - segProgressMeters;
+        const distanceLeftInSeg = currentSegLength - segProgressMeters;
 
-          if (remainingDistance < distanceLeftInSeg) {
-            segProgressMeters += remainingDistance;
-            remainingDistance = 0;
+        if (remainingDistance < distanceLeftInSeg) {
+          segProgressMeters += remainingDistance;
+          remainingDistance = 0;
 
-            const ratio = currentSegLength > 0 ? (segProgressMeters / currentSegLength) : 0;
-            busLng = p1[0] + (p2[0] - p1[0]) * ratio;
-            busLat = p1[1] + (p2[1] - p1[1]) * ratio;
+          const ratio = currentSegLength > 0 ? (segProgressMeters / currentSegLength) : 0;
+          busLng = p1[0] + (p2[0] - p1[0]) * ratio;
+          busLat = p1[1] + (p2[1] - p1[1]) * ratio;
 
-            targetHeading = calculateBearing(p1, p2);
+          targetHeading = calculateBearing(p1, p2);
+        } else {
+          remainingDistance -= distanceLeftInSeg;
+          currentSegIndex++;
+          segProgressMeters = 0;
+
+          if (currentSegIndex >= activePath.length - 1) {
+            busLng = activePath[activePath.length - 1][0];
+            busLat = activePath[activePath.length - 1][1];
+            isLineFinished = true;
+            mostrarRelatorioFinal();
+            break;
           } else {
-            remainingDistance -= distanceLeftInSeg;
-            currentSegIndex++;
-            segProgressMeters = 0;
-
-            if (currentSegIndex >= activePath.length - 1) {
-              busLng = activePath[activePath.length - 1][0];
-              busLat = activePath[activePath.length - 1][1];
-              isLineFinished = true;
-              mostrarRelatorioFinal();
-              break;
-            } else {
-              currentSegLength = getMetersBetween(activePath[currentSegIndex], activePath[currentSegIndex + 1]);
-              busLng = activePath[currentSegIndex][0];
-              busLat = activePath[currentSegIndex][1];
-              targetHeading = calculateBearing(activePath[currentSegIndex], activePath[currentSegIndex + 1]);
-            }
-          }
-        }
-
-        const lateralRate = 2.4;
-        if (keysPressed.Left) {
-          lineLateralCorrectionMeters = Math.max(-MAX_LINE_LATERAL_METERS, lineLateralCorrectionMeters - lateralRate * deltaTime);
-        } else if (keysPressed.Right) {
-          lineLateralCorrectionMeters = Math.min(MAX_LINE_LATERAL_METERS, lineLateralCorrectionMeters + lateralRate * deltaTime);
-        } else {
-          lineLateralCorrectionMeters += (0 - lineLateralCorrectionMeters) * Math.min(1, 2.6 * deltaTime);
-        }
-
-        smoothHeading = lerpHeading(smoothHeading, targetHeading, 6.0 * deltaTime);
-
-        const perpHeading = (targetHeading + 90) % 360;
-        const perpRad = (perpHeading * Math.PI) / 180;
-        const metersPerDegreeLat = 111320;
-        const metersPerDegreeLng = 111320 * Math.cos(busLat * (Math.PI / 180));
-
-        renderLng = busLng + (lineLateralCorrectionMeters * Math.sin(perpRad)) / metersPerDegreeLng;
-        renderLat = busLat + (lineLateralCorrectionMeters * Math.cos(perpRad)) / metersPerDegreeLat;
-
-        if (!isLineFinished) {
-          const nextStop = scheduledStops.find(s => !s.triggered);
-          if (nextStop) {
-            const distToStop = getMetersBetween([renderLng, renderLat], nextStop.coords);
-            if (distToStop <= STOP_TRIGGER_RADIUS_METERS) {
-              nextStop.triggered = true;
-              isStoppedAtReference = true;
-              stopRemainingSeconds = nextStop.durationSec;
-              currentStopLabel = nextStop.label;
-              nextStopToastRemaining = 0;
-              currentSpeedKmh = 0;
-              updateTripStatus();
-              updateStopBanner();
-            }
+            currentSegLength = getMetersBetween(activePath[currentSegIndex], activePath[currentSegIndex + 1]);
+            busLng = activePath[currentSegIndex][0];
+            busLat = activePath[currentSegIndex][1];
+            targetHeading = calculateBearing(activePath[currentSegIndex], activePath[currentSegIndex + 1]);
           }
         }
       }
 
-      updateStopBanner();
+      const lateralRate = 2.4;
+      if (keysPressed.Left) {
+        lineLateralCorrectionMeters = Math.max(-MAX_LINE_LATERAL_METERS, lineLateralCorrectionMeters - lateralRate * deltaTime);
+      } else if (keysPressed.Right) {
+        lineLateralCorrectionMeters = Math.min(MAX_LINE_LATERAL_METERS, lineLateralCorrectionMeters + lateralRate * deltaTime);
+      } else {
+        lineLateralCorrectionMeters += (0 - lineLateralCorrectionMeters) * Math.min(1, 2.6 * deltaTime);
+      }
+
+      smoothHeading = lerpHeading(smoothHeading, targetHeading, 6.0 * deltaTime);
+
+      const perpHeading = (targetHeading + 90) % 360;
+      const perpRad = (perpHeading * Math.PI) / 180;
+      const metersPerDegreeLat = 111320;
+      const metersPerDegreeLng = 111320 * Math.cos(busLat * (Math.PI / 180));
+
+      renderLng = busLng + (lineLateralCorrectionMeters * Math.sin(perpRad)) / metersPerDegreeLng;
+      renderLat = busLat + (lineLateralCorrectionMeters * Math.cos(perpRad)) / metersPerDegreeLat;
     }
   } else {
     if (keysPressed.Up) {
@@ -1724,9 +1742,9 @@ function gameLoop(now) {
 
   let targetPitch = 70;
   if (currentCameraMode === 'street') {
-    targetPitch = 74; 
+    targetPitch = 74;
   } else if (currentCameraMode === 'top') {
-    targetPitch = 25; 
+    targetPitch = 25;
   }
 
   const rawTargetBearing = currentGameMode === 'line' ? smoothHeading : vehicleHeading;
@@ -1762,7 +1780,7 @@ document.getElementById('btnZoomNear').addEventListener('pointerdown', (e) => {
 
 document.getElementById('btnZoomFar').addEventListener('pointerdown', (e) => {
   e.stopPropagation();
-  if (currentCameraMode === 'street') currentZoomLevel = 18.2; 
+  if (currentCameraMode === 'street') currentZoomLevel = 18.2;
   else currentZoomLevel = 17.5;
   document.getElementById('btnZoomFar').classList.add('active');
   document.getElementById('btnZoomNear').classList.remove('active');
