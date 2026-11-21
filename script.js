@@ -4,7 +4,6 @@
 // ============================================================
 
 const STORAGE_KEY_STATE = 'simulador_bus_estado_v2';
-const STORAGE_KEY_CUSTOM_ROUTE = 'simulador_bus_rota_carregada_v2';
 
 const cssStyles = `
   * {
@@ -113,26 +112,6 @@ const cssStyles = `
     border: 1px solid #334155;
     color: #ffffff;
     font-size: 0.9rem;
-  }
-
-  .btn-load-file {
-    width: 100%;
-    padding: 10px 12px;
-    background: #1e3a5f;
-    border: 1px dashed #38bdf8;
-    border-radius: 8px;
-    color: #e0f2fe;
-    font-size: 0.85rem;
-    font-weight: bold;
-    cursor: pointer;
-    text-align: center;
-  }
-
-  .loaded-file-info {
-    margin-top: 6px;
-    font-size: 0.78rem;
-    color: #34d399;
-    word-break: break-word;
   }
 
   .btn-start-sim {
@@ -688,46 +667,63 @@ function isValidCoordPair(pt) {
   );
 }
 
-// Extrai APENAS o trajeto (ignora paradas completamente)
+function getMetersBetween(coord1, coord2) {
+  const [lon1, lat1] = coord1;
+  const [lon2, lat2] = coord2;
+  const R = 6371e3;
+  const φ1 = lat1 * Math.PI / 180;
+  const φ2 = lat2 * Math.PI / 180;
+  const Δφ = (lat2 - lat1) * Math.PI / 180;
+  const Δλ = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+// Extrai APENAS o trajeto e remove pontos consecutivos duplicados (distância ~0)
+function sanitizePath(rawCoords) {
+  if (!Array.isArray(rawCoords)) return [];
+  const cleaned = [];
+  for (const pt of rawCoords) {
+    if (!isValidCoordPair(pt)) continue;
+    const pair = [Number(pt[0]), Number(pt[1])];
+    if (cleaned.length === 0) {
+      cleaned.push(pair);
+    } else {
+      const prev = cleaned[cleaned.length - 1];
+      if (getMetersBetween(prev, pair) > 0.25) {
+        cleaned.push(pair);
+      }
+    }
+  }
+  return cleaned;
+}
+
 function extractCoordinates(rawTrajeto) {
   if (!rawTrajeto) return [];
   if (Array.isArray(rawTrajeto) && rawTrajeto.length > 0 && Array.isArray(rawTrajeto[0]) && typeof rawTrajeto[0][0] === 'number') {
-    return rawTrajeto.filter(isValidCoordPair).map(p => [Number(p[0]), Number(p[1])]);
+    return sanitizePath(rawTrajeto);
   }
   if (Array.isArray(rawTrajeto) && rawTrajeto[0] && Array.isArray(rawTrajeto[0].features)) {
     const lineFeature = rawTrajeto[0].features.find(f => f.geometry && f.geometry.type === 'LineString');
     if (lineFeature && Array.isArray(lineFeature.geometry.coordinates)) {
-      return lineFeature.geometry.coordinates.filter(isValidCoordPair).map(p => [Number(p[0]), Number(p[1])]);
+      return sanitizePath(lineFeature.geometry.coordinates);
     }
   }
   if (typeof rawTrajeto === 'object' && rawTrajeto !== null) {
     if (rawTrajeto.type === 'FeatureCollection' && Array.isArray(rawTrajeto.features)) {
       const lineFeature = rawTrajeto.features.find(f => f.geometry && f.geometry.type === 'LineString');
       if (lineFeature && Array.isArray(lineFeature.geometry.coordinates)) {
-        return lineFeature.geometry.coordinates.filter(isValidCoordPair).map(p => [Number(p[0]), Number(p[1])]);
+        return sanitizePath(lineFeature.geometry.coordinates);
       }
     }
     if (rawTrajeto.type === 'Feature' && rawTrajeto.geometry && rawTrajeto.geometry.type === 'LineString') {
-      return (rawTrajeto.geometry.coordinates || []).filter(isValidCoordPair).map(p => [Number(p[0]), Number(p[1])]);
+      return sanitizePath(rawTrajeto.geometry.coordinates || []);
     }
     if (rawTrajeto.type === 'LineString' && Array.isArray(rawTrajeto.coordinates)) {
-      return rawTrajeto.coordinates.filter(isValidCoordPair).map(p => [Number(p[0]), Number(p[1])]);
+      return sanitizePath(rawTrajeto.coordinates);
     }
   }
   return [];
-}
-
-function parseGpxCoordinates(xmlText) {
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(xmlText, 'application/xml');
-  const points = Array.from(doc.querySelectorAll('trkpt'));
-  return points
-    .map(pt => {
-      const lon = parseFloat(pt.getAttribute('lon'));
-      const lat = parseFloat(pt.getAttribute('lat'));
-      return Number.isFinite(lon) && Number.isFinite(lat) ? [lon, lat] : null;
-    })
-    .filter(Boolean);
 }
 
 function saveUserPreferences(patch = {}) {
@@ -746,28 +742,6 @@ function loadUserPreferences() {
     return raw ? JSON.parse(raw) : {};
   } catch (e) {
     return {};
-  }
-}
-
-function saveCustomRouteToStorage(routeObj) {
-  try {
-    localStorage.setItem(STORAGE_KEY_CUSTOM_ROUTE, JSON.stringify(routeObj));
-  } catch (e) {
-    showAlert('Rota carregada, mas grande demais para salvar no navegador.');
-  }
-}
-
-function loadCustomRouteFromStorage() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY_CUSTOM_ROUTE);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (parsed && Array.isArray(parsed.trajeto) && parsed.trajeto.length >= 2) {
-      return parsed;
-    }
-    return null;
-  } catch (e) {
-    return null;
   }
 }
 
@@ -802,11 +776,6 @@ setupModal.innerHTML = `
       <select id="selectLine"></select>
     </div>
     <div class="form-group">
-      <label>Arquivo de Trajeto (GPX / GeoJSON / JSON):</label>
-      <button type="button" class="btn-load-file" id="btnTriggerRouteFile">📂 Carregar Arquivo de Trajeto</button>
-      <div class="loaded-file-info" id="loadedRouteInfo" style="display: none;"></div>
-    </div>
-    <div class="form-group">
       <label>Cor do Veículo:</label>
       <select id="selectColorLine">${colorOptionsHtml}</select>
     </div>
@@ -830,20 +799,6 @@ setupModal.innerHTML = `
 `;
 document.body.appendChild(setupModal);
 
-let loadedCustomRoute = loadCustomRouteFromStorage();
-
-function updateLoadedRouteInfoUI() {
-  const infoEl = document.getElementById('loadedRouteInfo');
-  if (!infoEl) return;
-  if (loadedCustomRoute && Array.isArray(loadedCustomRoute.trajeto) && loadedCustomRoute.trajeto.length >= 2) {
-    infoEl.style.display = 'block';
-    infoEl.textContent = `Arquivo ativo: ${loadedCustomRoute.nome} (${loadedCustomRoute.trajeto.length} pontos)`;
-  } else {
-    infoEl.style.display = 'none';
-    infoEl.textContent = '';
-  }
-}
-
 function refreshLinesDropdown() {
   const select = document.getElementById('selectLine');
   const catSelect = document.getElementById('selectCategoryType');
@@ -856,13 +811,6 @@ function refreshLinesDropdown() {
 
   select.innerHTML = '';
 
-  if (loadedCustomRoute && Array.isArray(loadedCustomRoute.trajeto) && loadedCustomRoute.trajeto.length >= 2) {
-    const customOpt = document.createElement('option');
-    customOpt.value = '__ARQUIVO_TRAJETO__';
-    customOpt.textContent = `📁 [Arquivo] ${loadedCustomRoute.nome}`;
-    select.appendChild(customOpt);
-  }
-
   const filteredKeys = keys.filter(key => {
     const tipo = (db[key].tipo || 'urbano').toLowerCase();
     if (selectedCategory === 'rodoviario') {
@@ -872,7 +820,7 @@ function refreshLinesDropdown() {
     }
   });
 
-  if (filteredKeys.length === 0 && select.options.length === 0) {
+  if (filteredKeys.length === 0) {
     const opt = document.createElement('option');
     opt.value = '';
     opt.textContent = 'Nenhuma linha encontrada nesta categoria';
@@ -912,7 +860,6 @@ function applySavedPreferencesToUI() {
     freeLocInput.value = prefs.freeLocation;
   }
 
-  updateLoadedRouteInfoUI();
   refreshLinesDropdown();
 }
 
@@ -936,58 +883,6 @@ document.getElementById('selectColorFree').addEventListener('change', (e) => {
 document.getElementById('inputFreeLocation').addEventListener('change', (e) => {
   saveUserPreferences({ freeLocation: e.target.value.trim() });
 });
-
-const fileInputEl = document.getElementById('rota-file-input');
-document.getElementById('btnTriggerRouteFile').addEventListener('click', () => {
-  if (fileInputEl) {
-    fileInputEl.value = '';
-    fileInputEl.click();
-  }
-});
-
-if (fileInputEl) {
-  fileInputEl.addEventListener('change', (e) => {
-    const file = e.target.files && e.target.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const content = String(ev.target.result || '');
-      let coords = [];
-
-      if (file.name.toLowerCase().endsWith('.gpx') || content.trim().startsWith('<')) {
-        coords = parseGpxCoordinates(content);
-      } else {
-        try {
-          const parsedJson = JSON.parse(content);
-          coords = extractCoordinates(parsedJson.trajeto || parsedJson);
-        } catch (err) {
-          coords = [];
-        }
-      }
-
-      if (!Array.isArray(coords) || coords.length < 2) {
-        showAlert('Arquivo sem trajeto válido (mínimo 2 pontos).');
-        return;
-      }
-
-      const cleanName = file.name.replace(/\.(gpx|geojson|json)$/i, '');
-      loadedCustomRoute = {
-        nome: cleanName,
-        tipo: document.getElementById('selectCategoryType').value || 'urbano',
-        trajeto: coords
-      };
-
-      saveCustomRouteToStorage(loadedCustomRoute);
-      saveUserPreferences({ lastLineKey: '__ARQUIVO_TRAJETO__' });
-      updateLoadedRouteInfoUI();
-      refreshLinesDropdown();
-      document.getElementById('selectLine').value = '__ARQUIVO_TRAJETO__';
-      showAlert(`Trajeto carregado: ${cleanName}`);
-    };
-    reader.readAsText(file);
-  });
-}
 
 applySavedPreferencesToUI();
 setTimeout(applySavedPreferencesToUI, 250);
@@ -1129,18 +1024,6 @@ function lerpHeading(current, target, factor) {
   return (current + diff * factor + 360) % 360;
 }
 
-function getMetersBetween(coord1, coord2) {
-  const [lon1, lat1] = coord1;
-  const [lon2, lat2] = coord2;
-  const R = 6371e3;
-  const φ1 = lat1 * Math.PI / 180;
-  const φ2 = lat2 * Math.PI / 180;
-  const Δφ = (lat2 - lat1) * Math.PI / 180;
-  const Δλ = (lon2 - lon1) * Math.PI / 180;
-  const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
 function startTripTimer() {
   tripStartTime = Date.now();
   const nowObj = new Date();
@@ -1262,16 +1145,10 @@ document.getElementById('btnStartLineMode').addEventListener('click', () => {
   activePresetKey = document.getElementById('selectColorLine').value || 'vermelho';
   saveUserPreferences({ lastLineKey: selectedKey, colorLine: activePresetKey });
 
-  let lineData = null;
-  if (selectedKey === '__ARQUIVO_TRAJETO__' && loadedCustomRoute) {
-    lineData = loadedCustomRoute;
-  } else {
-    const db = getLinesDatabase();
-    lineData = db[selectedKey] || Object.values(db)[0];
-  }
-
+  const db = getLinesDatabase();
+  const lineData = db[selectedKey] || Object.values(db)[0];
   if (!lineData) {
-    showAlert('Nenhuma linha ou trajeto disponível.');
+    showAlert('Nenhuma linha cadastrada disponível no dados_rotas.js.');
     return;
   }
 
@@ -1625,13 +1502,22 @@ function gameLoop(now) {
           currentSegLength = getMetersBetween(p1, p2);
         }
 
+        if (currentSegLength <= 0.1) {
+          currentSegIndex++;
+          segProgressMeters = 0;
+          currentSegLength = currentSegIndex < activePath.length - 1
+            ? getMetersBetween(activePath[currentSegIndex], activePath[currentSegIndex + 1])
+            : 0;
+          continue;
+        }
+
         const distanceLeftInSeg = currentSegLength - segProgressMeters;
 
         if (remainingDistance < distanceLeftInSeg) {
           segProgressMeters += remainingDistance;
           remainingDistance = 0;
 
-          const ratio = currentSegLength > 0 ? (segProgressMeters / currentSegLength) : 0;
+          const ratio = segProgressMeters / currentSegLength;
           busLng = p1[0] + (p2[0] - p1[0]) * ratio;
           busLat = p1[1] + (p2[1] - p1[1]) * ratio;
 
