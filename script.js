@@ -302,30 +302,6 @@ const cssStyles = `
     color: #0f172a;
   }
 
-  .camera-controls {
-    display: flex;
-    gap: 6px;
-    margin-bottom: 8px;
-  }
-
-  .btn-camera {
-    flex: 1;
-    padding: 8px 4px;
-    font-size: 0.75rem;
-    font-weight: bold;
-    color: #ffffff;
-    background: #334155;
-    border: 1px solid #38bdf8;
-    border-radius: 6px;
-    cursor: pointer;
-    text-align: center;
-  }
-
-  .btn-camera.active {
-    background: #38bdf8 !important;
-    color: #0f172a;
-  }
-
   .zoom-controls {
     display: flex;
     gap: 8px;
@@ -394,53 +370,77 @@ const cssStyles = `
 
   .bottom-cockpit-bar {
     position: fixed !important;
-    bottom: calc(12px + env(safe-area-inset-bottom, 0px)) !important;
+    bottom: calc(14px + env(safe-area-inset-bottom, 0px)) !important;
     left: 50% !important;
     transform: translateX(-50%) !important;
     z-index: 999999 !important;
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 10px 14px;
-    background: rgba(15, 23, 42, 0.86);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    border: 1px solid rgba(148, 163, 184, 0.35);
-    border-radius: 30px;
-    max-width: calc(100vw - 14px);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.65);
+    pointer-events: none;
   }
 
   .cross-dpad {
-    --pad-size: 124px;
-    --arm-w: 40px;
-    --arm-l: 45px;
+    --pad-size: 132px;
+    --arm-w: 44px;
+    --arm-r: 12px;
     position: relative;
     width: var(--pad-size);
     height: var(--pad-size);
     flex-shrink: 0;
+    pointer-events: auto;
+    filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.75));
+  }
+
+  .dpad-cross-v,
+  .dpad-cross-h {
+    position: absolute;
+    background: #000000;
+    border-radius: var(--arm-r);
+    pointer-events: none;
+  }
+
+  .dpad-cross-v {
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: var(--arm-w);
+    height: 100%;
+  }
+
+  .dpad-cross-h {
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 100%;
+    height: var(--arm-w);
   }
 
   .dpad-arm-btn {
     position: absolute;
-    background: #090d16;
-    border: 3px solid #e2e8f0;
+    background: transparent;
+    border: none;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    color: #f8fafc;
-    font-size: 0.84rem;
-    font-weight: 900;
-    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.7);
-    transition: transform 0.06s ease, background 0.1s ease, border-color 0.1s ease;
+    padding: 0;
+    z-index: 2;
+    transition: transform 0.06s ease;
   }
 
-  .dpad-arm-btn:active,
-  .dpad-arm-btn.pressed {
-    background: #38bdf8;
-    border-color: #ffffff;
-    color: #0f172a;
+  .dpad-arm-btn svg {
+    width: 18px;
+    height: 18px;
+    fill: #ffffff;
+    pointer-events: none;
+    transition: fill 0.1s ease, transform 0.08s ease;
+  }
+
+  .dpad-arm-btn:active svg,
+  .dpad-arm-btn.pressed svg {
+    fill: #38bdf8;
+    transform: scale(0.9);
   }
 
   .dpad-up {
@@ -448,13 +448,7 @@ const cssStyles = `
     left: 50%;
     transform: translateX(-50%);
     width: var(--arm-w);
-    height: var(--arm-l);
-    clip-path: polygon(0% 0%, 100% 0%, 100% 72%, 50% 100%, 0% 72%);
-  }
-
-  .dpad-up:active,
-  .dpad-up.pressed {
-    transform: translateX(-50%) scale(0.95);
+    height: var(--arm-w);
   }
 
   .dpad-down {
@@ -462,63 +456,46 @@ const cssStyles = `
     left: 50%;
     transform: translateX(-50%);
     width: var(--arm-w);
-    height: var(--arm-l);
-    clip-path: polygon(50% 0%, 100% 28%, 100% 100%, 0% 100%, 0% 28%);
-  }
-
-  .dpad-down:active,
-  .dpad-down.pressed {
-    transform: translateX(-50%) scale(0.95);
+    height: var(--arm-w);
   }
 
   .dpad-left {
     left: 0;
     top: 50%;
     transform: translateY(-50%);
-    width: var(--arm-l);
+    width: var(--arm-w);
     height: var(--arm-w);
-    clip-path: polygon(0% 0%, 72% 0%, 100% 50%, 72% 100%, 0% 100%);
-  }
-
-  .dpad-left:active,
-  .dpad-left.pressed {
-    transform: translateY(-50%) scale(0.95);
   }
 
   .dpad-right {
     right: 0;
     top: 50%;
     transform: translateY(-50%);
-    width: var(--arm-l);
+    width: var(--arm-w);
     height: var(--arm-w);
-    clip-path: polygon(28% 0%, 100% 0%, 100% 100%, 28% 100%, 0% 50%);
-  }
-
-  .dpad-right:active,
-  .dpad-right.pressed {
-    transform: translateY(-50%) scale(0.95);
   }
 
   @media (max-width: 480px) {
-    .bottom-cockpit-bar {
-      padding: 8px 12px;
-    }
     .cross-dpad {
-      --pad-size: 102px;
-      --arm-w: 33px;
-      --arm-l: 37px;
+      --pad-size: 114px;
+      --arm-w: 38px;
+      --arm-r: 10px;
     }
-    .dpad-arm-btn {
-      font-size: 0.72rem;
-      border-width: 2.5px;
+    .dpad-arm-btn svg {
+      width: 15px;
+      height: 15px;
     }
   }
 
   @media (min-width: 900px) {
     .cross-dpad {
-      --pad-size: 136px;
-      --arm-w: 44px;
-      --arm-l: 50px;
+      --pad-size: 144px;
+      --arm-w: 48px;
+      --arm-r: 13px;
+    }
+    .dpad-arm-btn svg {
+      width: 20px;
+      height: 20px;
     }
   }
 
@@ -612,8 +589,8 @@ const cssStyles = `
   }
 
   .bus-marker-img {
-    width: 15px !important;
-    height: 45px !important;
+    width: 14px !important;
+    height: 42px !important;
     display: block !important;
     filter: drop-shadow(0px 3px 6px rgba(0, 0, 0, 0.95));
   }
@@ -679,7 +656,6 @@ function getMetersBetween(coord1, coord2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-// Extrai APENAS o trajeto e remove pontos consecutivos duplicados (distância ~0)
 function sanitizePath(rawCoords) {
   if (!Array.isArray(rawCoords)) return [];
   const cleaned = [];
@@ -925,18 +901,12 @@ hudContainer.innerHTML = `
     </div>
   </div>
 
-  <div style="margin-bottom: 6px; font-size: 0.75rem; color: #94a3b8; font-weight: bold;">ESCOLHA DA CÂMERA</div>
-  <div class="camera-controls">
-    <button id="btnCamStreet" class="btn-camera active">🛣️ Visão Rua</button>
-    <button id="btnCamTop" class="btn-camera">🌐 Visão Cima</button>
-  </div>
-
   <div class="trip-status-badge stopped" id="tripStatusBadge">Aguardando Partida</div>
   <button class="btn-trip-toggle start" id="btnTripToggle">▶️ Dar Entrada na Viagem</button>
 
   <div class="zoom-controls">
-    <button id="btnZoomNear" class="btn-zoom active">🔍 Perto</button>
-    <button id="btnZoomFar" class="btn-zoom">🌐 Longe</button>
+    <button id="btnZoomNear" class="btn-zoom">🔍 Perto</button>
+    <button id="btnZoomFar" class="btn-zoom active">🌐 Longe</button>
   </div>
 
   <button class="btn-exit-game" id="btnExitGame">🚪 Sair do Jogo</button>
@@ -953,10 +923,20 @@ bottomCockpitBar.className = 'bottom-cockpit-bar';
 bottomCockpitBar.style.display = 'none';
 bottomCockpitBar.innerHTML = `
   <div class="cross-dpad" aria-label="Controle Direcional">
-    <button class="dpad-arm-btn dpad-up" id="btnDpadUp" title="Acelerar">▲</button>
-    <button class="dpad-arm-btn dpad-left" id="btnDpadLeft" title="Esquerda">◀</button>
-    <button class="dpad-arm-btn dpad-right" id="btnDpadRight" title="Direita">▶</button>
-    <button class="dpad-arm-btn dpad-down" id="btnDpadDown" title="Frear / Ré">▼</button>
+    <div class="dpad-cross-v"></div>
+    <div class="dpad-cross-h"></div>
+    <button class="dpad-arm-btn dpad-up" id="btnDpadUp" title="Acelerar">
+      <svg viewBox="0 0 24 24"><path d="M12 4.5c.6 0 1.2.3 1.5.9l6.8 11.2c.7 1.1-.1 2.6-1.5 2.6H5.2c-1.4 0-2.2-1.5-1.5-2.6l6.8-11.2c.3-.6.9-.9 1.5-.9z"/></svg>
+    </button>
+    <button class="dpad-arm-btn dpad-left" id="btnDpadLeft" title="Esquerda">
+      <svg viewBox="0 0 24 24"><path d="M4.5 12c0-.6.3-1.2.9-1.5l11.2-6.8c1.1-.7 2.6.1 2.6 1.5v13.6c0 1.4-1.5 2.2-2.6 1.5L5.4 13.5c-.6-.3-.9-.9-.9-1.5z"/></svg>
+    </button>
+    <button class="dpad-arm-btn dpad-right" id="btnDpadRight" title="Direita">
+      <svg viewBox="0 0 24 24"><path d="M19.5 12c0 .6-.3 1.2-.9 1.5L7.4 20.3c-1.1.7-2.6-.1-2.6-1.5V5.2c0-1.4 1.5-2.2 2.6-1.5l11.2 6.8c.6.3.9.9.9 1.5z"/></svg>
+    </button>
+    <button class="dpad-arm-btn dpad-down" id="btnDpadDown" title="Frear / Ré">
+      <svg viewBox="0 0 24 24"><path d="M12 19.5c-.6 0-1.2-.3-1.5-.9L3.7 7.4c-.7-1.1.1-2.6 1.5-2.6h13.6c1.4 0 2.2 1.5 1.5 2.6l-6.8 11.2c-.3.6-.9.9-1.5.9z"/></svg>
+    </button>
   </div>
 `;
 document.body.appendChild(bottomCockpitBar);
@@ -1002,8 +982,7 @@ let tripTimerInterval = null;
 let tripStartRealTimeStr = '';
 let speedMultiplier = 1.0;
 
-let currentCameraMode = 'street';
-let currentZoomLevel = 20.3;
+let currentZoomLevel = 17.5;
 
 const keysPressed = { Up: false, Down: false, Left: false, Right: false };
 
@@ -1022,16 +1001,6 @@ function lerpHeading(current, target, factor) {
   let diff = (target - current + 360) % 360;
   if (diff > 180) diff -= 360;
   return (current + diff * factor + 360) % 360;
-}
-
-function offsetCoordForward(lng, lat, bearingDeg, metersForward) {
-  const rad = (bearingDeg * Math.PI) / 180;
-  const metersPerDegreeLat = 111320;
-  const metersPerDegreeLng = 111320 * Math.cos(lat * (Math.PI / 180));
-  return [
-    lng + (metersForward * Math.sin(rad)) / metersPerDegreeLng,
-    lat + (metersForward * Math.cos(rad)) / metersPerDegreeLat
-  ];
 }
 
 function startTripTimer() {
@@ -1062,27 +1031,6 @@ document.getElementById('btnToggleHud').addEventListener('pointerdown', (e) => {
   e.stopPropagation();
   hudContainer.classList.toggle('mobile-visible');
 });
-
-function setCameraMode(mode) {
-  currentCameraMode = mode;
-  ['btnCamStreet', 'btnCamTop'].forEach(id => {
-    document.getElementById(id).classList.remove('active');
-  });
-  if (mode === 'street') {
-    document.getElementById('btnCamStreet').classList.add('active');
-    currentZoomLevel = 20.3;
-    document.getElementById('btnZoomNear').classList.add('active');
-    document.getElementById('btnZoomFar').classList.remove('active');
-  } else if (mode === 'top') {
-    document.getElementById('btnCamTop').classList.add('active');
-    currentZoomLevel = 18.5;
-    document.getElementById('btnZoomNear').classList.add('active');
-    document.getElementById('btnZoomFar').classList.remove('active');
-  }
-}
-
-document.getElementById('btnCamStreet').addEventListener('click', () => setCameraMode('street'));
-document.getElementById('btnCamTop').addEventListener('click', () => setCameraMode('top'));
 
 function updateBusMarkerIcon() {
   if (!busMarker) return;
@@ -1383,14 +1331,10 @@ function initMap(startCoords) {
   }
 
   const initialBearing = currentGameMode === 'line' ? smoothHeading : vehicleHeading;
-  const initialCenter = currentCameraMode === 'street'
-    ? offsetCoordForward(startCoords[0], startCoords[1], initialBearing, 11)
-    : startCoords;
 
   map = new maplibregl.Map({
     container: 'map',
     antialias: true,
-    maxPitch: 85,
     style: {
       version: 8,
       sources: {
@@ -1403,27 +1347,14 @@ function initMap(startCoords) {
             'https://mt3.google.com/vt/lyrs=y,h&x={x}&y={y}&z={z}'
           ],
           tileSize: 256,
-          maxzoom: 21
+          maxzoom: 22
         }
       },
-      layers: [
-        {
-          id: 'google-hybrid-layer',
-          type: 'raster',
-          source: 'google-hybrid-source',
-          minzoom: 0,
-          maxzoom: 22,
-          paint: {
-            'raster-resampling': 'linear',
-            'raster-contrast': 0.06,
-            'raster-saturation': 0.08
-          }
-        }
-      ]
+      layers: [{ id: 'google-hybrid-layer', type: 'raster', source: 'google-hybrid-source', minzoom: 0, maxzoom: 22 }]
     },
-    center: initialCenter,
+    center: startCoords,
     zoom: currentZoomLevel,
-    pitch: currentCameraMode === 'street' ? 79 : 25,
+    pitch: 25,
     bearing: initialBearing,
     renderWorldCopies: false
   });
@@ -1660,32 +1591,13 @@ function gameLoop(now) {
     busMarker.setLngLat(currentCoords);
   }
 
-  let targetPitch = 79;
-  if (currentCameraMode === 'street') {
-    targetPitch = 79;
-  } else if (currentCameraMode === 'top') {
-    targetPitch = 25;
-  }
-
   const rawTargetBearing = currentGameMode === 'line' ? smoothHeading : vehicleHeading;
   currentCameraBearing = lerpHeading(currentCameraBearing, rawTargetBearing, 5.5 * deltaTime);
 
-  if (busMarker && busMarker.getElement()) {
-    if (currentCameraMode === 'street' && currentZoomLevel <= 18.8) {
-      busMarker.getElement().style.transform = 'scale(0.85)';
-    } else {
-      busMarker.getElement().style.transform = 'scale(1.08)';
-    }
-  }
-
-  const cameraCenter = currentCameraMode === 'street'
-    ? offsetCoordForward(renderLng, renderLat, currentCameraBearing, 11)
-    : currentCoords;
-
   map.jumpTo({
-    center: cameraCenter,
+    center: currentCoords,
     bearing: currentCameraBearing,
-    pitch: targetPitch,
+    pitch: 25,
     zoom: currentZoomLevel
   });
 
@@ -1696,16 +1608,14 @@ function gameLoop(now) {
 
 document.getElementById('btnZoomNear').addEventListener('pointerdown', (e) => {
   e.stopPropagation();
-  if (currentCameraMode === 'street') currentZoomLevel = 20.7;
-  else currentZoomLevel = 19.2;
+  currentZoomLevel = 19.2;
   document.getElementById('btnZoomNear').classList.add('active');
   document.getElementById('btnZoomFar').classList.remove('active');
 });
 
 document.getElementById('btnZoomFar').addEventListener('pointerdown', (e) => {
   e.stopPropagation();
-  if (currentCameraMode === 'street') currentZoomLevel = 18.6;
-  else currentZoomLevel = 17.5;
+  currentZoomLevel = 17.5;
   document.getElementById('btnZoomFar').classList.add('active');
   document.getElementById('btnZoomNear').classList.remove('active');
 });
