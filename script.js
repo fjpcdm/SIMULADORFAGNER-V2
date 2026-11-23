@@ -988,7 +988,9 @@ let tripTimerInterval = null;
 let tripStartRealTimeStr = '';
 let speedMultiplier = 1.0;
 
-let currentZoomLevel = 17.5;
+const ZOOM_FAR_LEVEL = 18.3;
+const ZOOM_NEAR_LEVEL = 19.2;
+let currentZoomLevel = ZOOM_FAR_LEVEL;
 
 const keysPressed = { Up: false, Down: false, Left: false, Right: false };
 
@@ -1670,14 +1672,14 @@ function gameLoop(now) {
 
 document.getElementById('btnZoomNear').addEventListener('pointerdown', (e) => {
   e.stopPropagation();
-  currentZoomLevel = 19.2;
+  currentZoomLevel = ZOOM_NEAR_LEVEL;
   document.getElementById('btnZoomNear').classList.add('active');
   document.getElementById('btnZoomFar').classList.remove('active');
 });
 
 document.getElementById('btnZoomFar').addEventListener('pointerdown', (e) => {
   e.stopPropagation();
-  currentZoomLevel = 17.5;
+  currentZoomLevel = ZOOM_FAR_LEVEL;
   document.getElementById('btnZoomFar').classList.add('active');
   document.getElementById('btnZoomNear').classList.remove('active');
 });
