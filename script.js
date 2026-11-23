@@ -593,6 +593,7 @@ const cssStyles = `
     height: 42px !important;
     display: block !important;
     filter: drop-shadow(0px 3px 6px rgba(0, 0, 0, 0.95));
+    transform-origin: center center;
   }
 
   @media (max-width: 768px) {
@@ -962,6 +963,7 @@ let boostSpeedKmh = 140;
 const MAX_REVERSE_SPEED_KMH = -25;
 
 let vehicleHeading = 0;
+let freeSteerRate = 0;
 let distanceCoveredKm = 0;
 
 let currentSegIndex = 0;
@@ -971,8 +973,12 @@ let targetHeading = 0;
 let smoothHeading = 0;
 let currentCameraBearing = 0;
 
+// Deslocamento padrão para a faixa da direita (evita andar na contramão)
+const BASE_RIGHT_LANE_OFFSET_METERS = 1.9;
 let lineLateralCorrectionMeters = 0;
-const MAX_LINE_LATERAL_METERS = 2.4;
+let lineLateralVelocity = 0;
+let busVisualYawOffset = 0;
+const MAX_LINE_LATERAL_ADJUST_METERS = 2.6;
 
 let isLineFinished = false;
 let isTripActive = false;
@@ -1001,6 +1007,17 @@ function lerpHeading(current, target, factor) {
   let diff = (target - current + 360) % 360;
   if (diff > 180) diff -= 360;
   return (current + diff * factor + 360) % 360;
+}
+
+function applyRightLaneOffset(lng, lat, headingDeg, lateralMeters) {
+  const perpHeading = (headingDeg + 90) % 360;
+  const perpRad = (perpHeading * Math.PI) / 180;
+  const metersPerDegreeLat = 111320;
+  const metersPerDegreeLng = 111320 * Math.cos(lat * (Math.PI / 180));
+  return [
+    lng + (lateralMeters * Math.sin(perpRad)) / metersPerDegreeLng,
+    lat + (lateralMeters * Math.cos(perpRad)) / metersPerDegreeLat
+  ];
 }
 
 function startTripTimer() {
@@ -1143,14 +1160,23 @@ document.getElementById('btnStartLineMode').addEventListener('click', () => {
   currentSpeedKmh = 0;
   distanceCoveredKm = 0;
   lineLateralCorrectionMeters = 0;
+  lineLateralVelocity = 0;
+  busVisualYawOffset = 0;
 
   targetHeading = calculateBearing(activePath[0], activePath[1]);
   smoothHeading = targetHeading;
   vehicleHeading = targetHeading;
   currentCameraBearing = targetHeading;
 
+  const initialLanePos = applyRightLaneOffset(
+    activePath[0][0],
+    activePath[0][1],
+    targetHeading,
+    BASE_RIGHT_LANE_OFFSET_METERS
+  );
+
   updateTripStatus();
-  startSimulation(activePath[0]);
+  startSimulation(activePath[0], initialLanePos);
 });
 
 document.getElementById('btnStartFreeMode').addEventListener('click', async () => {
@@ -1171,7 +1197,10 @@ document.getElementById('btnStartFreeMode').addEventListener('click', async () =
   speedMultiplier = 1.0;
   isTripActive = true;
   vehicleHeading = 0;
+  freeSteerRate = 0;
   lineLateralCorrectionMeters = 0;
+  lineLateralVelocity = 0;
+  busVisualYawOffset = 0;
   currentCameraBearing = 0;
   updateTripStatus();
   startTripTimer();
@@ -1182,16 +1211,16 @@ document.getElementById('btnStartFreeMode').addEventListener('click', async () =
     if (data && data.length > 0) {
       const lon = parseFloat(data[0].lon);
       const lat = parseFloat(data[0].lat);
-      startSimulation([lon, lat]);
+      startSimulation([lon, lat], [lon, lat]);
     } else {
-      startSimulation([-43.941879, -19.913783]);
+      startSimulation([-43.941879, -19.913783], [-43.941879, -19.913783]);
     }
   } catch (err) {
-    startSimulation([-43.941879, -19.913783]);
+    startSimulation([-43.941879, -19.913783], [-43.941879, -19.913783]);
   }
 });
 
-function startSimulation(startCoords) {
+function startSimulation(baseCoords, initialRenderCoords) {
   setupModal.style.display = 'none';
 
   mobileTopBar.style.display = 'flex';
@@ -1204,10 +1233,11 @@ function startSimulation(startCoords) {
     btnTripToggle.style.display = 'block';
   }
 
-  busLng = startCoords[0];
-  busLat = startCoords[1];
+  busLng = baseCoords[0];
+  busLat = baseCoords[1];
 
-  initMap(startCoords);
+  const startRender = initialRenderCoords || baseCoords;
+  initMap(startRender);
   setTimeout(() => {
     if (map) map.resize();
   }, 250);
@@ -1231,9 +1261,12 @@ function exitGame() {
   isAutopilotMoving = false;
   isTripActive = false;
   vehicleHeading = 0;
+  freeSteerRate = 0;
   distanceCoveredKm = 0;
   speedMultiplier = 1.0;
   lineLateralCorrectionMeters = 0;
+  lineLateralVelocity = 0;
+  busVisualYawOffset = 0;
   document.getElementById('tripTimerDisplay').textContent = '00:00';
   document.getElementById('miniTimerDisplay').textContent = '00:00';
   document.getElementById('kmCoveredDisplay').textContent = '0.00 km';
@@ -1365,8 +1398,14 @@ function initMap(startCoords) {
   busImg.className = 'bus-marker-img';
   busImg.src = getBusSvg(preset.bodyColor, preset.stripeColor, currentVehicleType, activeLetreiroText);
 
-  busMarker = new maplibregl.Marker({ element: busImg, anchor: 'center' })
+  busMarker = new maplibregl.Marker({
+    element: busImg,
+    anchor: 'center',
+    rotationAlignment: 'map',
+    pitchAlignment: 'map'
+  })
     .setLngLat(startCoords)
+    .setRotation(initialBearing)
     .addTo(map);
 
   map.on('load', () => {
@@ -1433,6 +1472,7 @@ function gameLoop(now) {
 
   let renderLng = busLng;
   let renderLat = busLat;
+  let busWorldHeading = vehicleHeading;
 
   if (currentGameMode === 'line') {
     if (isTripActive && isAutopilotMoving && !isLineFinished) {
@@ -1507,25 +1547,43 @@ function gameLoop(now) {
         }
       }
 
-      const lateralRate = 2.4;
+      // Esterçamento natural ao mudar de lado na faixa: gira o nariz do ônibus e desloca sem patinar de lado
+      const speedFactor = Math.min(1, Math.max(0.15, currentSpeedKmh / 35));
+      const maxLateralSpeed = 2.6 * speedFactor;
+      let targetLateralVel = 0;
+
       if (keysPressed.Left) {
-        lineLateralCorrectionMeters = Math.max(-MAX_LINE_LATERAL_METERS, lineLateralCorrectionMeters - lateralRate * deltaTime);
+        targetLateralVel = -maxLateralSpeed;
       } else if (keysPressed.Right) {
-        lineLateralCorrectionMeters = Math.min(MAX_LINE_LATERAL_METERS, lineLateralCorrectionMeters + lateralRate * deltaTime);
-      } else {
-        lineLateralCorrectionMeters += (0 - lineLateralCorrectionMeters) * Math.min(1, 2.6 * deltaTime);
+        targetLateralVel = maxLateralSpeed;
       }
 
-      smoothHeading = lerpHeading(smoothHeading, targetHeading, 6.0 * deltaTime);
+      lineLateralVelocity += (targetLateralVel - lineLateralVelocity) * Math.min(1, 7.5 * deltaTime);
+      lineLateralCorrectionMeters = Math.max(
+        -MAX_LINE_LATERAL_ADJUST_METERS,
+        Math.min(MAX_LINE_LATERAL_ADJUST_METERS, lineLateralCorrectionMeters + lineLateralVelocity * deltaTime)
+      );
 
-      const perpHeading = (targetHeading + 90) % 360;
-      const perpRad = (perpHeading * Math.PI) / 180;
-      const metersPerDegreeLat = 111320;
-      const metersPerDegreeLng = 111320 * Math.cos(busLat * (Math.PI / 180));
+      // Quando não está pressionando esquerda/direita, retorna suavemente ao alinhamento da faixa direita
+      if (!keysPressed.Left && !keysPressed.Right) {
+        lineLateralCorrectionMeters += (0 - lineLateralCorrectionMeters) * Math.min(1, 2.2 * deltaTime);
+      }
 
-      renderLng = busLng + (lineLateralCorrectionMeters * Math.sin(perpRad)) / metersPerDegreeLng;
-      renderLat = busLat + (lineLateralCorrectionMeters * Math.cos(perpRad)) / metersPerDegreeLat;
+      // Calcula o ângulo de esterçamento da frente do veículo proporcional ao movimento lateral
+      const targetYawOffset = (lineLateralVelocity / Math.max(0.5, maxLateralSpeed)) * 15;
+      busVisualYawOffset += (targetYawOffset - busVisualYawOffset) * Math.min(1, 9.0 * deltaTime);
+    } else {
+      lineLateralVelocity = 0;
+      busVisualYawOffset += (0 - busVisualYawOffset) * Math.min(1, 8.0 * deltaTime);
     }
+
+    smoothHeading = lerpHeading(smoothHeading, targetHeading, 6.0 * deltaTime);
+
+    const totalRightOffset = BASE_RIGHT_LANE_OFFSET_METERS + lineLateralCorrectionMeters;
+    const lanePos = applyRightLaneOffset(busLng, busLat, smoothHeading, totalRightOffset);
+    renderLng = lanePos[0];
+    renderLat = lanePos[1];
+    busWorldHeading = (smoothHeading + busVisualYawOffset + 360) % 360;
   } else {
     if (keysPressed.Up) {
       if (currentSpeedKmh < 0) {
@@ -1548,14 +1606,16 @@ function gameLoop(now) {
       }
     }
 
-    if (Math.abs(currentSpeedKmh) > 0.1 || keysPressed.Left || keysPressed.Right) {
+    // Esterçamento progressivo vinculado ao movimento (evita rodar no próprio eixo parado ou patinar)
+    const absSpeed = Math.abs(currentSpeedKmh);
+    const steerInput = (keysPressed.Right ? 1 : 0) - (keysPressed.Left ? 1 : 0);
+    const speedTurnScale = absSpeed < 1.0 ? 0 : Math.min(1, 0.35 + (absSpeed / 40) * 0.65);
+    const targetSteerRate = steerInput * 52 * speedTurnScale;
+    freeSteerRate += (targetSteerRate - freeSteerRate) * Math.min(1, 8.5 * deltaTime);
+
+    if (absSpeed > 0.1) {
       const reverseDirFactor = currentSpeedKmh < -0.5 ? -1 : 1;
-      if (keysPressed.Left) {
-        vehicleHeading = (vehicleHeading - 48 * reverseDirFactor * deltaTime + 360) % 360;
-      }
-      if (keysPressed.Right) {
-        vehicleHeading = (vehicleHeading + 48 * reverseDirFactor * deltaTime + 360) % 360;
-      }
+      vehicleHeading = (vehicleHeading + freeSteerRate * reverseDirFactor * deltaTime + 360) % 360;
 
       const speedMps = (currentSpeedKmh / 3.6) * speedMultiplier;
       const metersToMove = speedMps * deltaTime;
@@ -1569,9 +1629,10 @@ function gameLoop(now) {
 
     renderLng = busLng;
     renderLat = busLat;
+    busWorldHeading = (vehicleHeading + freeSteerRate * 0.18 + 360) % 360;
   }
 
-  const distStep = getMetersBetween(prev, [renderLng, renderLat]) / 1000;
+  const distStep = getMetersBetween(prev, [busLng, busLat]) / 1000;
   if (!isNaN(distStep)) {
     distanceCoveredKm += distStep;
   }
@@ -1589,6 +1650,7 @@ function gameLoop(now) {
   const currentCoords = [renderLng, renderLat];
   if (busMarker) {
     busMarker.setLngLat(currentCoords);
+    busMarker.setRotation(busWorldHeading);
   }
 
   const rawTargetBearing = currentGameMode === 'line' ? smoothHeading : vehicleHeading;
