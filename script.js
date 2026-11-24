@@ -589,8 +589,8 @@ const cssStyles = `
   }
 
   .bus-marker-img {
-    width: 14px !important;
-    height: 42px !important;
+    width: 18px !important;
+    height: 54px !important;
     display: block !important;
     filter: drop-shadow(0px 3px 6px rgba(0, 0, 0, 0.95));
     transform-origin: center center;
@@ -627,7 +627,10 @@ const COLOR_PRESETS = {
   'verde': { name: 'Verde', bodyColor: '#16a34a', stripeColor: '#ffffff' },
   'branco': { name: 'Branco', bodyColor: '#ffffff', stripeColor: '#ffffff' },
   'preto': { name: 'Preto', bodyColor: '#000000', stripeColor: '#000000' },
-  'trem_laranja': { name: 'Trem Laranja', bodyColor: '#2A1974', stripeColor: '#EA7302' }
+  'trem_laranja': { name: 'Trem Laranja', bodyColor: '#2A1974', stripeColor: '#EA7302' },
+  'bhtrans_azul': { name: 'Azul BHTrans', bodyColor: '#1d5fa7', stripeColor: '#e2e8f0' },
+  'metro_laranja_azul': { name: 'Metropolitano (Laranja/Azul)', bodyColor: '#f97316', stripeColor: '#1e3a8a' },
+  'vermelho_vivo': { name: 'Vermelho Rodoviário', bodyColor: '#dc2626', stripeColor: '#0f172a' }
 };
 
 function getLinesDatabase() {
@@ -753,6 +756,14 @@ setupModal.innerHTML = `
       <select id="selectLine"></select>
     </div>
     <div class="form-group">
+      <label>Modelo do Ônibus:</label>
+      <select id="selectModelLine">
+        <option value="metropolitano">Metropolitano (Foto 1)</option>
+        <option value="bhtrans">BHTrans (Foto 2)</option>
+        <option value="rodoviario">Rodoviário (Foto 3)</option>
+      </select>
+    </div>
+    <div class="form-group">
       <label>Cor do Veículo:</label>
       <select id="selectColorLine">${colorOptionsHtml}</select>
     </div>
@@ -762,6 +773,14 @@ setupModal.innerHTML = `
 
   <div class="setup-card" id="cardFreeMode" style="display: none;">
     <h2>🗺️ Modo Livre</h2>
+    <div class="form-group">
+      <label>Modelo do Ônibus:</label>
+      <select id="selectModelFree">
+        <option value="metropolitano">Metropolitano (Foto 1)</option>
+        <option value="bhtrans">BHTrans (Foto 2)</option>
+        <option value="rodoviario">Rodoviário (Foto 3)</option>
+      </select>
+    </div>
     <div class="form-group">
       <label>Cor do Veículo:</label>
       <select id="selectColorFree">${colorOptionsHtml}</select>
@@ -817,9 +836,33 @@ function refreshLinesDropdown() {
   }
 }
 
+const VALID_BUS_MODELS = ['metropolitano', 'bhtrans', 'rodoviario'];
+
+function inferModelFromLine(lineData) {
+  if (!lineData) return 'bhtrans';
+  const tipo = (lineData.tipo || '').toLowerCase();
+  const nome = (lineData.nome || '').toLowerCase();
+  if (tipo === 'rodoviario' || nome.includes('rodovi')) return 'rodoviario';
+  if (tipo === 'metropolitano' || nome.includes('metropolitano') || nome.includes('terminal')) return 'metropolitano';
+  return 'bhtrans';
+}
+
+function syncLineModelWithSelectedLine() {
+  const modelLineSelect = document.getElementById('selectModelLine');
+  const lineSelect = document.getElementById('selectLine');
+  if (!modelLineSelect || !lineSelect) return;
+  const db = getLinesDatabase();
+  const selectedKey = lineSelect.value;
+  if (selectedKey && db[selectedKey]) {
+    modelLineSelect.value = inferModelFromLine(db[selectedKey]);
+  }
+}
+
 function applySavedPreferencesToUI() {
   const prefs = loadUserPreferences();
   const catSelect = document.getElementById('selectCategoryType');
+  const modelLineSelect = document.getElementById('selectModelLine');
+  const modelFreeSelect = document.getElementById('selectModelFree');
   const colorLineSelect = document.getElementById('selectColorLine');
   const colorFreeSelect = document.getElementById('selectColorFree');
   const freeLocInput = document.getElementById('inputFreeLocation');
@@ -833,11 +876,20 @@ function applySavedPreferencesToUI() {
   if (prefs.colorFree && colorFreeSelect && COLOR_PRESETS[prefs.colorFree]) {
     colorFreeSelect.value = prefs.colorFree;
   }
+  if (prefs.modelFree && modelFreeSelect && VALID_BUS_MODELS.includes(prefs.modelFree)) {
+    modelFreeSelect.value = prefs.modelFree;
+  }
   if (prefs.freeLocation && freeLocInput) {
     freeLocInput.value = prefs.freeLocation;
   }
 
   refreshLinesDropdown();
+
+  if (prefs.modelLine && modelLineSelect && VALID_BUS_MODELS.includes(prefs.modelLine)) {
+    modelLineSelect.value = prefs.modelLine;
+  } else {
+    syncLineModelWithSelectedLine();
+  }
 }
 
 document.getElementById('selectCategoryType').addEventListener('change', (e) => {
@@ -847,14 +899,39 @@ document.getElementById('selectCategoryType').addEventListener('change', (e) => 
 
 document.getElementById('selectLine').addEventListener('change', (e) => {
   saveUserPreferences({ lastLineKey: e.target.value });
+  syncLineModelWithSelectedLine();
+});
+
+document.getElementById('selectModelLine').addEventListener('change', (e) => {
+  saveUserPreferences({ modelLine: e.target.value });
+  if (currentGameMode === 'line') {
+    currentVehicleType = e.target.value;
+    updateBusMarkerIcon(currentVehicleType, document.getElementById('selectColorLine')?.value);
+  }
+});
+
+document.getElementById('selectModelFree').addEventListener('change', (e) => {
+  saveUserPreferences({ modelFree: e.target.value });
+  if (currentGameMode === 'free') {
+    currentVehicleType = e.target.value;
+    updateBusMarkerIcon(currentVehicleType, document.getElementById('selectColorFree')?.value);
+  }
 });
 
 document.getElementById('selectColorLine').addEventListener('change', (e) => {
   saveUserPreferences({ colorLine: e.target.value });
+  if (currentGameMode === 'line') {
+    activePresetKey = e.target.value;
+    updateBusMarkerIcon(currentVehicleType, activePresetKey);
+  }
 });
 
 document.getElementById('selectColorFree').addEventListener('change', (e) => {
   saveUserPreferences({ colorFree: e.target.value });
+  if (currentGameMode === 'free') {
+    activePresetKey = e.target.value;
+    updateBusMarkerIcon(currentVehicleType, activePresetKey);
+  }
 });
 
 document.getElementById('inputFreeLocation').addEventListener('change', (e) => {
@@ -1051,10 +1128,12 @@ document.getElementById('btnToggleHud').addEventListener('pointerdown', (e) => {
   hudContainer.classList.toggle('mobile-visible');
 });
 
-function updateBusMarkerIcon() {
+function updateBusMarkerIcon(modelOverride = null, colorKeyOverride = null) {
   if (!busMarker) return;
-  const preset = COLOR_PRESETS[activePresetKey] || COLOR_PRESETS['vermelho'];
-  busMarker.getElement().src = getBusSvg(preset.bodyColor, preset.stripeColor, currentVehicleType, activeLetreiroText);
+  const chosenModel = modelOverride || currentVehicleType;
+  const chosenColorKey = colorKeyOverride || activePresetKey;
+  const preset = COLOR_PRESETS[chosenColorKey] || COLOR_PRESETS['vermelho'];
+  busMarker.getElement().src = getBusSvg(preset.bodyColor, preset.stripeColor, chosenModel, activeLetreiroText);
 }
 
 function bindControlTouch(elementId, keyName) {
@@ -1133,10 +1212,12 @@ document.getElementById('btnStartLineMode').addEventListener('click', () => {
     return;
   }
 
-  currentVehicleType = lineData.tipo === 'rodoviario' ? 'rodoviario' : 'urbano';
-  activeLetreiroText = lineData.nome || 'LINHA MUNICIPAL';
+  const chosenModel = document.getElementById('selectModelLine')?.value || inferModelFromLine(lineData);
+  saveUserPreferences({ modelLine: chosenModel });
+  currentVehicleType = chosenModel;
+  activeLetreiroText = (lineData.nome || 'LINHA MUNICIPAL').slice(0, 22);
 
-  if (currentVehicleType === 'rodoviario') {
+  if (lineData.tipo === 'rodoviario' || chosenModel === 'rodoviario') {
     cruiseSpeedKmh = 140;
     boostSpeedKmh = 180;
   } else {
@@ -1183,11 +1264,14 @@ document.getElementById('btnStartLineMode').addEventListener('click', () => {
 
 document.getElementById('btnStartFreeMode').addEventListener('click', async () => {
   currentGameMode = 'free';
-  currentVehicleType = 'urbano';
-  activeLetreiroText = 'EXECUTIVO LIVRE';
+  const chosenFreeModel = document.getElementById('selectModelFree')?.value || 'bhtrans';
+  currentVehicleType = chosenFreeModel;
+  activeLetreiroText = chosenFreeModel === 'rodoviario'
+    ? 'RODOVIÁRIO'
+    : (chosenFreeModel === 'metropolitano' ? 'METROPOLITANO' : 'BHTRANS LIVRE');
   activePresetKey = document.getElementById('selectColorFree').value || 'vermelho';
   const locationQuery = document.getElementById('inputFreeLocation').value.trim();
-  saveUserPreferences({ colorFree: activePresetKey, freeLocation: locationQuery });
+  saveUserPreferences({ modelFree: chosenFreeModel, colorFree: activePresetKey, freeLocation: locationQuery });
 
   document.getElementById('lineBadgeDisplay').textContent = 'Modo Livre';
 
@@ -1223,6 +1307,7 @@ document.getElementById('btnStartFreeMode').addEventListener('click', async () =
 });
 
 function startSimulation(baseCoords, initialRenderCoords) {
+  busAudio.init();
   setupModal.style.display = 'none';
 
   mobileTopBar.style.display = 'flex';
@@ -1246,6 +1331,7 @@ function startSimulation(baseCoords, initialRenderCoords) {
 }
 
 function exitGame() {
+  busAudio.silence();
   stopTripTimer();
   if (animationFrameId) {
     cancelAnimationFrame(animationFrameId);
@@ -1291,6 +1377,7 @@ function exitGame() {
 document.getElementById('btnExitGame').addEventListener('click', exitGame);
 
 function mostrarRelatorioFinal() {
+  busAudio.silence();
   stopTripTimer();
   isTripActive = false;
   isAutopilotMoving = false;
@@ -1329,34 +1416,95 @@ function mostrarRelatorioFinal() {
   });
 }
 
-function getBusSvg(bodyColor, stripeColor, tipo = 'urbano', letreiroText = 'EXECUTIVO') {
-  let bodyPath = tipo === 'rodoviario'
-    ? '<path d="M 12,18 C 12,8 20,4 50,4 C 80,4 88,8 88,18 L 90,188 C 90,195 80,196 50,196 C 20,196 10,195 10,188 Z" fill="' + bodyColor + '" />'
-    : '<path d="M 10,15 C 10,6 18,4 50,4 C 82,4 90,6 90,15 L 90,188 C 90,195 80,196 50,196 C 20,196 10,195 10,188 Z" fill="' + bodyColor + '" />';
+function getBusSvg(bodyColor, stripeColor, tipo = 'bhtrans', letreiroText = 'EXECUTIVO') {
+  const safeText = String(letreiroText || 'LINHA').replace(/[<>&"]/g, '').slice(0, 18);
+  const modelKey = (tipo === 'rodoviario' || tipo === 'metropolitano' || tipo === 'bhtrans')
+    ? tipo
+    : 'bhtrans';
 
-  return 'data:image/svg+xml;utf8,' + encodeURIComponent(`
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 200" width="100" height="200">
-      <rect x="4" y="6" width="92" height="188" rx="10" fill="rgba(0,0,0,0.5)" filter="blur(3px)" />
-      ${bodyPath}
-      <path d="M 10,75 L 90,75 L 90,135 L 10,138 Z" fill="${stripeColor}" opacity="0.95" />
-      <path d="M 10,135 L 90,130 L 90,188 C 90,194 80,196 50,196 C 20,196 10,194 10,188 Z" fill="#1e293b" />
-      <path d="M 14,10 L 86,10 L 80,38 L 20,38 Z" fill="#0f172a" stroke="#cbd5e1" stroke-width="1.5" />
-      <path d="M 17,13 L 83,13 L 78,35 L 22,35 Z" fill="#38bdf8" opacity="0.7" />
+  let svgContent = '';
 
-      <rect x="24" y="16" width="52" height="14" rx="2" fill="#000000" stroke="#38bdf8" stroke-width="0.8" />
-      <text x="50" y="26" fill="#4ade80" font-size="8" font-weight="bold" font-family="monospace" text-anchor="middle">${letreiroText}</text>
+  if (modelKey === 'metropolitano') {
+    // Modelo 1 (Foto 1): Metropolitano - pintura branca/azul/laranja com ar-condicionado no teto e portas laterais
+    svgContent = `
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 200" width="100" height="200">
+        <rect x="6" y="6" width="88" height="188" rx="11" fill="rgba(0,0,0,0.45)" />
+        <path d="M 11,15 C 11,6 19,4 50,4 C 81,4 89,6 89,15 L 89,187 C 89,194 81,196 50,196 C 19,196 11,194 11,187 Z" fill="${bodyColor}" stroke="#0f172a" stroke-width="2" />
+        <!-- Detalhe lateral e faixa de cor -->
+        <rect x="12" y="42" width="76" height="114" rx="4" fill="#1e293b" opacity="0.86" />
+        <path d="M 12,112 L 88,112 L 88,148 L 12,148 Z" fill="${stripeColor}" opacity="0.95" />
+        <!-- Portas laterais marcadas -->
+        <rect x="9" y="52" width="4" height="22" rx="1" fill="#f97316" />
+        <rect x="87" y="52" width="4" height="22" rx="1" fill="#f97316" />
+        <rect x="9" y="102" width="4" height="22" rx="1" fill="#f97316" />
+        <rect x="87" y="102" width="4" height="22" rx="1" fill="#f97316" />
+        <!-- Ar-condicionado central no teto -->
+        <rect x="27" y="54" width="46" height="28" rx="4" fill="#e2e8f0" stroke="#334155" stroke-width="1.5" />
+        <line x1="35" y1="54" x2="35" y2="82" stroke="#64748b" stroke-width="1.1" />
+        <line x1="43" y1="54" x2="43" y2="82" stroke="#64748b" stroke-width="1.1" />
+        <line x1="51" y1="54" x2="51" y2="82" stroke="#64748b" stroke-width="1.1" />
+        <line x1="59" y1="54" x2="59" y2="82" stroke="#64748b" stroke-width="1.1" />
+        <line x1="67" y1="54" x2="67" y2="82" stroke="#64748b" stroke-width="1.1" />
+        <rect x="33" y="96" width="34" height="14" rx="3" fill="#0f172a" stroke="#fb923c" stroke-width="1.2" />
+        <!-- Para-brisa e letreiro frontal -->
+        <path d="M 15,9 L 85,9 L 81,36 L 19,36 Z" fill="#0f172a" stroke="#e2e8f0" stroke-width="1.4" />
+        <rect x="23" y="13" width="54" height="13" rx="2" fill="#020617" stroke="#fb923c" stroke-width="0.9" />
+        <text x="50" y="22" fill="#fb923c" font-size="7.2" font-weight="bold" font-family="monospace" text-anchor="middle">${safeText}</text>
+        <!-- Faróis e lanternas traseiras -->
+        <rect x="14" y="3" width="13" height="4" rx="1.5" fill="#fde047" />
+        <rect x="73" y="3" width="13" height="4" rx="1.5" fill="#fde047" />
+        <rect x="16" y="193" width="12" height="3.5" rx="1" fill="#ef4444" />
+        <rect x="72" y="193" width="12" height="3.5" rx="1" fill="#ef4444" />
+      </svg>
+    `;
+  } else if (modelKey === 'rodoviario') {
+    // Modelo 3 (Foto 3): Rodoviário - frente arredondada aerodinâmica, vidro panorâmico escuro e faixa dinâmica
+    svgContent = `
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 200" width="100" height="200">
+        <rect x="7" y="5" width="86" height="190" rx="16" fill="rgba(0,0,0,0.48)" />
+        <path d="M 14,22 C 14,8 24,3 50,3 C 76,3 86,8 86,22 L 88,184 C 88,193 78,197 50,197 C 22,197 12,193 12,184 Z" fill="${bodyColor}" stroke="#0f172a" stroke-width="2" />
+        <!-- Vidro panorâmico escurecido e faixa da cor escolhida -->
+        <path d="M 14,44 C 24,38 76,38 86,44 L 87,158 L 13,158 Z" fill="#0f172a" opacity="0.92" />
+        <path d="M 13,144 L 87,144 L 87,165 L 13,165 Z" fill="${stripeColor}" opacity="0.92" />
+        <!-- Linhas aerodinâmicas do teto -->
+        <line x1="28" y1="50" x2="28" y2="138" stroke="#475569" stroke-width="1.4" stroke-dasharray="6 4" />
+        <line x1="72" y1="50" x2="72" y2="138" stroke="#475569" stroke-width="1.4" stroke-dasharray="6 4" />
+        <rect x="32" y="70" width="36" height="30" rx="5" fill="#1e293b" stroke="#64748b" stroke-width="1.2" />
+        <!-- Para-brisa curvo e letreiro -->
+        <path d="M 18,10 C 30,6 70,6 82,10 L 79,36 C 64,33 36,33 21,36 Z" fill="#090d16" stroke="#cbd5e1" stroke-width="1.3" />
+        <rect x="26" y="13" width="48" height="12" rx="2" fill="#020617" stroke="#38bdf8" stroke-width="0.9" />
+        <text x="50" y="21.5" fill="#4ade80" font-size="6.8" font-weight="bold" font-family="monospace" text-anchor="middle">${safeText}</text>
+        <!-- Faróis e lanternas traseiras -->
+        <rect x="17" y="4" width="12" height="4" rx="1.5" fill="#fef08a" />
+        <rect x="71" y="4" width="12" height="4" rx="1.5" fill="#fef08a" />
+        <rect x="18" y="193" width="14" height="3.5" rx="1" fill="#dc2626" />
+        <rect x="68" y="193" width="14" height="3.5" rx="1" fill="#dc2626" />
+      </svg>
+    `;
+  } else {
+    // Modelo 2 (Foto 2): BHTrans - urbano com faixa e detalhes característicos + cor dinâmica
+    svgContent = `
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 200" width="100" height="200">
+        <rect x="6" y="6" width="88" height="188" rx="10" fill="rgba(0,0,0,0.45)" />
+        <path d="M 10,14 C 10,6 18,4 50,4 C 82,4 90,6 90,14 L 90,187 C 90,194 82,196 50,196 C 18,196 10,194 10,187 Z" fill="${bodyColor}" stroke="#0f172a" stroke-width="2" />
+        <!-- Faixa lateral padrão urbano e janela/teto -->
+        <rect x="11" y="44" width="78" height="102" rx="3" fill="${stripeColor}" opacity="0.9" />
+        <rect x="24" y="52" width="52" height="84" rx="4" fill="#1e293b" stroke="#cbd5e1" stroke-width="1.2" />
+        <circle cx="50" cy="94" r="10" fill="#334155" stroke="#38bdf8" stroke-width="1.2" />
+        <!-- Para-brisa e letreiro -->
+        <path d="M 14,9 L 86,9 L 81,37 L 19,37 Z" fill="#0f172a" stroke="#e2e8f0" stroke-width="1.4" />
+        <rect x="23" y="13" width="54" height="13" rx="2" fill="#020617" stroke="#38bdf8" stroke-width="0.9" />
+        <text x="50" y="22" fill="#4ade80" font-size="7.2" font-weight="bold" font-family="monospace" text-anchor="middle">${safeText}</text>
+        <!-- Faróis e lanternas traseiras -->
+        <rect x="14" y="3" width="12" height="4" rx="1.5" fill="#fbbf24" />
+        <rect x="74" y="3" width="12" height="4" rx="1.5" fill="#fbbf24" />
+        <rect x="16" y="193" width="11" height="3.5" rx="1" fill="#ef4444" />
+        <rect x="73" y="193" width="11" height="3.5" rx="1" fill="#ef4444" />
+      </svg>
+    `;
+  }
 
-      <rect x="12" y="46" width="8" height="25" rx="2" fill="#38bdf8" opacity="0.6" />
-      <rect x="80" y="46" width="8" height="25" rx="2" fill="#38bdf8" opacity="0.6" />
-      <rect x="12" y="80" width="8" height="25" rx="2" fill="#38bdf8" opacity="0.6" />
-      <rect x="80" y="80" width="8" height="25" rx="2" fill="#38bdf8" opacity="0.6" />
-
-      <rect x="14" y="3" width="12" height="4" rx="1" fill="#fbbf24" />
-      <rect x="74" y="3" width="12" height="4" rx="1" fill="#fbbf24" />
-      <rect x="16" y="193" width="10" height="3" fill="#ef4444" rx="1" />
-      <rect x="74" y="193" width="10" height="3" fill="#ef4444" rx="1" />
-    </svg>
-  `);
+  return 'data:image/svg+xml;utf8,' + encodeURIComponent(svgContent.trim());
 }
 
 function initMap(startCoords) {
@@ -1441,6 +1589,7 @@ function updateTripStatus() {
 }
 
 function handleAccelerate() {
+  busAudio.init();
   if (!isTripActive && currentGameMode === 'line') {
     isTripActive = true;
     startTripTimer();
@@ -1451,6 +1600,184 @@ function handleAccelerate() {
 }
 
 let lastFrameTime = performance.now();
+
+
+// ============================================================
+// MOTOR DE ÁUDIO SUTIL (ACELERAÇÃO, BUZINA E FREIO) - WEB AUDIO
+// ============================================================
+const busAudio = {
+  ctx: null,
+  masterGain: null,
+  engineOscMain: null,
+  engineOscSub: null,
+  engineFilter: null,
+  engineGain: null,
+  noiseBuffer: null,
+  isInitialized: false,
+  wasBraking: false,
+  lastAirBrakeTime: 0,
+  lastHornTime: 0,
+
+  init() {
+    if (this.isInitialized) {
+      if (this.ctx && this.ctx.state === 'suspended') {
+        this.ctx.resume().catch(() => {});
+      }
+      return;
+    }
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+
+    try {
+      this.ctx = new AudioCtx();
+      this.masterGain = this.ctx.createGain();
+      this.masterGain.gain.value = 0.22; // Volume geral sutil e equilibrado
+      this.masterGain.connect(this.ctx.destination);
+
+      // Buffer de ruído branco suave para freio pneumático
+      const bufferSize = this.ctx.sampleRate * 1.2;
+      this.noiseBuffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+      const data = this.noiseBuffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) {
+        data[i] = (Math.random() * 2 - 1) * 0.6;
+      }
+
+      // Motor diesel sutil (osciladores graves + filtro passa-baixa)
+      this.engineFilter = this.ctx.createBiquadFilter();
+      this.engineFilter.type = 'lowpass';
+      this.engineFilter.frequency.value = 140;
+      this.engineFilter.Q.value = 1.4;
+
+      this.engineGain = this.ctx.createGain();
+      this.engineGain.gain.value = 0.0001;
+
+      this.engineOscMain = this.ctx.createOscillator();
+      this.engineOscMain.type = 'sawtooth';
+      this.engineOscMain.frequency.value = 42;
+
+      this.engineOscSub = this.ctx.createOscillator();
+      this.engineOscSub.type = 'triangle';
+      this.engineOscSub.frequency.value = 84;
+
+      this.engineOscMain.connect(this.engineFilter);
+      this.engineOscSub.connect(this.engineFilter);
+      this.engineFilter.connect(this.engineGain);
+      this.engineGain.connect(this.masterGain);
+
+      this.engineOscMain.start();
+      this.engineOscSub.start();
+
+      this.isInitialized = true;
+    } catch (e) {
+      // Falha silenciosa caso o navegador bloqueie áudio
+    }
+  },
+
+  updateEngine(speedKmh, isAccelerating, isActive) {
+    if (!this.isInitialized || !this.ctx || !this.engineGain || !this.engineOscMain || !this.engineOscSub || !this.engineFilter) {
+      return;
+    }
+    if (this.ctx.state === 'suspended') {
+      this.ctx.resume().catch(() => {});
+    }
+
+    const now = this.ctx.currentTime;
+    const absSpeed = Math.min(180, Math.abs(speedKmh || 0));
+
+    if (!isActive) {
+      this.engineGain.gain.setTargetAtTime(0.0001, now, 0.12);
+      return;
+    }
+
+    // Marcha lenta sutil quando parado em viagem, subindo gradualmente com velocidade e aceleração
+    const speedNorm = absSpeed / 120;
+    const throttleBoost = isAccelerating ? 0.22 : 0;
+    const baseFreq = 38 + speedNorm * 58 + (isAccelerating ? 10 : 0);
+    const filterFreq = 115 + speedNorm * 240 + (isAccelerating ? 75 : 0);
+    const targetGain = Math.min(0.16, 0.022 + speedNorm * 0.075 + throttleBoost * 0.055);
+
+    this.engineOscMain.frequency.setTargetAtTime(baseFreq, now, 0.08);
+    this.engineOscSub.frequency.setTargetAtTime(baseFreq * 2, now, 0.08);
+    this.engineFilter.frequency.setTargetAtTime(filterFreq, now, 0.09);
+    this.engineGain.gain.setTargetAtTime(targetGain, now, 0.08);
+  },
+
+  playBrakeAir(intensity = 0.7) {
+    if (!this.isInitialized || !this.ctx || !this.noiseBuffer || !this.masterGain) return;
+    const now = this.ctx.currentTime;
+    if (now - this.lastAirBrakeTime < 0.45) return;
+    this.lastAirBrakeTime = now;
+
+    try {
+      const src = this.ctx.createBufferSource();
+      src.buffer = this.noiseBuffer;
+
+      const bandpass = this.ctx.createBiquadFilter();
+      bandpass.type = 'bandpass';
+      bandpass.frequency.setValueAtTime(1850, now);
+      bandpass.Q.setValueAtTime(2.2, now);
+
+      const gain = this.ctx.createGain();
+      const peak = Math.min(0.14, Math.max(0.03, intensity * 0.09));
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.linearRampToValueAtTime(peak, now + 0.025);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.34);
+
+      src.connect(bandpass);
+      bandpass.connect(gain);
+      gain.connect(this.masterGain);
+
+      src.start(now);
+      src.stop(now + 0.36);
+    } catch (e) {}
+  },
+
+  playHorn() {
+    this.init();
+    if (!this.isInitialized || !this.ctx || !this.masterGain) return;
+    const now = this.ctx.currentTime;
+    if (now - this.lastHornTime < 0.25) return;
+    this.lastHornTime = now;
+
+    try {
+      const osc1 = this.ctx.createOscillator();
+      const osc2 = this.ctx.createOscillator();
+      const filter = this.ctx.createBiquadFilter();
+      const gain = this.ctx.createGain();
+
+      // Tom grave e encorpado de buzina de ônibus, filtrado para ficar sutil e realista
+      osc1.type = 'sawtooth';
+      osc2.type = 'triangle';
+      osc1.frequency.setValueAtTime(185, now);
+      osc2.frequency.setValueAtTime(233, now);
+
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(780, now);
+      filter.Q.setValueAtTime(1.2, now);
+
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.linearRampToValueAtTime(0.13, now + 0.03);
+      gain.gain.setValueAtTime(0.12, now + 0.24);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.42);
+
+      osc1.connect(filter);
+      osc2.connect(filter);
+      filter.connect(gain);
+      gain.connect(this.masterGain);
+
+      osc1.start(now);
+      osc2.start(now);
+      osc1.stop(now + 0.44);
+      osc2.stop(now + 0.44);
+    } catch (e) {}
+  },
+
+  silence() {
+    if (!this.isInitialized || !this.ctx || !this.engineGain) return;
+    const now = this.ctx.currentTime;
+    this.engineGain.gain.setTargetAtTime(0.0001, now, 0.06);
+  }
+};
 
 function gameLoop(now) {
   if (!map) return;
@@ -1665,6 +1992,23 @@ function gameLoop(now) {
     zoom: currentZoomLevel
   });
 
+  const isVehicleMovingNow = Math.abs(currentSpeedKmh) > 1.5;
+  if (keysPressed.Down && isVehicleMovingNow) {
+    if (!busAudio.wasBraking) {
+      const intensity = Math.min(1, Math.abs(currentSpeedKmh) / 90);
+      busAudio.playBrakeAir(intensity);
+    }
+    busAudio.wasBraking = true;
+  } else {
+    busAudio.wasBraking = false;
+  }
+
+  busAudio.updateEngine(
+    currentSpeedKmh,
+    Boolean(keysPressed.Up),
+    Boolean(map && !isLineFinished && (isTripActive || currentGameMode === 'free'))
+  );
+
   if (!isLineFinished) {
     animationFrameId = requestAnimationFrame(gameLoop);
   }
@@ -1691,8 +2035,12 @@ window.addEventListener('keydown', (e) => {
     document.getElementById('btnDpadUp')?.classList.add('pressed');
   }
   if (['ArrowDown', 'KeyS'].includes(e.code)) {
+    busAudio.init();
     keysPressed.Down = true;
     document.getElementById('btnDpadDown')?.classList.add('pressed');
+  }
+  if (['KeyH', 'KeyB'].includes(e.code) && !e.repeat) {
+    busAudio.playHorn();
   }
   if (['ArrowLeft', 'KeyA'].includes(e.code)) {
     keysPressed.Left = true;
@@ -1722,3 +2070,4 @@ window.addEventListener('keyup', (e) => {
     document.getElementById('btnDpadRight')?.classList.remove('pressed');
   }
 });
+
