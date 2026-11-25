@@ -380,31 +380,6 @@ const cssStyles = `
     pointer-events: none;
   }
 
-  .btn-horn-cockpit {
-    pointer-events: auto;
-    margin-left: 16px;
-    width: 56px;
-    height: 56px;
-    border-radius: 50%;
-    background: linear-gradient(145deg, #f59e0b, #d97706);
-    border: 3px solid #ffffff;
-    color: #0f172a;
-    font-size: 1.45rem;
-    font-weight: bold;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.75);
-    transition: transform 0.08s ease, background 0.1s ease;
-  }
-
-  .btn-horn-cockpit:active,
-  .btn-horn-cockpit.pressed {
-    transform: scale(0.92);
-    background: #fbbf24;
-  }
-
   .cross-dpad {
     --pad-size: 132px;
     --arm-w: 44px;
@@ -1041,7 +1016,6 @@ bottomCockpitBar.innerHTML = `
       <svg viewBox="0 0 24 24"><path d="M12 19.5c-.6 0-1.2-.3-1.5-.9L3.7 7.4c-.7-1.1.1-2.6 1.5-2.6h13.6c1.4 0 2.2 1.5 1.5 2.6l-6.8 11.2c-.3.6-.9.9-1.5.9z"/></svg>
     </button>
   </div>
-  <button class="btn-horn-cockpit" id="btnHornCockpit" title="Buzina (Tecla H)">📯</button>
 `;
 document.body.appendChild(bottomCockpitBar);
 
@@ -1076,7 +1050,6 @@ let targetHeading = 0;
 let smoothHeading = 0;
 let currentCameraBearing = 0;
 
-// Deslocamento padrão para a faixa da direita (evita andar na contramão)
 const BASE_RIGHT_LANE_OFFSET_METERS = 1.9;
 let lineLateralCorrectionMeters = 0;
 let lineLateralVelocity = 0;
@@ -1186,20 +1159,6 @@ bindControlTouch('btnDpadUp', 'Up');
 bindControlTouch('btnDpadDown', 'Down');
 bindControlTouch('btnDpadLeft', 'Left');
 bindControlTouch('btnDpadRight', 'Right');
-
-const btnHornCockpit = document.getElementById('btnHornCockpit');
-if (btnHornCockpit) {
-  btnHornCockpit.addEventListener('pointerdown', (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    btnHornCockpit.classList.add('pressed');
-    busAudio.playHorn();
-  });
-  const releaseHorn = () => btnHornCockpit.classList.remove('pressed');
-  btnHornCockpit.addEventListener('pointerup', releaseHorn);
-  btnHornCockpit.addEventListener('pointercancel', releaseHorn);
-  btnHornCockpit.addEventListener('pointerleave', releaseHorn);
-}
 
 document.getElementById('btnSelectLineMode').addEventListener('click', () => {
   refreshLinesDropdown();
@@ -1347,7 +1306,6 @@ document.getElementById('btnStartFreeMode').addEventListener('click', async () =
 });
 
 function startSimulation(baseCoords, initialRenderCoords) {
-  busAudio.init();
   setupModal.style.display = 'none';
 
   mobileTopBar.style.display = 'flex';
@@ -1371,7 +1329,6 @@ function startSimulation(baseCoords, initialRenderCoords) {
 }
 
 function exitGame() {
-  busAudio.silence();
   stopTripTimer();
   if (animationFrameId) {
     cancelAnimationFrame(animationFrameId);
@@ -1417,7 +1374,6 @@ function exitGame() {
 document.getElementById('btnExitGame').addEventListener('click', exitGame);
 
 function mostrarRelatorioFinal() {
-  busAudio.silence();
   stopTripTimer();
   isTripActive = false;
   isAutopilotMoving = false;
@@ -1614,7 +1570,6 @@ function updateTripStatus() {
 }
 
 function handleAccelerate() {
-  busAudio.init();
   if (!isTripActive && currentGameMode === 'line') {
     isTripActive = true;
     startTripTimer();
@@ -1626,300 +1581,13 @@ function handleAccelerate() {
 
 let lastFrameTime = performance.now();
 
-// ============================================================
-// MOTOR DE ÁUDIO REALISTA DE ÔNIBUS (SAMPLES REAIS + SÍNTESE DIESEL ORGÂNICA)
-// Suporta arquivos reais locais se colocados na pasta (motor.mp3, buzina.mp3, freio.mp3)
-// e possui motor acústico realista multi-cilindro + buzina a ar como padrão imediato.
-// ============================================================
 const busAudio = {
-  ctx: null,
-  masterGain: null,
-  engineSubOsc: null,
-  engineCylinderOsc: null,
-  engineTurboOsc: null,
-  engineNoiseNode: null,
-  engineFilter: null,
-  engineGain: null,
-  turboGain: null,
-  noiseBuffer: null,
-  realSamples: {
-    engine: null,
-    horn: null,
-    brake: null
-  },
-  isInitialized: false,
   wasBraking: false,
-  lastAirBrakeTime: 0,
-  lastHornTime: 0,
-
-  init() {
-    if (this.isInitialized) {
-      if (this.ctx && this.ctx.state === 'suspended') {
-        this.ctx.resume().catch(() => {});
-      }
-      return;
-    }
-    const AudioCtx = window.AudioContext || window.webkitAudioContext;
-    if (!AudioCtx) return;
-
-    try {
-      this.ctx = new AudioCtx();
-      this.masterGain = this.ctx.createGain();
-      this.masterGain.gain.value = 0.28;
-      this.masterGain.connect(this.ctx.destination);
-
-      // Tenta carregar gravações reais locais opcionalmente (motor.mp3, buzina.mp3, freio.mp3)
-      this._tryLoadRealAudio('engine', 'motor.mp3', true);
-      this._tryLoadRealAudio('horn', 'buzina.mp3', false);
-      this._tryLoadRealAudio('brake', 'freio.mp3', false);
-
-      // Buffer de ruído orgânico para escapamento diesel e válvula pneumática de freio
-      const bufferSize = this.ctx.sampleRate * 2.0;
-      this.noiseBuffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
-      const data = this.noiseBuffer.getChannelData(0);
-      let lastOut = 0.0;
-      for (let i = 0; i < bufferSize; i++) {
-        const white = Math.random() * 2 - 1;
-        data[i] = (lastOut + (0.04 * white)) / 1.04;
-        lastOut = data[i];
-        data[i] *= 2.8;
-      }
-
-      // Cadeia acústica de motor diesel 6 cilindros (grave pulsante + escapamento + assobio suave de turbina)
-      this.engineFilter = this.ctx.createBiquadFilter();
-      this.engineFilter.type = 'lowpass';
-      this.engineFilter.frequency.value = 135;
-      this.engineFilter.Q.value = 2.1;
-
-      this.engineGain = this.ctx.createGain();
-      this.engineGain.gain.value = 0.0001;
-
-      // Oscilador fundamental (pulsação lenta de marcha lenta ~26Hz)
-      this.engineSubOsc = this.ctx.createOscillator();
-      this.engineSubOsc.type = 'sawtooth';
-      this.engineSubOsc.frequency.value = 26;
-
-      // Harmônico de combustão 6 cilindros (3x fundamental)
-      this.engineCylinderOsc = this.ctx.createOscillator();
-      this.engineCylinderOsc.type = 'triangle';
-      this.engineCylinderOsc.frequency.value = 78;
-
-      // Ruído contínuo do escapamento/admissão
-      this.engineNoiseNode = this.ctx.createBufferSource();
-      this.engineNoiseNode.buffer = this.noiseBuffer;
-      this.engineNoiseNode.loop = true;
-
-      const exhaustNoiseGain = this.ctx.createGain();
-      exhaustNoiseGain.gain.value = 0.45;
-
-      // Assobio discreto da turbina em rotação média/alta
-      this.engineTurboOsc = this.ctx.createOscillator();
-      this.engineTurboOsc.type = 'sine';
-      this.engineTurboOsc.frequency.value = 1150;
-
-      this.turboGain = this.ctx.createGain();
-      this.turboGain.gain.value = 0.0001;
-
-      this.engineSubOsc.connect(this.engineFilter);
-      this.engineCylinderOsc.connect(this.engineFilter);
-      this.engineNoiseNode.connect(exhaustNoiseGain);
-      exhaustNoiseGain.connect(this.engineFilter);
-
-      this.engineFilter.connect(this.engineGain);
-      this.engineGain.connect(this.masterGain);
-
-      this.engineTurboOsc.connect(this.turboGain);
-      this.turboGain.connect(this.masterGain);
-
-      this.engineSubOsc.start();
-      this.engineCylinderOsc.start();
-      this.engineNoiseNode.start();
-      this.engineTurboOsc.start();
-
-      this.isInitialized = true;
-    } catch (e) {}
-  },
-
-  _tryLoadRealAudio(slot, url, loop) {
-    try {
-      const audio = new Audio(url);
-      audio.loop = loop;
-      audio.preload = 'auto';
-      audio.addEventListener('canplaythrough', () => {
-        this.realSamples[slot] = audio;
-      }, { once: true });
-    } catch (e) {}
-  },
-
-  updateEngine(speedKmh, isAccelerating, isActive) {
-    if (!this.isInitialized) return;
-
-    const absSpeed = Math.min(180, Math.abs(speedKmh || 0));
-
-    // Se houver arquivo real motor.mp3 na pasta, usa-o modulando rotação (playbackRate) e volume
-    if (this.realSamples.engine) {
-      const realEng = this.realSamples.engine;
-      if (!isActive) {
-        if (!realEng.paused) realEng.pause();
-        return;
-      }
-      if (realEng.paused) {
-        realEng.play().catch(() => {});
-      }
-      const gearRatio = (absSpeed % 32) / 32;
-      const rate = 0.78 + gearRatio * 0.55 + (isAccelerating ? 0.14 : 0);
-      realEng.playbackRate = Math.min(1.65, Math.max(0.75, rate));
-      realEng.volume = Math.min(0.45, 0.14 + (absSpeed / 140) * 0.22 + (isAccelerating ? 0.08 : 0));
-      if (this.engineGain && this.ctx) {
-        this.engineGain.gain.setTargetAtTime(0.0001, this.ctx.currentTime, 0.05);
-      }
-      return;
-    }
-
-    if (!this.ctx || !this.engineGain || !this.engineSubOsc || !this.engineCylinderOsc || !this.engineFilter) {
-      return;
-    }
-    if (this.ctx.state === 'suspended') {
-      this.ctx.resume().catch(() => {});
-    }
-
-    const now = this.ctx.currentTime;
-    if (!isActive) {
-      this.engineGain.gain.setTargetAtTime(0.0001, now, 0.12);
-      if (this.turboGain) this.turboGain.gain.setTargetAtTime(0.0001, now, 0.1);
-      return;
-    }
-
-    // Simulação de troca automática de marchas (1ª a 5ª) para soar como motor diesel real
-    const gearSpeed = absSpeed < 1 ? 0 : ((absSpeed % 28) / 28);
-    const rpmNorm = absSpeed < 1 ? 0 : (0.28 + gearSpeed * 0.72);
-    const throttleBoost = isAccelerating ? 0.25 : 0;
-
-    const baseFreq = 24 + rpmNorm * 34 + (isAccelerating ? 5 : 0);
-    const filterFreq = 105 + rpmNorm * 210 + (isAccelerating ? 85 : 0);
-    const targetGain = Math.min(0.24, 0.045 + rpmNorm * 0.09 + throttleBoost * 0.06);
-
-    this.engineSubOsc.frequency.setTargetAtTime(baseFreq, now, 0.07);
-    this.engineCylinderOsc.frequency.setTargetAtTime(baseFreq * 3, now, 0.07);
-    this.engineFilter.frequency.setTargetAtTime(filterFreq, now, 0.08);
-    this.engineGain.gain.setTargetAtTime(targetGain, now, 0.08);
-
-    // Turbina entra sutilmente em rotações mais altas
-    if (this.turboGain && this.engineTurboOsc) {
-      const turboFreq = 1100 + rpmNorm * 950;
-      const turboVol = (isAccelerating && rpmNorm > 0.45) ? Math.min(0.014, (rpmNorm - 0.45) * 0.025) : 0.0001;
-      this.engineTurboOsc.frequency.setTargetAtTime(turboFreq, now, 0.1);
-      this.turboGain.gain.setTargetAtTime(turboVol, now, 0.12);
-    }
-  },
-
-  playBrakeAir(intensity = 0.7) {
-    this.init();
-    const nowMs = performance.now();
-    if (nowMs - this.lastAirBrakeTime < 550) return;
-    this.lastAirBrakeTime = nowMs;
-
-    if (this.realSamples.brake) {
-      try {
-        const clone = this.realSamples.brake.cloneNode();
-        clone.volume = Math.min(0.5, Math.max(0.15, intensity * 0.4));
-        clone.play().catch(() => {});
-        return;
-      } catch (e) {}
-    }
-
-    if (!this.isInitialized || !this.ctx || !this.noiseBuffer || !this.masterGain) return;
-    const now = this.ctx.currentTime;
-
-    try {
-      // Válvula de descarga pneumática de ônibus ("pshhhh-tchu")
-      const src = this.ctx.createBufferSource();
-      src.buffer = this.noiseBuffer;
-
-      const bandpass = this.ctx.createBiquadFilter();
-      bandpass.type = 'bandpass';
-      bandpass.frequency.setValueAtTime(2200, now);
-      bandpass.frequency.exponentialRampToValueAtTime(1350, now + 0.35);
-      bandpass.Q.setValueAtTime(2.6, now);
-
-      const gain = this.ctx.createGain();
-      const peak = Math.min(0.18, Math.max(0.04, intensity * 0.13));
-      gain.gain.setValueAtTime(0.0001, now);
-      gain.gain.linearRampToValueAtTime(peak, now + 0.02);
-      gain.gain.setValueAtTime(peak * 0.85, now + 0.16);
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.38);
-
-      src.connect(bandpass);
-      bandpass.connect(gain);
-      gain.connect(this.masterGain);
-
-      src.start(now);
-      src.stop(now + 0.4);
-    } catch (e) {}
-  },
-
-  playHorn() {
-    this.init();
-    const nowMs = performance.now();
-    if (nowMs - this.lastHornTime < 280) return;
-    this.lastHornTime = nowMs;
-
-    if (this.realSamples.horn) {
-      try {
-        const clone = this.realSamples.horn.cloneNode();
-        clone.volume = 0.45;
-        clone.play().catch(() => {});
-        return;
-      } catch (e) {}
-    }
-
-    if (!this.isInitialized || !this.ctx || !this.masterGain) return;
-    const now = this.ctx.currentTime;
-
-    try {
-      // Buzina a ar dupla de ônibus (intervalo de terça maior encorpado ~196Hz + 247Hz)
-      const oscLow = this.ctx.createOscillator();
-      const oscHigh = this.ctx.createOscillator();
-      const filter = this.ctx.createBiquadFilter();
-      const gain = this.ctx.createGain();
-
-      oscLow.type = 'sawtooth';
-      oscHigh.type = 'sawtooth';
-      oscLow.frequency.setValueAtTime(192, now);
-      oscLow.frequency.linearRampToValueAtTime(196, now + 0.05);
-      oscHigh.frequency.setValueAtTime(242, now);
-      oscHigh.frequency.linearRampToValueAtTime(247, now + 0.05);
-
-      filter.type = 'lowpass';
-      filter.frequency.setValueAtTime(980, now);
-      filter.Q.setValueAtTime(1.8, now);
-
-      gain.gain.setValueAtTime(0.0001, now);
-      gain.gain.linearRampToValueAtTime(0.18, now + 0.025);
-      gain.gain.setValueAtTime(0.17, now + 0.28);
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.46);
-
-      oscLow.connect(filter);
-      oscHigh.connect(filter);
-      filter.connect(gain);
-      gain.connect(this.masterGain);
-
-      oscLow.start(now);
-      oscHigh.start(now);
-      oscLow.stop(now + 0.48);
-      oscHigh.stop(now + 0.48);
-    } catch (e) {}
-  },
-
-  silence() {
-    if (this.realSamples.engine && !this.realSamples.engine.paused) {
-      this.realSamples.engine.pause();
-    }
-    if (!this.isInitialized || !this.ctx || !this.engineGain) return;
-    const now = this.ctx.currentTime;
-    this.engineGain.gain.setTargetAtTime(0.0001, now, 0.06);
-    if (this.turboGain) this.turboGain.gain.setTargetAtTime(0.0001, now, 0.06);
-  }
+  init() {},
+  updateEngine() {},
+  playBrakeAir() {},
+  playHorn() {},
+  silence() {}
 };
 
 function gameLoop(now) {
@@ -2131,23 +1799,6 @@ function gameLoop(now) {
     zoom: currentZoomLevel
   });
 
-  const isVehicleMovingNow = Math.abs(currentSpeedKmh) > 1.5;
-  if (keysPressed.Down && isVehicleMovingNow) {
-    if (!busAudio.wasBraking) {
-      const intensity = Math.min(1, Math.abs(currentSpeedKmh) / 90);
-      busAudio.playBrakeAir(intensity);
-    }
-    busAudio.wasBraking = true;
-  } else {
-    busAudio.wasBraking = false;
-  }
-
-  busAudio.updateEngine(
-    currentSpeedKmh,
-    Boolean(keysPressed.Up),
-    Boolean(map && !isLineFinished && (isTripActive || currentGameMode === 'free'))
-  );
-
   if (!isLineFinished) {
     animationFrameId = requestAnimationFrame(gameLoop);
   }
@@ -2174,12 +1825,8 @@ window.addEventListener('keydown', (e) => {
     document.getElementById('btnDpadUp')?.classList.add('pressed');
   }
   if (['ArrowDown', 'KeyS'].includes(e.code)) {
-    busAudio.init();
     keysPressed.Down = true;
     document.getElementById('btnDpadDown')?.classList.add('pressed');
-  }
-  if (['KeyH', 'KeyB'].includes(e.code) && !e.repeat) {
-    busAudio.playHorn();
   }
   if (['ArrowLeft', 'KeyA'].includes(e.code)) {
     keysPressed.Left = true;
