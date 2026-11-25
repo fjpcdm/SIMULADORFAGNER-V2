@@ -368,6 +368,70 @@ const cssStyles = `
     color: #94a3b8;
   }
 
+  .side-minimap-box {
+    position: fixed !important;
+    right: 12px !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+    z-index: 999999 !important;
+    width: 146px;
+    background: rgba(15, 23, 42, 0.92);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1.5px solid rgba(56, 189, 248, 0.55);
+    border-radius: 14px;
+    padding: 8px;
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.65);
+    pointer-events: none;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .side-minimap-header {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: #38bdf8;
+    letter-spacing: 0.02em;
+  }
+
+  .side-minimap-canvas {
+    width: 130px;
+    height: 130px;
+    border-radius: 10px;
+    background: rgba(2, 6, 23, 0.92);
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    display: block;
+  }
+
+  .side-minimap-footer {
+    width: 100%;
+    font-size: 0.68rem;
+    color: #e2e8f0;
+    text-align: center;
+    font-family: monospace;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  @media (max-width: 640px) {
+    .side-minimap-box {
+      right: 8px !important;
+      width: 112px;
+      padding: 6px;
+    }
+    .side-minimap-canvas {
+      width: 98px;
+      height: 98px;
+    }
+  }
+
   .bottom-cockpit-bar {
     position: fixed !important;
     bottom: calc(14px + env(safe-area-inset-bottom, 0px)) !important;
@@ -379,7 +443,6 @@ const cssStyles = `
     justify-content: center;
     pointer-events: none;
   }
-
 
   .cross-dpad {
     --pad-size: 132px;
@@ -760,9 +823,7 @@ function saveUserPreferences(patch = {}) {
     const current = loadUserPreferences();
     const merged = { ...current, ...patch };
     localStorage.setItem(STORAGE_KEY_STATE, JSON.stringify(merged));
-  } catch (e) {
-    // Ignora erro de quota/privacidade
-  }
+  } catch (e) {}
 }
 
 function loadUserPreferences() {
@@ -1045,6 +1106,19 @@ speedBox.style.display = 'none';
 speedBox.innerHTML = '<span id="speedValue">0</span><span class="speed-unit">km/h</span>';
 document.body.appendChild(speedBox);
 
+const sideMinimapBox = document.createElement('div');
+sideMinimapBox.className = 'side-minimap-box';
+sideMinimapBox.id = 'sideMinimapBox';
+sideMinimapBox.innerHTML = `
+  <div class="side-minimap-header">
+    <span>RADAR ROTA</span>
+    <span id="minimapNextBadge" style="color:#fbbf24;">Aguardar</span>
+  </div>
+  <canvas class="side-minimap-canvas" id="sideMinimapCanvas" width="130" height="130"></canvas>
+  <div class="side-minimap-footer" id="minimapNextInfo">Sem veículo próximo</div>
+`;
+document.body.appendChild(sideMinimapBox);
+
 let bottomCockpitBar = document.createElement('div');
 bottomCockpitBar.className = 'bottom-cockpit-bar';
 bottomCockpitBar.style.display = 'none';
@@ -1099,7 +1173,6 @@ let targetHeading = 0;
 let smoothHeading = 0;
 let currentCameraBearing = 0;
 
-// Deslocamento padrão para a faixa da direita (evita andar na contramão)
 const BASE_RIGHT_LANE_OFFSET_METERS = 1.9;
 let lineLateralCorrectionMeters = 0;
 let lineLateralVelocity = 0;
@@ -1368,8 +1441,11 @@ function startSimulation(baseCoords, initialRenderCoords) {
 
   if (currentGameMode === 'free') {
     btnTripToggle.style.display = 'none';
+    sideMinimapBox.style.display = 'none';
   } else {
     btnTripToggle.style.display = 'block';
+    sideMinimapBox.style.display = 'flex';
+    drawSideMinimap(null, null);
   }
 
   busLng = baseCoords[0];
@@ -1426,6 +1502,7 @@ function exitGame() {
   hudContainer.style.display = 'none';
   hudContainer.classList.remove('mobile-visible');
   speedBox.style.display = 'none';
+  sideMinimapBox.style.display = 'none';
   mobileTopBar.style.display = 'none';
   bottomCockpitBar.style.display = 'none';
   mapBanner.style.display = 'none';
@@ -1615,14 +1692,9 @@ function initMap(startCoords) {
   });
 }
 
-
 // ============================================================
-// TRÁFEGO NO MESMO SENTIDO (ATÉ 2 VEÍCULOS)
-// - LINHAS RODOVIÁRIAS: A CADA 20 KM RODADOS (20 KM E 40 KM)
-// - LINHAS URBANAS: MÉDIA CALCULADA CONFORME O TAMANHO DA ROTA
-// - ULTRAPASSAGEM SUAVE (NÃO-CORRIDA): BH E ESTAÇÃO ELDORADO
-// - DEMAIS LINHAS (BAIRRO): APENAS APOIO POSTERIOR
-// - INDICADOR DIRECIONAL E DE PROXIMIDADE NA RETAGUARDA
+// TRÁFEGO NO MESMO SENTIDO + INTERVALO DE 4 KM NAS URBANAS
+// + ULTRAPASSAGEM SUAVE (SEM CORRIDA) + RADAR LATERAL
 // ============================================================
 
 const sameDirTraffic = {
@@ -1630,8 +1702,10 @@ const sameDirTraffic = {
   totalRouteKm: 0,
   isRoadLine: false,
   allowsOvertake: false,
-  spawnThreshold1Km: 5,
-  spawnThreshold2Km: 10,
+  spawnIntervalKm: 4,
+  nextSpawnKm: 4,
+  spawnThreshold1Km: 4,
+  spawnThreshold2Km: 8,
   spawnedCount: 0,
   lastToastMessage: '',
   lastCloseAlertTime: 0
@@ -1646,7 +1720,9 @@ function isMajorCorridorLine(lineNameText = '') {
     normalized.includes('estacao eldorado') ||
     normalized.includes('eldorado') ||
     /\bbh\b/.test(normalized) ||
-    normalized.includes('belo horizonte')
+    normalized.includes('belo horizonte') ||
+    normalized.includes('semi-direta') ||
+    normalized.includes('semi direta')
   );
 }
 
@@ -1658,6 +1734,56 @@ function getRouteProgressMeters(segIndex, segProgress) {
     meters += getMetersBetween(activePath[i], activePath[i + 1]);
   }
   return meters + Math.max(0, segProgress);
+}
+
+function getCoordAtRouteMeters(targetMeters) {
+  if (!Array.isArray(activePath) || activePath.length < 2) {
+    return {
+      lng: busLng,
+      lat: busLat,
+      segIndex: 0,
+      segProgress: 0,
+      segLength: 0,
+      heading: smoothHeading
+    };
+  }
+
+  const clampedMeters = Math.max(0, targetMeters);
+  let accumulated = 0;
+
+  for (let i = 0; i < activePath.length - 1; i++) {
+    const p1 = activePath[i];
+    const p2 = activePath[i + 1];
+    const segLen = getMetersBetween(p1, p2);
+    if (segLen <= 0.1) continue;
+
+    if (accumulated + segLen >= clampedMeters) {
+      const progress = clampedMeters - accumulated;
+      const ratio = Math.min(1, Math.max(0, progress / segLen));
+      return {
+        lng: p1[0] + (p2[0] - p1[0]) * ratio,
+        lat: p1[1] + (p2[1] - p1[1]) * ratio,
+        segIndex: i,
+        segProgress: progress,
+        segLength: segLen,
+        heading: calculateBearing(p1, p2)
+      };
+    }
+    accumulated += segLen;
+  }
+
+  const lastIdx = activePath.length - 2;
+  const p1 = activePath[lastIdx];
+  const p2 = activePath[activePath.length - 1];
+  const segLen = Math.max(0.5, getMetersBetween(p1, p2));
+  return {
+    lng: p2[0],
+    lat: p2[1],
+    segIndex: lastIdx,
+    segProgress: segLen,
+    segLength: segLen,
+    heading: calculateBearing(p1, p2)
+  };
 }
 
 function getRelativeBearingArrow(fromCoord, toCoord, referenceHeadingDeg) {
@@ -1682,19 +1808,14 @@ function configureTrafficThresholdsForRoute(pathCoords, isRoad = false, lineName
   const totalKm = computeRouteTotalKm(pathCoords);
   sameDirTraffic.totalRouteKm = totalKm;
   sameDirTraffic.isRoadLine = Boolean(isRoad);
-  sameDirTraffic.allowsOvertake = isMajorCorridorLine(lineNameText);
+  sameDirTraffic.allowsOvertake = true;
+  sameDirTraffic.spawnIntervalKm = sameDirTraffic.isRoadLine ? 20 : 4;
+  sameDirTraffic.nextSpawnKm = sameDirTraffic.spawnIntervalKm;
+  sameDirTraffic.spawnThreshold1Km = sameDirTraffic.spawnIntervalKm;
+  sameDirTraffic.spawnThreshold2Km = sameDirTraffic.spawnIntervalKm * 2;
   sameDirTraffic.spawnedCount = 0;
   sameDirTraffic.lastToastMessage = '';
   sameDirTraffic.lastCloseAlertTime = 0;
-
-  if (sameDirTraffic.isRoadLine) {
-    sameDirTraffic.spawnThreshold1Km = 20;
-    sameDirTraffic.spawnThreshold2Km = 40;
-  } else {
-    const avgStepKm = totalKm > 0 ? totalKm / 3 : 3;
-    sameDirTraffic.spawnThreshold1Km = Math.max(0.8, avgStepKm);
-    sameDirTraffic.spawnThreshold2Km = Math.max(sameDirTraffic.spawnThreshold1Km + 0.8, avgStepKm * 2);
-  }
 }
 
 function clearSameDirTraffic() {
@@ -1705,30 +1826,33 @@ function clearSameDirTraffic() {
   }
   sameDirTraffic.vehicles = [];
   sameDirTraffic.spawnedCount = 0;
+  sameDirTraffic.nextSpawnKm = sameDirTraffic.spawnIntervalKm;
   sameDirTraffic.lastToastMessage = '';
   sameDirTraffic.lastCloseAlertTime = 0;
   hideRearIndicator();
+  drawSideMinimap(null, null);
 }
 
 function createTrafficVehicle(slotIndex) {
   if (!map || !Array.isArray(activePath) || activePath.length < 2) return null;
 
-  const p0 = activePath[0];
-  const p1 = activePath[1];
-  const initHeading = calculateBearing(p0, p1);
-  const segLen = Math.max(0.5, getMetersBetween(p0, p1));
+  const playerRouteMeters = getRouteProgressMeters(currentSegIndex, segProgressMeters);
+  const spawnBehindMeters = Math.max(0, playerRouteMeters - 95);
+  const spawnPose = getCoordAtRouteMeters(spawnBehindMeters);
 
-  const baseOffset = slotIndex === 0 ? BASE_RIGHT_LANE_OFFSET_METERS + 0.35 : BASE_RIGHT_LANE_OFFSET_METERS - 0.35;
-  const speedKmh = slotIndex === 0
-    ? Math.max(52, cruiseSpeedKmh * 0.88)
-    : Math.max(58, cruiseSpeedKmh * 0.95);
+  const baseOffset = slotIndex % 2 === 0
+    ? BASE_RIGHT_LANE_OFFSET_METERS + 0.35
+    : BASE_RIGHT_LANE_OFFSET_METERS - 0.35;
 
-  const colorKey = slotIndex === 0 ? 'bhtrans_azul' : 'amarelo';
+  // Velocidade de cruzeiro moderada e controlada para ultrapassagem sem característica de corrida
+  const steadySpeedKmh = Math.max(48, Math.min(cruiseSpeedKmh * 0.94, currentSpeedKmh > 15 ? currentSpeedKmh + 8 : cruiseSpeedKmh * 0.9));
+
+  const colorKey = slotIndex % 2 === 0 ? 'bhtrans_azul' : 'amarelo';
   const modelKey = (sameDirTraffic.isRoadLine || currentVehicleType === 'rodoviario') ? 'rodoviario' : 'bhtrans';
-  const label = slotIndex === 0 ? 'APOIO 01' : 'APOIO 02';
+  const label = `APOIO 0${slotIndex + 1}`;
   const preset = COLOR_PRESETS[colorKey] || COLOR_PRESETS['azul'];
 
-  const renderPos = applyRightLaneOffset(p0[0], p0[1], initHeading, baseOffset);
+  const renderPos = applyRightLaneOffset(spawnPose.lng, spawnPose.lat, spawnPose.heading, baseOffset);
 
   const el = document.createElement('img');
   el.className = 'bus-marker-img';
@@ -1742,18 +1866,18 @@ function createTrafficVehicle(slotIndex) {
     pitchAlignment: 'map'
   })
     .setLngLat(renderPos)
-    .setRotation(initHeading)
+    .setRotation(spawnPose.heading)
     .addTo(map);
 
   return {
     id: slotIndex + 1,
-    lng: p0[0],
-    lat: p0[1],
-    segIndex: 0,
-    segProgress: 0,
-    segLength: segLen,
-    heading: initHeading,
-    speedKmh: speedKmh,
+    lng: spawnPose.lng,
+    lat: spawnPose.lat,
+    segIndex: spawnPose.segIndex,
+    segProgress: spawnPose.segProgress,
+    segLength: spawnPose.segLength,
+    heading: spawnPose.heading,
+    speedKmh: steadySpeedKmh,
     baseLaneOffset: baseOffset,
     currentLaneOffset: baseOffset,
     overtakeState: 'none',
@@ -1770,25 +1894,17 @@ function maybeSpawnSameDirTraffic() {
 
   const totalKm = sameDirTraffic.totalRouteKm || computeRouteTotalKm(activePath);
   const remainingKm = Math.max(0, totalKm - distanceCoveredKm);
-  if (remainingKm < 0.5) return;
+  if (remainingKm < 0.35) return;
 
-  if (sameDirTraffic.spawnedCount === 0 && distanceCoveredKm >= sameDirTraffic.spawnThreshold1Km) {
-    const v1 = createTrafficVehicle(0);
-    if (v1) {
-      sameDirTraffic.vehicles.push(v1);
-      sameDirTraffic.spawnedCount = 1;
-      const msg = `🚌 1º veículo da linha saiu do início (${distanceCoveredKm.toFixed(1)} km rodados)`;
-      if (sameDirTraffic.lastToastMessage !== msg) {
-        sameDirTraffic.lastToastMessage = msg;
-        showAlert(msg);
-      }
-    }
-  } else if (sameDirTraffic.spawnedCount === 1 && distanceCoveredKm >= sameDirTraffic.spawnThreshold2Km) {
-    const v2 = createTrafficVehicle(1);
-    if (v2) {
-      sameDirTraffic.vehicles.push(v2);
-      sameDirTraffic.spawnedCount = 2;
-      const msg = `🚌 2º veículo da linha entrou em operação (${distanceCoveredKm.toFixed(1)} km rodados)`;
+  if (distanceCoveredKm >= sameDirTraffic.nextSpawnKm) {
+    const slotIndex = sameDirTraffic.vehicles.length;
+    const newVeh = createTrafficVehicle(slotIndex);
+    if (newVeh) {
+      sameDirTraffic.vehicles.push(newVeh);
+      sameDirTraffic.spawnedCount++;
+      const triggerKm = sameDirTraffic.nextSpawnKm;
+      sameDirTraffic.nextSpawnKm += sameDirTraffic.spawnIntervalKm;
+      const msg = `🚌 Novo veículo entrou atrás na rota (${triggerKm.toFixed(0)} km)`;
       if (sameDirTraffic.lastToastMessage !== msg) {
         sameDirTraffic.lastToastMessage = msg;
         showAlert(msg);
@@ -1830,6 +1946,105 @@ function updateRearDirectionalIndicator(trailingCandidates) {
   }).join('');
 }
 
+function drawSideMinimap(nextVehicleItem, trailingCandidates) {
+  const canvas = document.getElementById('sideMinimapCanvas');
+  const badgeEl = document.getElementById('minimapNextBadge');
+  const infoEl = document.getElementById('minimapNextInfo');
+  if (!canvas || !badgeEl || !infoEl) return;
+
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width;
+  const h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
+
+  // Grelha de referência do radar lateral
+  ctx.strokeStyle = 'rgba(56, 189, 248, 0.12)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(w / 2, 0);
+  ctx.lineTo(w / 2, h);
+  ctx.moveTo(0, h / 2);
+  ctx.lineTo(w, h / 2);
+  ctx.stroke();
+
+  if (!Array.isArray(activePath) || activePath.length < 2) {
+    badgeEl.textContent = 'Off';
+    infoEl.textContent = 'Sem rota';
+    return;
+  }
+
+  const metersPerDegreeLat = 111320;
+  const metersPerDegreeLng = 111320 * Math.cos(busLat * (Math.PI / 180));
+  const radarRadiusMeters = sameDirTraffic.isRoadLine ? 900 : 550;
+  const scale = (w * 0.42) / radarRadiusMeters;
+
+  const toRadarXY = (lng, lat) => {
+    const dxMeters = (lng - busLng) * metersPerDegreeLng;
+    const dyMeters = (lat - busLat) * metersPerDegreeLat;
+    return [w / 2 + dxMeters * scale, h / 2 - dyMeters * scale];
+  };
+
+  // Traçado próximo da linha
+  ctx.strokeStyle = 'rgba(148, 163, 184, 0.55)';
+  ctx.lineWidth = 2.2;
+  ctx.beginPath();
+  let started = false;
+  const startIdx = Math.max(0, currentSegIndex - 25);
+  const endIdx = Math.min(activePath.length - 1, currentSegIndex + 40);
+  for (let i = startIdx; i <= endIdx; i++) {
+    const [px, py] = toRadarXY(activePath[i][0], activePath[i][1]);
+    if (!started) {
+      ctx.moveTo(px, py);
+      started = true;
+    } else {
+      ctx.lineTo(px, py);
+    }
+  }
+  ctx.stroke();
+
+  // Marcador do jogador no centro
+  ctx.fillStyle = '#38bdf8';
+  ctx.beginPath();
+  ctx.arc(w / 2, h / 2, 4.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Veículos ativos que surgiram durante o trajeto
+  const activeList = sameDirTraffic.vehicles.filter(v => !v.finished);
+  if (activeList.length === 0) {
+    const faltaKm = Math.max(0, sameDirTraffic.nextSpawnKm - distanceCoveredKm);
+    badgeEl.textContent = `${sameDirTraffic.spawnIntervalKm}km`;
+    infoEl.textContent = faltaKm > 0 ? `Próx: ${faltaKm.toFixed(1)} km` : 'Aguardando';
+    return;
+  }
+
+  for (const v of activeList) {
+    const [vx, vy] = toRadarXY(v.lng, v.lat);
+    const clampedX = Math.max(8, Math.min(w - 8, vx));
+    const clampedY = Math.max(8, Math.min(h - 8, vy));
+    const isNext = nextVehicleItem && nextVehicleItem.id === v.id;
+
+    ctx.fillStyle = isNext ? '#fbbf24' : '#34d399';
+    ctx.beginPath();
+    ctx.arc(clampedX, clampedY, isNext ? 5 : 3.8, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  if (nextVehicleItem) {
+    const distStr = nextVehicleItem.distMeters >= 1000
+      ? `${(nextVehicleItem.distMeters / 1000).toFixed(2)} km`
+      : `${Math.round(nextVehicleItem.distMeters)} m`;
+    badgeEl.textContent = `V${nextVehicleItem.id}`;
+    infoEl.textContent = `${distStr} • ${nextVehicleItem.statusLabel}`;
+  } else if (trailingCandidates && trailingCandidates.length > 0) {
+    const nearest = trailingCandidates[0];
+    const distStr = nearest.distMeters >= 1000
+      ? `${(nearest.distMeters / 1000).toFixed(2)} km`
+      : `${Math.round(nearest.distMeters)} m`;
+    badgeEl.textContent = 'Rota';
+    infoEl.textContent = `Atrás: ${distStr}`;
+  }
+}
+
 function updateSameDirTraffic(deltaTime, frameNow = performance.now()) {
   if (currentGameMode !== 'line' || !map) {
     hideRearIndicator();
@@ -1840,11 +2055,13 @@ function updateSameDirTraffic(deltaTime, frameNow = performance.now()) {
 
   if (sameDirTraffic.vehicles.length === 0) {
     hideRearIndicator();
+    drawSideMinimap(null, []);
     return;
   }
 
   const playerRouteMeters = getRouteProgressMeters(currentSegIndex, segProgressMeters);
   const trailingCandidates = [];
+  let nextVehicleSummary = null;
 
   for (const v of sameDirTraffic.vehicles) {
     if (v.finished || !v.marker) continue;
@@ -1852,6 +2069,16 @@ function updateSameDirTraffic(deltaTime, frameNow = performance.now()) {
     const vRouteMeters = getRouteProgressMeters(v.segIndex, v.segProgress);
     const deltaAlongRouteMeters = playerRouteMeters - vRouteMeters;
     const directDistMeters = getMetersBetween([v.lng, v.lat], [busLng, busLat]);
+
+    if (!nextVehicleSummary || directDistMeters < nextVehicleSummary.distMeters) {
+      nextVehicleSummary = {
+        id: v.id,
+        distMeters: directDistMeters,
+        statusLabel: v.overtakeState === 'passing'
+          ? 'Ultrapassando'
+          : (deltaAlongRouteMeters > 0 ? 'Atrás' : 'À frente')
+      };
+    }
 
     if (deltaAlongRouteMeters > 12) {
       trailingCandidates.push({
@@ -1867,46 +2094,41 @@ function updateSameDirTraffic(deltaTime, frameNow = performance.now()) {
     }
 
     if (isTripActive && !isLineFinished) {
-      let effectiveSpeedKmh = v.speedKmh;
+      // Condução normal sem característica de corrida: velocidade estável e moderada
+      const baseCruiseCap = sameDirTraffic.isRoadLine ? 115 : 74;
+      let effectiveSpeedKmh = Math.min(v.speedKmh, baseCruiseCap);
       let desiredLaneOffset = v.baseLaneOffset;
 
-      if (sameDirTraffic.allowsOvertake) {
-        const isBehindClose = deltaAlongRouteMeters > 8 && deltaAlongRouteMeters < 42 && directDistMeters < 45;
-        const playerPaceModerate = currentSpeedKmh < Math.max(45, cruiseSpeedKmh * 0.85);
+      const isBehindInOvertakeWindow = deltaAlongRouteMeters > 8 && deltaAlongRouteMeters < 48 && directDistMeters < 55;
+      const canOvertakeCalmly = currentSpeedKmh <= baseCruiseCap + 5;
 
-        if (v.overtakeState === 'none' && isBehindClose && playerPaceModerate) {
-          v.overtakeState = 'passing';
-          v.overtakeStartDistMeters = vRouteMeters;
+      if (v.overtakeState === 'none' && isBehindInOvertakeWindow && canOvertakeCalmly) {
+        v.overtakeState = 'passing';
+        v.overtakeStartDistMeters = vRouteMeters;
+      }
+
+      if (v.overtakeState === 'passing') {
+        const passedMeters = vRouteMeters - v.overtakeStartDistMeters;
+        desiredLaneOffset = Math.max(-1.6, v.baseLaneOffset - 2.5);
+        effectiveSpeedKmh = Math.min(baseCruiseCap, Math.max(v.speedKmh + 4, currentSpeedKmh + 6));
+
+        if (passedMeters >= 58 || deltaAlongRouteMeters < -28) {
+          v.overtakeState = 'returning';
         }
-
-        if (v.overtakeState === 'passing') {
-          const passedMeters = vRouteMeters - v.overtakeStartDistMeters;
-          desiredLaneOffset = Math.max(-1.6, v.baseLaneOffset - 2.6);
-          effectiveSpeedKmh = Math.min(cruiseSpeedKmh * 1.04, Math.max(v.speedKmh + 8, currentSpeedKmh + 14));
-
-          if (passedMeters >= 55 || deltaAlongRouteMeters < -26) {
-            v.overtakeState = 'returning';
-          }
-        } else if (v.overtakeState === 'returning') {
-          desiredLaneOffset = v.baseLaneOffset;
-          if (Math.abs(v.currentLaneOffset - v.baseLaneOffset) < 0.15) {
-            v.overtakeState = 'none';
-          }
-        } else {
-          desiredLaneOffset = v.baseLaneOffset;
-          if (deltaAlongRouteMeters > 0 && deltaAlongRouteMeters < 24 && currentSpeedKmh > 5) {
-            effectiveSpeedKmh = Math.min(effectiveSpeedKmh, Math.max(20, currentSpeedKmh * 0.85));
-          }
+      } else if (v.overtakeState === 'returning') {
+        desiredLaneOffset = v.baseLaneOffset;
+        effectiveSpeedKmh = Math.min(v.speedKmh, baseCruiseCap);
+        if (Math.abs(v.currentLaneOffset - v.baseLaneOffset) < 0.15) {
+          v.overtakeState = 'none';
         }
       } else {
-        v.overtakeState = 'none';
         desiredLaneOffset = v.baseLaneOffset;
-        if (deltaAlongRouteMeters > 0 && deltaAlongRouteMeters < 28 && currentSpeedKmh > 5) {
-          effectiveSpeedKmh = Math.max(25, currentSpeedKmh * 0.78);
+        if (deltaAlongRouteMeters > 0 && deltaAlongRouteMeters < 26 && currentSpeedKmh > 5) {
+          effectiveSpeedKmh = Math.min(effectiveSpeedKmh, Math.max(20, currentSpeedKmh * 0.88));
         }
       }
 
-      v.currentLaneOffset += (desiredLaneOffset - v.currentLaneOffset) * Math.min(1, 3.2 * deltaTime);
+      v.currentLaneOffset += (desiredLaneOffset - v.currentLaneOffset) * Math.min(1, 2.8 * deltaTime);
 
       const speedMps = (effectiveSpeedKmh / 3.6) * speedMultiplier;
       let remDist = speedMps * deltaTime;
@@ -1961,6 +2183,7 @@ function updateSameDirTraffic(deltaTime, frameNow = performance.now()) {
   }
 
   updateRearDirectionalIndicator(trailingCandidates);
+  drawSideMinimap(nextVehicleSummary, trailingCandidates);
 }
 
 function updateTripStatus() {
@@ -1994,8 +2217,6 @@ function handleAccelerate() {
 }
 
 let lastFrameTime = performance.now();
-
-
 
 function gameLoop(now) {
   if (!map) return;
