@@ -518,6 +518,54 @@ const cssStyles = `
     border: 2px solid #ffffff;
   }
 
+  .rear-indicator-bar {
+    position: fixed !important;
+    bottom: calc(156px + env(safe-area-inset-bottom, 0px)) !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    z-index: 999999 !important;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    pointer-events: none;
+    max-width: 92vw;
+  }
+
+  .rear-indicator-pill {
+    background: rgba(15, 23, 42, 0.92);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    border: 1.5px solid #f59e0b;
+    color: #ffffff;
+    padding: 5px 12px;
+    border-radius: 16px;
+    font-size: 0.76rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.55);
+    white-space: nowrap;
+  }
+
+  .rear-indicator-pill.close {
+    border-color: #ef4444;
+    background: rgba(69, 10, 10, 0.92);
+  }
+
+  .rear-arrow-badge {
+    color: #fbbf24;
+    font-size: 0.88rem;
+    line-height: 1;
+  }
+
+  .rear-dist-badge {
+    color: #38bdf8;
+    font-family: monospace;
+    font-size: 0.78rem;
+  }
+
   .report-modal-overlay {
     position: fixed;
     top: 0;
@@ -1229,7 +1277,7 @@ document.getElementById('btnStartLineMode').addEventListener('click', () => {
   const isRoadCategory = (lineData.tipo || '').toLowerCase() === 'rodoviario' || chosenModel === 'rodoviario';
   activePath = extractCoordinates(lineData.trajeto);
   clearSameDirTraffic();
-  configureTrafficThresholdsForRoute(activePath, isRoadCategory);
+  configureTrafficThresholdsForRoute(activePath, isRoadCategory, activeLetreiroText);
   speedMultiplier = 1.0;
 
   if (activePath.length < 2) {
@@ -1334,6 +1382,16 @@ function startSimulation(baseCoords, initialRenderCoords) {
   }, 250);
 }
 
+const rearIndicatorEl = document.createElement('div');
+rearIndicatorEl.className = 'rear-indicator-bar';
+rearIndicatorEl.id = 'rearIndicatorBar';
+document.body.appendChild(rearIndicatorEl);
+
+function hideRearIndicator() {
+  rearIndicatorEl.style.display = 'none';
+  rearIndicatorEl.innerHTML = '';
+}
+
 function exitGame() {
   stopTripTimer();
   clearSameDirTraffic();
@@ -1371,6 +1429,7 @@ function exitGame() {
   mobileTopBar.style.display = 'none';
   bottomCockpitBar.style.display = 'none';
   mapBanner.style.display = 'none';
+  hideRearIndicator();
 
   document.getElementById('cardLineMode').style.display = 'none';
   document.getElementById('cardFreeMode').style.display = 'none';
@@ -1428,20 +1487,16 @@ function getBusSvg(bodyColor, stripeColor, tipo = 'bhtrans', letreiroText = 'EXE
   let svgContent = '';
 
   if (modelKey === 'metropolitano') {
-    // Modelo 1 (Foto 1): Metropolitano - pintura branca/azul/laranja com ar-condicionado no teto e portas laterais
     svgContent = `
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 200" width="100" height="200">
         <rect x="6" y="6" width="88" height="188" rx="11" fill="rgba(0,0,0,0.45)" />
         <path d="M 11,15 C 11,6 19,4 50,4 C 81,4 89,6 89,15 L 89,187 C 89,194 81,196 50,196 C 19,196 11,194 11,187 Z" fill="${bodyColor}" stroke="#0f172a" stroke-width="2" />
-        <!-- Detalhe lateral e faixa de cor -->
         <rect x="12" y="42" width="76" height="114" rx="4" fill="#1e293b" opacity="0.86" />
         <path d="M 12,112 L 88,112 L 88,148 L 12,148 Z" fill="${stripeColor}" opacity="0.95" />
-        <!-- Portas laterais marcadas -->
         <rect x="9" y="52" width="4" height="22" rx="1" fill="#f97316" />
         <rect x="87" y="52" width="4" height="22" rx="1" fill="#f97316" />
         <rect x="9" y="102" width="4" height="22" rx="1" fill="#f97316" />
         <rect x="87" y="102" width="4" height="22" rx="1" fill="#f97316" />
-        <!-- Ar-condicionado central no teto -->
         <rect x="27" y="54" width="46" height="28" rx="4" fill="#e2e8f0" stroke="#334155" stroke-width="1.5" />
         <line x1="35" y1="54" x2="35" y2="82" stroke="#64748b" stroke-width="1.1" />
         <line x1="43" y1="54" x2="43" y2="82" stroke="#64748b" stroke-width="1.1" />
@@ -1449,11 +1504,9 @@ function getBusSvg(bodyColor, stripeColor, tipo = 'bhtrans', letreiroText = 'EXE
         <line x1="59" y1="54" x2="59" y2="82" stroke="#64748b" stroke-width="1.1" />
         <line x1="67" y1="54" x2="67" y2="82" stroke="#64748b" stroke-width="1.1" />
         <rect x="33" y="96" width="34" height="14" rx="3" fill="#0f172a" stroke="#fb923c" stroke-width="1.2" />
-        <!-- Para-brisa e letreiro frontal -->
         <path d="M 15,9 L 85,9 L 81,36 L 19,36 Z" fill="#0f172a" stroke="#e2e8f0" stroke-width="1.4" />
         <rect x="23" y="13" width="54" height="13" rx="2" fill="#020617" stroke="#fb923c" stroke-width="0.9" />
         <text x="50" y="22" fill="#fb923c" font-size="7.2" font-weight="bold" font-family="monospace" text-anchor="middle">${safeText}</text>
-        <!-- Faróis e lanternas traseiras -->
         <rect x="14" y="3" width="13" height="4" rx="1.5" fill="#fde047" />
         <rect x="73" y="3" width="13" height="4" rx="1.5" fill="#fde047" />
         <rect x="16" y="193" width="12" height="3.5" rx="1" fill="#ef4444" />
@@ -1461,23 +1514,18 @@ function getBusSvg(bodyColor, stripeColor, tipo = 'bhtrans', letreiroText = 'EXE
       </svg>
     `;
   } else if (modelKey === 'rodoviario') {
-    // Modelo 3 (Foto 3): Rodoviário - frente arredondada aerodinâmica, vidro panorâmico escuro e faixa dinâmica
     svgContent = `
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 200" width="100" height="200">
         <rect x="7" y="5" width="86" height="190" rx="16" fill="rgba(0,0,0,0.48)" />
         <path d="M 14,22 C 14,8 24,3 50,3 C 76,3 86,8 86,22 L 88,184 C 88,193 78,197 50,197 C 22,197 12,193 12,184 Z" fill="${bodyColor}" stroke="#0f172a" stroke-width="2" />
-        <!-- Vidro panorâmico escurecido e faixa da cor escolhida -->
         <path d="M 14,44 C 24,38 76,38 86,44 L 87,158 L 13,158 Z" fill="#0f172a" opacity="0.92" />
         <path d="M 13,144 L 87,144 L 87,165 L 13,165 Z" fill="${stripeColor}" opacity="0.92" />
-        <!-- Linhas aerodinâmicas do teto -->
         <line x1="28" y1="50" x2="28" y2="138" stroke="#475569" stroke-width="1.4" stroke-dasharray="6 4" />
         <line x1="72" y1="50" x2="72" y2="138" stroke="#475569" stroke-width="1.4" stroke-dasharray="6 4" />
         <rect x="32" y="70" width="36" height="30" rx="5" fill="#1e293b" stroke="#64748b" stroke-width="1.2" />
-        <!-- Para-brisa curvo e letreiro -->
         <path d="M 18,10 C 30,6 70,6 82,10 L 79,36 C 64,33 36,33 21,36 Z" fill="#090d16" stroke="#cbd5e1" stroke-width="1.3" />
         <rect x="26" y="13" width="48" height="12" rx="2" fill="#020617" stroke="#38bdf8" stroke-width="0.9" />
         <text x="50" y="21.5" fill="#4ade80" font-size="6.8" font-weight="bold" font-family="monospace" text-anchor="middle">${safeText}</text>
-        <!-- Faróis e lanternas traseiras -->
         <rect x="17" y="4" width="12" height="4" rx="1.5" fill="#fef08a" />
         <rect x="71" y="4" width="12" height="4" rx="1.5" fill="#fef08a" />
         <rect x="18" y="193" width="14" height="3.5" rx="1" fill="#dc2626" />
@@ -1485,20 +1533,16 @@ function getBusSvg(bodyColor, stripeColor, tipo = 'bhtrans', letreiroText = 'EXE
       </svg>
     `;
   } else {
-    // Modelo 2 (Foto 2): BHTrans - urbano com faixa e detalhes característicos + cor dinâmica
     svgContent = `
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 200" width="100" height="200">
         <rect x="6" y="6" width="88" height="188" rx="10" fill="rgba(0,0,0,0.45)" />
         <path d="M 10,14 C 10,6 18,4 50,4 C 82,4 90,6 90,14 L 90,187 C 90,194 82,196 50,196 C 18,196 10,194 10,187 Z" fill="${bodyColor}" stroke="#0f172a" stroke-width="2" />
-        <!-- Faixa lateral padrão urbano e janela/teto -->
         <rect x="11" y="44" width="78" height="102" rx="3" fill="${stripeColor}" opacity="0.9" />
         <rect x="24" y="52" width="52" height="84" rx="4" fill="#1e293b" stroke="#cbd5e1" stroke-width="1.2" />
         <circle cx="50" cy="94" r="10" fill="#334155" stroke="#38bdf8" stroke-width="1.2" />
-        <!-- Para-brisa e letreiro -->
         <path d="M 14,9 L 86,9 L 81,37 L 19,37 Z" fill="#0f172a" stroke="#e2e8f0" stroke-width="1.4" />
         <rect x="23" y="13" width="54" height="13" rx="2" fill="#020617" stroke="#38bdf8" stroke-width="0.9" />
         <text x="50" y="22" fill="#4ade80" font-size="7.2" font-weight="bold" font-family="monospace" text-anchor="middle">${safeText}</text>
-        <!-- Faróis e lanternas traseiras -->
         <rect x="14" y="3" width="12" height="4" rx="1.5" fill="#fbbf24" />
         <rect x="74" y="3" width="12" height="4" rx="1.5" fill="#fbbf24" />
         <rect x="16" y="193" width="11" height="3.5" rx="1" fill="#ef4444" />
@@ -1576,17 +1620,54 @@ function initMap(startCoords) {
 // TRÁFEGO NO MESMO SENTIDO (ATÉ 2 VEÍCULOS)
 // - LINHAS RODOVIÁRIAS: A CADA 20 KM RODADOS (20 KM E 40 KM)
 // - LINHAS URBANAS: MÉDIA CALCULADA CONFORME O TAMANHO DA ROTA
+// - ULTRAPASSAGEM SUAVE (NÃO-CORRIDA): BH E ESTAÇÃO ELDORADO
+// - DEMAIS LINHAS (BAIRRO): APENAS APOIO POSTERIOR
+// - INDICADOR DIRECIONAL E DE PROXIMIDADE NA RETAGUARDA
 // ============================================================
 
 const sameDirTraffic = {
   vehicles: [],
   totalRouteKm: 0,
   isRoadLine: false,
+  allowsOvertake: false,
   spawnThreshold1Km: 5,
   spawnThreshold2Km: 10,
   spawnedCount: 0,
-  lastToastMessage: ''
+  lastToastMessage: '',
+  lastCloseAlertTime: 0
 };
+
+function isMajorCorridorLine(lineNameText = '') {
+  const normalized = String(lineNameText || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+  return (
+    normalized.includes('estacao eldorado') ||
+    normalized.includes('eldorado') ||
+    /\bbh\b/.test(normalized) ||
+    normalized.includes('belo horizonte')
+  );
+}
+
+function getRouteProgressMeters(segIndex, segProgress) {
+  if (!Array.isArray(activePath) || activePath.length < 2) return 0;
+  let meters = 0;
+  const maxSeg = Math.min(segIndex, activePath.length - 1);
+  for (let i = 0; i < maxSeg; i++) {
+    meters += getMetersBetween(activePath[i], activePath[i + 1]);
+  }
+  return meters + Math.max(0, segProgress);
+}
+
+function getRelativeBearingArrow(fromCoord, toCoord, referenceHeadingDeg) {
+  const bearingToTarget = calculateBearing(fromCoord, toCoord);
+  let relAngle = (bearingToTarget - referenceHeadingDeg + 360) % 360;
+  if (relAngle > 180) relAngle -= 360;
+  if (relAngle < -155 || relAngle > 155) return '⬇';
+  if (relAngle < 0) return '↙';
+  return '↘';
+}
 
 function computeRouteTotalKm(pathCoords) {
   if (!Array.isArray(pathCoords) || pathCoords.length < 2) return 0;
@@ -1597,20 +1678,19 @@ function computeRouteTotalKm(pathCoords) {
   return totalMeters / 1000;
 }
 
-function configureTrafficThresholdsForRoute(pathCoords, isRoad = false) {
+function configureTrafficThresholdsForRoute(pathCoords, isRoad = false, lineNameText = '') {
   const totalKm = computeRouteTotalKm(pathCoords);
   sameDirTraffic.totalRouteKm = totalKm;
   sameDirTraffic.isRoadLine = Boolean(isRoad);
+  sameDirTraffic.allowsOvertake = isMajorCorridorLine(lineNameText);
   sameDirTraffic.spawnedCount = 0;
   sameDirTraffic.lastToastMessage = '';
+  sameDirTraffic.lastCloseAlertTime = 0;
 
   if (sameDirTraffic.isRoadLine) {
-    // Linhas rodoviárias: entra a cada 20 km rodados (20 km e 40 km)
     sameDirTraffic.spawnThreshold1Km = 20;
     sameDirTraffic.spawnThreshold2Km = 40;
   } else {
-    // Linhas urbanas: média calculada conforme a extensão da rota
-    // Divide o percurso em faixas proporcionais (aprox. 1/3 e 2/3 da rota)
     const avgStepKm = totalKm > 0 ? totalKm / 3 : 3;
     sameDirTraffic.spawnThreshold1Km = Math.max(0.8, avgStepKm);
     sameDirTraffic.spawnThreshold2Km = Math.max(sameDirTraffic.spawnThreshold1Km + 0.8, avgStepKm * 2);
@@ -1626,6 +1706,8 @@ function clearSameDirTraffic() {
   sameDirTraffic.vehicles = [];
   sameDirTraffic.spawnedCount = 0;
   sameDirTraffic.lastToastMessage = '';
+  sameDirTraffic.lastCloseAlertTime = 0;
+  hideRearIndicator();
 }
 
 function createTrafficVehicle(slotIndex) {
@@ -1636,18 +1718,17 @@ function createTrafficVehicle(slotIndex) {
   const initHeading = calculateBearing(p0, p1);
   const segLen = Math.max(0.5, getMetersBetween(p0, p1));
 
-  // Leve variação de faixa e velocidade para não encavalar no jogador
-  const laneOffset = slotIndex === 0 ? BASE_RIGHT_LANE_OFFSET_METERS + 0.35 : BASE_RIGHT_LANE_OFFSET_METERS - 0.35;
+  const baseOffset = slotIndex === 0 ? BASE_RIGHT_LANE_OFFSET_METERS + 0.35 : BASE_RIGHT_LANE_OFFSET_METERS - 0.35;
   const speedKmh = slotIndex === 0
-    ? Math.max(55, cruiseSpeedKmh * 0.88)
-    : Math.max(60, cruiseSpeedKmh * 0.96);
+    ? Math.max(52, cruiseSpeedKmh * 0.88)
+    : Math.max(58, cruiseSpeedKmh * 0.95);
 
   const colorKey = slotIndex === 0 ? 'bhtrans_azul' : 'amarelo';
   const modelKey = (sameDirTraffic.isRoadLine || currentVehicleType === 'rodoviario') ? 'rodoviario' : 'bhtrans';
   const label = slotIndex === 0 ? 'APOIO 01' : 'APOIO 02';
   const preset = COLOR_PRESETS[colorKey] || COLOR_PRESETS['azul'];
 
-  const renderPos = applyRightLaneOffset(p0[0], p0[1], initHeading, laneOffset);
+  const renderPos = applyRightLaneOffset(p0[0], p0[1], initHeading, baseOffset);
 
   const el = document.createElement('img');
   el.className = 'bus-marker-img';
@@ -1673,7 +1754,10 @@ function createTrafficVehicle(slotIndex) {
     segLength: segLen,
     heading: initHeading,
     speedKmh: speedKmh,
-    laneOffset: laneOffset,
+    baseLaneOffset: baseOffset,
+    currentLaneOffset: baseOffset,
+    overtakeState: 'none',
+    overtakeStartDistMeters: 0,
     finished: false,
     marker: marker
   };
@@ -1713,23 +1797,116 @@ function maybeSpawnSameDirTraffic() {
   }
 }
 
-function updateSameDirTraffic(deltaTime) {
-  if (currentGameMode !== 'line' || !map) return;
+function updateRearDirectionalIndicator(trailingCandidates) {
+  if (!rearIndicatorEl) return;
+  if (currentGameMode !== 'line' || !isTripActive || isLineFinished || !Array.isArray(trailingCandidates) || trailingCandidates.length === 0) {
+    hideRearIndicator();
+    return;
+  }
+
+  const visibleItems = trailingCandidates
+    .filter(item => item.distMeters <= 1200)
+    .sort((a, b) => a.distMeters - b.distMeters)
+    .slice(0, 2);
+
+  if (visibleItems.length === 0) {
+    hideRearIndicator();
+    return;
+  }
+
+  rearIndicatorEl.style.display = 'flex';
+  rearIndicatorEl.innerHTML = visibleItems.map(item => {
+    const isClose = item.distMeters <= 140;
+    const distText = item.distMeters >= 1000
+      ? `${(item.distMeters / 1000).toFixed(2)} km`
+      : `${Math.round(item.distMeters)} m`;
+    return `
+      <div class="rear-indicator-pill ${isClose ? 'close' : ''}">
+        <span class="rear-arrow-badge">${item.arrow}</span>
+        <span>${item.label} atrás</span>
+        <span class="rear-dist-badge">${distText}</span>
+      </div>
+    `;
+  }).join('');
+}
+
+function updateSameDirTraffic(deltaTime, frameNow = performance.now()) {
+  if (currentGameMode !== 'line' || !map) {
+    hideRearIndicator();
+    return;
+  }
 
   maybeSpawnSameDirTraffic();
 
-  if (sameDirTraffic.vehicles.length === 0) return;
+  if (sameDirTraffic.vehicles.length === 0) {
+    hideRearIndicator();
+    return;
+  }
+
+  const playerRouteMeters = getRouteProgressMeters(currentSegIndex, segProgressMeters);
+  const trailingCandidates = [];
 
   for (const v of sameDirTraffic.vehicles) {
     if (v.finished || !v.marker) continue;
 
-    if (isTripActive && !isLineFinished) {
-      // Se o veículo extra ficar muito próximo à frente do jogador, reduz levemente para evitar sobreposição
-      let effectiveSpeedKmh = v.speedKmh;
-      const distToPlayerMeters = getMetersBetween([v.lng, v.lat], [busLng, busLat]);
-      if (distToPlayerMeters < 28 && currentSpeedKmh > 5) {
-        effectiveSpeedKmh = Math.max(25, currentSpeedKmh * 0.75);
+    const vRouteMeters = getRouteProgressMeters(v.segIndex, v.segProgress);
+    const deltaAlongRouteMeters = playerRouteMeters - vRouteMeters;
+    const directDistMeters = getMetersBetween([v.lng, v.lat], [busLng, busLat]);
+
+    if (deltaAlongRouteMeters > 12) {
+      trailingCandidates.push({
+        label: `APOIO 0${v.id}`,
+        distMeters: directDistMeters,
+        arrow: getRelativeBearingArrow([busLng, busLat], [v.lng, v.lat], smoothHeading)
+      });
+
+      if (directDistMeters <= 110 && (frameNow - sameDirTraffic.lastCloseAlertTime > 12000)) {
+        sameDirTraffic.lastCloseAlertTime = frameNow;
+        showAlert(`⬅️ APOIO 0${v.id} se aproximando atrás (${Math.round(directDistMeters)} m)`);
       }
+    }
+
+    if (isTripActive && !isLineFinished) {
+      let effectiveSpeedKmh = v.speedKmh;
+      let desiredLaneOffset = v.baseLaneOffset;
+
+      if (sameDirTraffic.allowsOvertake) {
+        const isBehindClose = deltaAlongRouteMeters > 8 && deltaAlongRouteMeters < 42 && directDistMeters < 45;
+        const playerPaceModerate = currentSpeedKmh < Math.max(45, cruiseSpeedKmh * 0.85);
+
+        if (v.overtakeState === 'none' && isBehindClose && playerPaceModerate) {
+          v.overtakeState = 'passing';
+          v.overtakeStartDistMeters = vRouteMeters;
+        }
+
+        if (v.overtakeState === 'passing') {
+          const passedMeters = vRouteMeters - v.overtakeStartDistMeters;
+          desiredLaneOffset = Math.max(-1.6, v.baseLaneOffset - 2.6);
+          effectiveSpeedKmh = Math.min(cruiseSpeedKmh * 1.04, Math.max(v.speedKmh + 8, currentSpeedKmh + 14));
+
+          if (passedMeters >= 55 || deltaAlongRouteMeters < -26) {
+            v.overtakeState = 'returning';
+          }
+        } else if (v.overtakeState === 'returning') {
+          desiredLaneOffset = v.baseLaneOffset;
+          if (Math.abs(v.currentLaneOffset - v.baseLaneOffset) < 0.15) {
+            v.overtakeState = 'none';
+          }
+        } else {
+          desiredLaneOffset = v.baseLaneOffset;
+          if (deltaAlongRouteMeters > 0 && deltaAlongRouteMeters < 24 && currentSpeedKmh > 5) {
+            effectiveSpeedKmh = Math.min(effectiveSpeedKmh, Math.max(20, currentSpeedKmh * 0.85));
+          }
+        }
+      } else {
+        v.overtakeState = 'none';
+        desiredLaneOffset = v.baseLaneOffset;
+        if (deltaAlongRouteMeters > 0 && deltaAlongRouteMeters < 28 && currentSpeedKmh > 5) {
+          effectiveSpeedKmh = Math.max(25, currentSpeedKmh * 0.78);
+        }
+      }
+
+      v.currentLaneOffset += (desiredLaneOffset - v.currentLaneOffset) * Math.min(1, 3.2 * deltaTime);
 
       const speedMps = (effectiveSpeedKmh / 3.6) * speedMultiplier;
       let remDist = speedMps * deltaTime;
@@ -1778,10 +1955,12 @@ function updateSameDirTraffic(deltaTime) {
       }
     }
 
-    const pos = applyRightLaneOffset(v.lng, v.lat, v.heading, v.laneOffset);
+    const pos = applyRightLaneOffset(v.lng, v.lat, v.heading, v.currentLaneOffset);
     v.marker.setLngLat(pos);
     v.marker.setRotation(v.heading);
   }
+
+  updateRearDirectionalIndicator(trailingCandidates);
 }
 
 function updateTripStatus() {
@@ -1915,7 +2094,6 @@ function gameLoop(now) {
         }
       }
 
-      // Esterçamento natural ao mudar de lado na faixa: gira o nariz do ônibus e desloca sem patinar de lado
       const speedFactor = Math.min(1, Math.max(0.15, currentSpeedKmh / 35));
       const maxLateralSpeed = 2.6 * speedFactor;
       let targetLateralVel = 0;
@@ -1932,12 +2110,10 @@ function gameLoop(now) {
         Math.min(MAX_LINE_LATERAL_ADJUST_METERS, lineLateralCorrectionMeters + lineLateralVelocity * deltaTime)
       );
 
-      // Quando não está pressionando esquerda/direita, retorna suavemente ao alinhamento da faixa direita
       if (!keysPressed.Left && !keysPressed.Right) {
         lineLateralCorrectionMeters += (0 - lineLateralCorrectionMeters) * Math.min(1, 2.2 * deltaTime);
       }
 
-      // Calcula o ângulo de esterçamento da frente do veículo proporcional ao movimento lateral
       const targetYawOffset = (lineLateralVelocity / Math.max(0.5, maxLateralSpeed)) * 15;
       busVisualYawOffset += (targetYawOffset - busVisualYawOffset) * Math.min(1, 9.0 * deltaTime);
     } else {
@@ -1974,7 +2150,6 @@ function gameLoop(now) {
       }
     }
 
-    // Esterçamento progressivo vinculado ao movimento (evita rodar no próprio eixo parado ou patinar)
     const absSpeed = Math.abs(currentSpeedKmh);
     const steerInput = (keysPressed.Right ? 1 : 0) - (keysPressed.Left ? 1 : 0);
     const speedTurnScale = absSpeed < 1.0 ? 0 : Math.min(1, 0.35 + (absSpeed / 40) * 0.65);
@@ -2015,7 +2190,7 @@ function gameLoop(now) {
   document.getElementById('speedValue').textContent = speedDisplay;
   document.getElementById('miniSpeedDisplay').textContent = speedDisplay;
 
-  updateSameDirTraffic(deltaTime);
+  updateSameDirTraffic(deltaTime, now);
 
   const currentCoords = [renderLng, renderLat];
   if (busMarker) {
@@ -2059,7 +2234,7 @@ window.addEventListener('keydown', (e) => {
     document.getElementById('btnDpadUp')?.classList.add('pressed');
   }
   if (['ArrowDown', 'KeyS'].includes(e.code)) {
-      keysPressed.Down = true;
+    keysPressed.Down = true;
     document.getElementById('btnDpadDown')?.classList.add('pressed');
   }
   if (['ArrowLeft', 'KeyA'].includes(e.code)) {
