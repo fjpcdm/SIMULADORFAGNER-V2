@@ -1273,7 +1273,66 @@ document.getElementById('btnStartLineMode').addEventListener('click', () => {
     return;
   }
 
-  document.getElementById('lineBadgeDisplay').textContent = `${lineData.nome}`; currentSegIndex = 0; segProgressMeters = 0; currentSegLength = getMetersBetween(activePath[0], activePath[1]); isLineFinished = false; isTripActive = false; isAutopilotMoving = false; currentSpeedKmh = 0; distanceCoveredKm = 0; lineLateralCorrectionMeters = 0; lineLateralVelocity = 0; busVisualYawOffset = 0;  targetHeading = calculateBearing(activePath[0], activePath[1]); smoothHeading = targetHeading; vehicleHeading = targetHeading; currentCameraBearing = targetHeading;  const initialLanePos = applyRightLaneOffset( activePath[0][0], activePath[0][1], targetHeading, BASE_RIGHT_LANE_OFFSET_METERS );  updateTripStatus(); startSimulation(activePath[0], initialLanePos); });  document.getElementById('btnStartFreeMode').addEventListener('click', async () => { currentGameMode = 'free'; const chosenFreeModel = document.getElementById('selectModelFree')?.value \vert{}\vert{} 'bhtrans'; currentVehicleType = chosenFreeModel; activeLetreiroText = chosenFreeModel === 'rodoviario' ? 'RODOVIÁRIO' : (chosenFreeModel === 'metropolitano' ? 'METROPOLITANO' : 'BHTRANS LIVRE'); activePresetKey = document.getElementById('selectColorFree').value \vert{}\vert{} 'vermelho'; const locationQuery = document.getElementById('inputFreeLocation').value.trim(); saveUserPreferences({ modelFree: chosenFreeModel, colorFree: activePresetKey, freeLocation: locationQuery });  document.getElementById('lineBadgeDisplay').textContent = 'Modo Livre';  currentSpeedKmh = 0; isAutopilotMoving = false; distanceCoveredKm = 0; cruiseSpeedKmh = 90; boostSpeedKmh = 140; speedMultiplier = 1.0; isTripActive = true; vehicleHeading = 0; freeSteerRate = 0; lineLateralCorrectionMeters = 0; lineLateralVelocity = 0; busVisualYawOffset = 0; currentCameraBearing = 0; updateTripStatus(); startTripTimer();  try { const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(locationQuery)}`);
+  document.getElementById('lineBadgeDisplay').textContent = `${lineData.nome}`;
+  currentSegIndex = 0;
+  segProgressMeters = 0;
+  currentSegLength = getMetersBetween(activePath[0], activePath[1]);
+  isLineFinished = false;
+  isTripActive = false;
+  isAutopilotMoving = false;
+  currentSpeedKmh = 0;
+  distanceCoveredKm = 0;
+  lineLateralCorrectionMeters = 0;
+  lineLateralVelocity = 0;
+  busVisualYawOffset = 0;
+
+  targetHeading = calculateBearing(activePath[0], activePath[1]);
+  smoothHeading = targetHeading;
+  vehicleHeading = targetHeading;
+  currentCameraBearing = targetHeading;
+
+  const initialLanePos = applyRightLaneOffset(
+    activePath[0][0],
+    activePath[0][1],
+    targetHeading,
+    BASE_RIGHT_LANE_OFFSET_METERS
+  );
+
+  updateTripStatus();
+  startSimulation(activePath[0], initialLanePos);
+});
+
+document.getElementById('btnStartFreeMode').addEventListener('click', async () => {
+  currentGameMode = 'free';
+  const chosenFreeModel = document.getElementById('selectModelFree')?.value || 'bhtrans';
+  currentVehicleType = chosenFreeModel;
+  activeLetreiroText = chosenFreeModel === 'rodoviario'
+    ? 'RODOVIÁRIO'
+    : (chosenFreeModel === 'metropolitano' ? 'METROPOLITANO' : 'BHTRANS LIVRE');
+  activePresetKey = document.getElementById('selectColorFree').value || 'vermelho';
+  const locationQuery = document.getElementById('inputFreeLocation').value.trim();
+  saveUserPreferences({ modelFree: chosenFreeModel, colorFree: activePresetKey, freeLocation: locationQuery });
+
+  document.getElementById('lineBadgeDisplay').textContent = 'Modo Livre';
+
+  currentSpeedKmh = 0;
+  isAutopilotMoving = false;
+  distanceCoveredKm = 0;
+  cruiseSpeedKmh = 90;
+  boostSpeedKmh = 140;
+  speedMultiplier = 1.0;
+  isTripActive = true;
+  vehicleHeading = 0;
+  freeSteerRate = 0;
+  lineLateralCorrectionMeters = 0;
+  lineLateralVelocity = 0;
+  busVisualYawOffset = 0;
+  currentCameraBearing = 0;
+  updateTripStatus();
+  startTripTimer();
+
+  try {
+    const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(locationQuery)}`);
     const data = await res.json();
     if (data && data.length > 0) {
       const lon = parseFloat(data[0].lon);
@@ -1409,4 +1468,744 @@ function getBusSvg(bodyColor, stripeColor, tipo = 'bhtrans', letreiroText = 'EXE
     svgContent = `
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 200" width="100" height="200">
         <rect x="6" y="6" width="88" height="188" rx="11" fill="rgba(0,0,0,0.45)" />
-        <path d="M 11,15 C 11,6 19,4 50,4 C 81,4 89,6 89,15 L 89,187 C 89,194 81,196 50,196 C 19,196 11,194 11,
+        <path d="M 11,15 C 11,6 19,4 50,4 C 81,4 89,6 89,15 L 89,187 C 89,194 81,196 50,196 C 19,196 11,194 11,187 Z" fill="${bodyColor}" stroke="#0f172a" stroke-width="2" />
+        <rect x="12" y="42" width="76" height="114" rx="4" fill="#1e293b" opacity="0.86" />
+        <path d="M 12,112 L 88,112 L 88,148 L 12,148 Z" fill="${stripeColor}" opacity="0.95" />
+        <rect x="9" y="52" width="4" height="22" rx="1" fill="#f97316" />
+        <rect x="87" y="52" width="4" height="22" rx="1" fill="#f97316" />
+        <rect x="9" y="102" width="4" height="22" rx="1" fill="#f97316" />
+        <rect x="87" y="102" width="4" height="22" rx="1" fill="#f97316" />
+        <rect x="27" y="54" width="46" height="28" rx="4" fill="#e2e8f0" stroke="#334155" stroke-width="1.5" />
+        <line x1="35" y1="54" x2="35" y2="82" stroke="#64748b" stroke-width="1.1" />
+        <line x1="43" y1="54" x2="43" y2="82" stroke="#64748b" stroke-width="1.1" />
+        <line x1="51" y1="54" x2="51" y2="82" stroke="#64748b" stroke-width="1.1" />
+        <line x1="59" y1="54" x2="59" y2="82" stroke="#64748b" stroke-width="1.1" />
+        <line x1="67" y1="54" x2="67" y2="82" stroke="#64748b" stroke-width="1.1" />
+        <rect x="33" y="96" width="34" height="14" rx="3" fill="#0f172a" stroke="#fb923c" stroke-width="1.2" />
+        <path d="M 15,9 L 85,9 L 81,36 L 19,36 Z" fill="#0f172a" stroke="#e2e8f0" stroke-width="1.4" />
+        <rect x="23" y="13" width="54" height="13" rx="2" fill="#020617" stroke="#fb923c" stroke-width="0.9" />
+        <text x="50" y="22" fill="#fb923c" font-size="7.2" font-weight="bold" font-family="monospace" text-anchor="middle">${safeText}</text>
+        <rect x="14" y="3" width="13" height="4" rx="1.5" fill="#fde047" />
+        <rect x="73" y="3" width="13" height="4" rx="1.5" fill="#fde047" />
+        <rect x="16" y="193" width="12" height="3.5" rx="1" fill="#ef4444" />
+        <rect x="72" y="193" width="12" height="3.5" rx="1" fill="#ef4444" />
+      </svg>
+    `;
+  } else if (modelKey === 'rodoviario') {
+    svgContent = `
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 200" width="100" height="200">
+        <rect x="7" y="5" width="86" height="190" rx="16" fill="rgba(0,0,0,0.48)" />
+        <path d="M 14,22 C 14,8 24,3 50,3 C 76,3 86,8 86,22 L 88,184 C 88,193 78,197 50,197 C 22,197 12,193 12,184 Z" fill="${bodyColor}" stroke="#0f172a" stroke-width="2" />
+        <path d="M 14,44 C 24,38 76,38 86,44 L 87,158 L 13,158 Z" fill="#0f172a" opacity="0.92" />
+        <path d="M 13,144 L 87,144 L 87,165 L 13,165 Z" fill="${stripeColor}" opacity="0.92" />
+        <line x1="28" y1="50" x2="28" y2="138" stroke="#475569" stroke-width="1.4" stroke-dasharray="6 4" />
+        <line x1="72" y1="50" x2="72" y2="138" stroke="#475569" stroke-width="1.4" stroke-dasharray="6 4" />
+        <rect x="32" y="70" width="36" height="30" rx="5" fill="#1e293b" stroke="#64748b" stroke-width="1.2" />
+        <path d="M 18,10 C 30,6 70,6 82,10 L 79,36 C 64,33 36,33 21,36 Z" fill="#090d16" stroke="#cbd5e1" stroke-width="1.3" />
+        <rect x="26" y="13" width="48" height="12" rx="2" fill="#020617" stroke="#38bdf8" stroke-width="0.9" />
+        <text x="50" y="21.5" fill="#4ade80" font-size="6.8" font-weight="bold" font-family="monospace" text-anchor="middle">${safeText}</text>
+        <rect x="17" y="4" width="12" height="4" rx="1.5" fill="#fef08a" />
+        <rect x="71" y="4" width="12" height="4" rx="1.5" fill="#fef08a" />
+        <rect x="18" y="193" width="14" height="3.5" rx="1" fill="#dc2626" />
+        <rect x="68" y="193" width="14" height="3.5" rx="1" fill="#dc2626" />
+      </svg>
+    `;
+  } else {
+    svgContent = `
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 200" width="100" height="200">
+        <rect x="6" y="6" width="88" height="188" rx="10" fill="rgba(0,0,0,0.45)" />
+        <path d="M 10,14 C 10,6 18,4 50,4 C 82,4 90,6 90,14 L 90,187 C 90,194 82,196 50,196 C 18,196 10,194 10,187 Z" fill="${bodyColor}" stroke="#0f172a" stroke-width="2" />
+        <rect x="11" y="44" width="78" height="102" rx="3" fill="${stripeColor}" opacity="0.9" />
+        <rect x="24" y="52" width="52" height="84" rx="4" fill="#1e293b" stroke="#cbd5e1" stroke-width="1.2" />
+        <circle cx="50" cy="94" r="10" fill="#334155" stroke="#38bdf8" stroke-width="1.2" />
+        <path d="M 14,9 L 86,9 L 81,37 L 19,37 Z" fill="#0f172a" stroke="#e2e8f0" stroke-width="1.4" />
+        <rect x="23" y="13" width="54" height="13" rx="2" fill="#020617" stroke="#38bdf8" stroke-width="0.9" />
+        <text x="50" y="22" fill="#4ade80" font-size="7.2" font-weight="bold" font-family="monospace" text-anchor="middle">${safeText}</text>
+        <rect x="14" y="3" width="12" height="4" rx="1.5" fill="#fbbf24" />
+        <rect x="74" y="3" width="12" height="4" rx="1.5" fill="#fbbf24" />
+        <rect x="16" y="193" width="11" height="3.5" rx="1" fill="#ef4444" />
+        <rect x="73" y="193" width="11" height="3.5" rx="1" fill="#ef4444" />
+      </svg>
+    `;
+  }
+
+  return 'data:image/svg+xml;utf8,' + encodeURIComponent(svgContent.trim());
+}
+
+function initMap(startCoords) {
+  if (map) {
+    map.remove();
+    map = null;
+  }
+
+  const initialBearing = currentGameMode === 'line' ? smoothHeading : vehicleHeading;
+
+  map = new maplibregl.Map({
+    container: 'map',
+    antialias: true,
+    style: {
+      version: 8,
+      sources: {
+        'google-hybrid-source': {
+          type: 'raster',
+          tiles: [
+            'https://mt0.google.com/vt/lyrs=y,h&x={x}&y={y}&z={z}',
+            'https://mt1.google.com/vt/lyrs=y,h&x={x}&y={y}&z={z}',
+            'https://mt2.google.com/vt/lyrs=y,h&x={x}&y={y}&z={z}',
+            'https://mt3.google.com/vt/lyrs=y,h&x={x}&y={y}&z={z}'
+          ],
+          tileSize: 256,
+          maxzoom: 22
+        }
+      },
+      layers: [{ id: 'google-hybrid-layer', type: 'raster', source: 'google-hybrid-source', minzoom: 0, maxzoom: 22 }]
+    },
+    center: startCoords,
+    zoom: currentZoomLevel,
+    pitch: 25,
+    bearing: initialBearing,
+    renderWorldCopies: false
+  });
+
+  const preset = COLOR_PRESETS[activePresetKey] || COLOR_PRESETS['vermelho'];
+
+  const busImg = document.createElement('img');
+  busImg.className = 'bus-marker-img';
+  busImg.src = getBusSvg(preset.bodyColor, preset.stripeColor, currentVehicleType, activeLetreiroText);
+
+  busMarker = new maplibregl.Marker({
+    element: busImg,
+    anchor: 'center',
+    rotationAlignment: 'map',
+    pitchAlignment: 'map'
+  })
+    .setLngLat(startCoords)
+    .setRotation(initialBearing)
+    .addTo(map);
+
+  map.on('load', () => {
+    map.resize();
+    setTimeout(() => { if (map) map.resize(); }, 250);
+    busMarker.setLngLat(startCoords);
+    lastFrameTime = performance.now();
+    if (animationFrameId) cancelAnimationFrame(animationFrameId);
+    animationFrameId = requestAnimationFrame(gameLoop);
+  });
+}
+
+function updateTripStatus() {
+  const badge = document.getElementById('tripStatusBadge');
+  if (!isTripActive && !isLineFinished) {
+    badge.className = 'trip-status-badge stopped';
+    badge.textContent = 'Aguardando Início';
+    btnTripToggle.className = 'btn-trip-toggle start';
+    btnTripToggle.textContent = '▶️ Dar Entrada na Viagem';
+  } else if (isLineFinished) {
+    badge.className = 'trip-status-badge stopped';
+    badge.textContent = 'Viagem Concluída';
+    btnTripToggle.className = 'btn-trip-toggle start';
+    btnTripToggle.textContent = '🔄 Reiniciar Viagem';
+  } else {
+    badge.className = 'trip-status-badge running';
+    badge.textContent = 'Em Viagem';
+    btnTripToggle.className = 'btn-trip-toggle stop';
+    btnTripToggle.textContent = '🛑 Encerrar Viagem';
+  }
+}
+
+function handleAccelerate() {
+  busAudio.init();
+  if (!isTripActive && currentGameMode === 'line') {
+    isTripActive = true;
+    startTripTimer();
+  }
+  mapBanner.style.display = 'none';
+  isAutopilotMoving = true;
+  updateTripStatus();
+}
+
+let lastFrameTime = performance.now();
+
+// ============================================================
+// MOTOR DE ÁUDIO REALISTA DE ÔNIBUS (SAMPLES REAIS + SÍNTESE DIESEL ORGÂNICA)
+// Suporta arquivos reais locais se colocados na pasta (motor.mp3, buzina.mp3, freio.mp3)
+// e possui motor acústico realista multi-cilindro + buzina a ar como padrão imediato.
+// ============================================================
+const busAudio = {
+  ctx: null,
+  masterGain: null,
+  engineSubOsc: null,
+  engineCylinderOsc: null,
+  engineTurboOsc: null,
+  engineNoiseNode: null,
+  engineFilter: null,
+  engineGain: null,
+  turboGain: null,
+  noiseBuffer: null,
+  realSamples: {
+    engine: null,
+    horn: null,
+    brake: null
+  },
+  isInitialized: false,
+  wasBraking: false,
+  lastAirBrakeTime: 0,
+  lastHornTime: 0,
+
+  init() {
+    if (this.isInitialized) {
+      if (this.ctx && this.ctx.state === 'suspended') {
+        this.ctx.resume().catch(() => {});
+      }
+      return;
+    }
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+
+    try {
+      this.ctx = new AudioCtx();
+      this.masterGain = this.ctx.createGain();
+      this.masterGain.gain.value = 0.28;
+      this.masterGain.connect(this.ctx.destination);
+
+      // Tenta carregar gravações reais locais opcionalmente (motor.mp3, buzina.mp3, freio.mp3)
+      this._tryLoadRealAudio('engine', 'motor.mp3', true);
+      this._tryLoadRealAudio('horn', 'buzina.mp3', false);
+      this._tryLoadRealAudio('brake', 'freio.mp3', false);
+
+      // Buffer de ruído orgânico para escapamento diesel e válvula pneumática de freio
+      const bufferSize = this.ctx.sampleRate * 2.0;
+      this.noiseBuffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+      const data = this.noiseBuffer.getChannelData(0);
+      let lastOut = 0.0;
+      for (let i = 0; i < bufferSize; i++) {
+        const white = Math.random() * 2 - 1;
+        data[i] = (lastOut + (0.04 * white)) / 1.04;
+        lastOut = data[i];
+        data[i] *= 2.8;
+      }
+
+      // Cadeia acústica de motor diesel 6 cilindros (grave pulsante + escapamento + assobio suave de turbina)
+      this.engineFilter = this.ctx.createBiquadFilter();
+      this.engineFilter.type = 'lowpass';
+      this.engineFilter.frequency.value = 135;
+      this.engineFilter.Q.value = 2.1;
+
+      this.engineGain = this.ctx.createGain();
+      this.engineGain.gain.value = 0.0001;
+
+      // Oscilador fundamental (pulsação lenta de marcha lenta ~26Hz)
+      this.engineSubOsc = this.ctx.createOscillator();
+      this.engineSubOsc.type = 'sawtooth';
+      this.engineSubOsc.frequency.value = 26;
+
+      // Harmônico de combustão 6 cilindros (3x fundamental)
+      this.engineCylinderOsc = this.ctx.createOscillator();
+      this.engineCylinderOsc.type = 'triangle';
+      this.engineCylinderOsc.frequency.value = 78;
+
+      // Ruído contínuo do escapamento/admissão
+      this.engineNoiseNode = this.ctx.createBufferSource();
+      this.engineNoiseNode.buffer = this.noiseBuffer;
+      this.engineNoiseNode.loop = true;
+
+      const exhaustNoiseGain = this.ctx.createGain();
+      exhaustNoiseGain.gain.value = 0.45;
+
+      // Assobio discreto da turbina em rotação média/alta
+      this.engineTurboOsc = this.ctx.createOscillator();
+      this.engineTurboOsc.type = 'sine';
+      this.engineTurboOsc.frequency.value = 1150;
+
+      this.turboGain = this.ctx.createGain();
+      this.turboGain.gain.value = 0.0001;
+
+      this.engineSubOsc.connect(this.engineFilter);
+      this.engineCylinderOsc.connect(this.engineFilter);
+      this.engineNoiseNode.connect(exhaustNoiseGain);
+      exhaustNoiseGain.connect(this.engineFilter);
+
+      this.engineFilter.connect(this.engineGain);
+      this.engineGain.connect(this.masterGain);
+
+      this.engineTurboOsc.connect(this.turboGain);
+      this.turboGain.connect(this.masterGain);
+
+      this.engineSubOsc.start();
+      this.engineCylinderOsc.start();
+      this.engineNoiseNode.start();
+      this.engineTurboOsc.start();
+
+      this.isInitialized = true;
+    } catch (e) {}
+  },
+
+  _tryLoadRealAudio(slot, url, loop) {
+    try {
+      const audio = new Audio(url);
+      audio.loop = loop;
+      audio.preload = 'auto';
+      audio.addEventListener('canplaythrough', () => {
+        this.realSamples[slot] = audio;
+      }, { once: true });
+    } catch (e) {}
+  },
+
+  updateEngine(speedKmh, isAccelerating, isActive) {
+    if (!this.isInitialized) return;
+
+    const absSpeed = Math.min(180, Math.abs(speedKmh || 0));
+
+    // Se houver arquivo real motor.mp3 na pasta, usa-o modulando rotação (playbackRate) e volume
+    if (this.realSamples.engine) {
+      const realEng = this.realSamples.engine;
+      if (!isActive) {
+        if (!realEng.paused) realEng.pause();
+        return;
+      }
+      if (realEng.paused) {
+        realEng.play().catch(() => {});
+      }
+      const gearRatio = (absSpeed % 32) / 32;
+      const rate = 0.78 + gearRatio * 0.55 + (isAccelerating ? 0.14 : 0);
+      realEng.playbackRate = Math.min(1.65, Math.max(0.75, rate));
+      realEng.volume = Math.min(0.45, 0.14 + (absSpeed / 140) * 0.22 + (isAccelerating ? 0.08 : 0));
+      if (this.engineGain && this.ctx) {
+        this.engineGain.gain.setTargetAtTime(0.0001, this.ctx.currentTime, 0.05);
+      }
+      return;
+    }
+
+    if (!this.ctx || !this.engineGain || !this.engineSubOsc || !this.engineCylinderOsc || !this.engineFilter) {
+      return;
+    }
+    if (this.ctx.state === 'suspended') {
+      this.ctx.resume().catch(() => {});
+    }
+
+    const now = this.ctx.currentTime;
+    if (!isActive) {
+      this.engineGain.gain.setTargetAtTime(0.0001, now, 0.12);
+      if (this.turboGain) this.turboGain.gain.setTargetAtTime(0.0001, now, 0.1);
+      return;
+    }
+
+    // Simulação de troca automática de marchas (1ª a 5ª) para soar como motor diesel real
+    const gearSpeed = absSpeed < 1 ? 0 : ((absSpeed % 28) / 28);
+    const rpmNorm = absSpeed < 1 ? 0 : (0.28 + gearSpeed * 0.72);
+    const throttleBoost = isAccelerating ? 0.25 : 0;
+
+    const baseFreq = 24 + rpmNorm * 34 + (isAccelerating ? 5 : 0);
+    const filterFreq = 105 + rpmNorm * 210 + (isAccelerating ? 85 : 0);
+    const targetGain = Math.min(0.24, 0.045 + rpmNorm * 0.09 + throttleBoost * 0.06);
+
+    this.engineSubOsc.frequency.setTargetAtTime(baseFreq, now, 0.07);
+    this.engineCylinderOsc.frequency.setTargetAtTime(baseFreq * 3, now, 0.07);
+    this.engineFilter.frequency.setTargetAtTime(filterFreq, now, 0.08);
+    this.engineGain.gain.setTargetAtTime(targetGain, now, 0.08);
+
+    // Turbina entra sutilmente em rotações mais altas
+    if (this.turboGain && this.engineTurboOsc) {
+      const turboFreq = 1100 + rpmNorm * 950;
+      const turboVol = (isAccelerating && rpmNorm > 0.45) ? Math.min(0.014, (rpmNorm - 0.45) * 0.025) : 0.0001;
+      this.engineTurboOsc.frequency.setTargetAtTime(turboFreq, now, 0.1);
+      this.turboGain.gain.setTargetAtTime(turboVol, now, 0.12);
+    }
+  },
+
+  playBrakeAir(intensity = 0.7) {
+    this.init();
+    const nowMs = performance.now();
+    if (nowMs - this.lastAirBrakeTime < 550) return;
+    this.lastAirBrakeTime = nowMs;
+
+    if (this.realSamples.brake) {
+      try {
+        const clone = this.realSamples.brake.cloneNode();
+        clone.volume = Math.min(0.5, Math.max(0.15, intensity * 0.4));
+        clone.play().catch(() => {});
+        return;
+      } catch (e) {}
+    }
+
+    if (!this.isInitialized || !this.ctx || !this.noiseBuffer || !this.masterGain) return;
+    const now = this.ctx.currentTime;
+
+    try {
+      // Válvula de descarga pneumática de ônibus ("pshhhh-tchu")
+      const src = this.ctx.createBufferSource();
+      src.buffer = this.noiseBuffer;
+
+      const bandpass = this.ctx.createBiquadFilter();
+      bandpass.type = 'bandpass';
+      bandpass.frequency.setValueAtTime(2200, now);
+      bandpass.frequency.exponentialRampToValueAtTime(1350, now + 0.35);
+      bandpass.Q.setValueAtTime(2.6, now);
+
+      const gain = this.ctx.createGain();
+      const peak = Math.min(0.18, Math.max(0.04, intensity * 0.13));
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.linearRampToValueAtTime(peak, now + 0.02);
+      gain.gain.setValueAtTime(peak * 0.85, now + 0.16);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.38);
+
+      src.connect(bandpass);
+      bandpass.connect(gain);
+      gain.connect(this.masterGain);
+
+      src.start(now);
+      src.stop(now + 0.4);
+    } catch (e) {}
+  },
+
+  playHorn() {
+    this.init();
+    const nowMs = performance.now();
+    if (nowMs - this.lastHornTime < 280) return;
+    this.lastHornTime = nowMs;
+
+    if (this.realSamples.horn) {
+      try {
+        const clone = this.realSamples.horn.cloneNode();
+        clone.volume = 0.45;
+        clone.play().catch(() => {});
+        return;
+      } catch (e) {}
+    }
+
+    if (!this.isInitialized || !this.ctx || !this.masterGain) return;
+    const now = this.ctx.currentTime;
+
+    try {
+      // Buzina a ar dupla de ônibus (intervalo de terça maior encorpado ~196Hz + 247Hz)
+      const oscLow = this.ctx.createOscillator();
+      const oscHigh = this.ctx.createOscillator();
+      const filter = this.ctx.createBiquadFilter();
+      const gain = this.ctx.createGain();
+
+      oscLow.type = 'sawtooth';
+      oscHigh.type = 'sawtooth';
+      oscLow.frequency.setValueAtTime(192, now);
+      oscLow.frequency.linearRampToValueAtTime(196, now + 0.05);
+      oscHigh.frequency.setValueAtTime(242, now);
+      oscHigh.frequency.linearRampToValueAtTime(247, now + 0.05);
+
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(980, now);
+      filter.Q.setValueAtTime(1.8, now);
+
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.linearRampToValueAtTime(0.18, now + 0.025);
+      gain.gain.setValueAtTime(0.17, now + 0.28);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.46);
+
+      oscLow.connect(filter);
+      oscHigh.connect(filter);
+      filter.connect(gain);
+      gain.connect(this.masterGain);
+
+      oscLow.start(now);
+      oscHigh.start(now);
+      oscLow.stop(now + 0.48);
+      oscHigh.stop(now + 0.48);
+    } catch (e) {}
+  },
+
+  silence() {
+    if (this.realSamples.engine && !this.realSamples.engine.paused) {
+      this.realSamples.engine.pause();
+    }
+    if (!this.isInitialized || !this.ctx || !this.engineGain) return;
+    const now = this.ctx.currentTime;
+    this.engineGain.gain.setTargetAtTime(0.0001, now, 0.06);
+    if (this.turboGain) this.turboGain.gain.setTargetAtTime(0.0001, now, 0.06);
+  }
+};
+
+function gameLoop(now) {
+  if (!map) return;
+
+  const deltaTime = Math.min((now - lastFrameTime) / 1000, 0.1);
+  lastFrameTime = now;
+
+  const prev = [busLng, busLat];
+
+  let desiredSpeed = 0;
+
+  if (keysPressed.Up) {
+    if (!isTripActive && currentGameMode === 'line') {
+      isTripActive = true;
+      startTripTimer();
+    }
+    mapBanner.style.display = 'none';
+    isAutopilotMoving = true;
+    updateTripStatus();
+  }
+
+  let renderLng = busLng;
+  let renderLat = busLat;
+  let busWorldHeading = vehicleHeading;
+
+  if (currentGameMode === 'line') {
+    if (isTripActive && isAutopilotMoving && !isLineFinished) {
+      if (keysPressed.Down) {
+        desiredSpeed = 0;
+        currentSpeedKmh = Math.max(currentSpeedKmh - 60 * deltaTime, 0);
+        if (currentSpeedKmh <= 2) {
+          isAutopilotMoving = false;
+        }
+      } else if (keysPressed.Up) {
+        desiredSpeed = boostSpeedKmh;
+      } else {
+        desiredSpeed = cruiseSpeedKmh;
+      }
+    }
+
+    if (currentSpeedKmh < desiredSpeed) {
+      currentSpeedKmh = Math.min(currentSpeedKmh + 50 * deltaTime, desiredSpeed);
+    } else if (currentSpeedKmh > desiredSpeed) {
+      currentSpeedKmh = Math.max(currentSpeedKmh - 40 * deltaTime, desiredSpeed);
+    }
+
+    if (currentSpeedKmh > 0 && !isLineFinished && isTripActive) {
+      const speedMps = (currentSpeedKmh / 3.6) * speedMultiplier;
+      let remainingDistance = speedMps * deltaTime;
+
+      while (remainingDistance > 0 && currentSegIndex < activePath.length - 1) {
+        const p1 = activePath[currentSegIndex];
+        const p2 = activePath[currentSegIndex + 1];
+
+        if (currentSegLength <= 0) {
+          currentSegLength = getMetersBetween(p1, p2);
+        }
+
+        if (currentSegLength <= 0.1) {
+          currentSegIndex++;
+          segProgressMeters = 0;
+          currentSegLength = currentSegIndex < activePath.length - 1
+            ? getMetersBetween(activePath[currentSegIndex], activePath[currentSegIndex + 1])
+            : 0;
+          continue;
+        }
+
+        const distanceLeftInSeg = currentSegLength - segProgressMeters;
+
+        if (remainingDistance < distanceLeftInSeg) {
+          segProgressMeters += remainingDistance;
+          remainingDistance = 0;
+
+          const ratio = segProgressMeters / currentSegLength;
+          busLng = p1[0] + (p2[0] - p1[0]) * ratio;
+          busLat = p1[1] + (p2[1] - p1[1]) * ratio;
+
+          targetHeading = calculateBearing(p1, p2);
+        } else {
+          remainingDistance -= distanceLeftInSeg;
+          currentSegIndex++;
+          segProgressMeters = 0;
+
+          if (currentSegIndex >= activePath.length - 1) {
+            busLng = activePath[activePath.length - 1][0];
+            busLat = activePath[activePath.length - 1][1];
+            isLineFinished = true;
+            mostrarRelatorioFinal();
+            break;
+          } else {
+            currentSegLength = getMetersBetween(activePath[currentSegIndex], activePath[currentSegIndex + 1]);
+            busLng = activePath[currentSegIndex][0];
+            busLat = activePath[currentSegIndex][1];
+            targetHeading = calculateBearing(activePath[currentSegIndex], activePath[currentSegIndex + 1]);
+          }
+        }
+      }
+
+      const speedFactor = Math.min(1, Math.max(0.15, currentSpeedKmh / 35));
+      const maxLateralSpeed = 2.6 * speedFactor;
+      let targetLateralVel = 0;
+
+      if (keysPressed.Left) {
+        targetLateralVel = -maxLateralSpeed;
+      } else if (keysPressed.Right) {
+        targetLateralVel = maxLateralSpeed;
+      }
+
+      lineLateralVelocity += (targetLateralVel - lineLateralVelocity) * Math.min(1, 7.5 * deltaTime);
+      lineLateralCorrectionMeters = Math.max(
+        -MAX_LINE_LATERAL_ADJUST_METERS,
+        Math.min(MAX_LINE_LATERAL_ADJUST_METERS, lineLateralCorrectionMeters + lineLateralVelocity * deltaTime)
+      );
+
+      if (!keysPressed.Left && !keysPressed.Right) {
+        lineLateralCorrectionMeters += (0 - lineLateralCorrectionMeters) * Math.min(1, 2.2 * deltaTime);
+      }
+
+      const targetYawOffset = (lineLateralVelocity / Math.max(0.5, maxLateralSpeed)) * 15;
+      busVisualYawOffset += (targetYawOffset - busVisualYawOffset) * Math.min(1, 9.0 * deltaTime);
+    } else {
+      lineLateralVelocity = 0;
+      busVisualYawOffset += (0 - busVisualYawOffset) * Math.min(1, 8.0 * deltaTime);
+    }
+
+    smoothHeading = lerpHeading(smoothHeading, targetHeading, 6.0 * deltaTime);
+
+    const totalRightOffset = BASE_RIGHT_LANE_OFFSET_METERS + lineLateralCorrectionMeters;
+    const lanePos = applyRightLaneOffset(busLng, busLat, smoothHeading, totalRightOffset);
+    renderLng = lanePos[0];
+    renderLat = lanePos[1];
+    busWorldHeading = (smoothHeading + busVisualYawOffset + 360) % 360;
+  } else {
+    if (keysPressed.Up) {
+      if (currentSpeedKmh < 0) {
+        currentSpeedKmh = Math.min(currentSpeedKmh + 65 * deltaTime, 0);
+      } else {
+        desiredSpeed = boostSpeedKmh;
+        currentSpeedKmh = Math.min(currentSpeedKmh + 50 * deltaTime, desiredSpeed);
+      }
+    } else if (keysPressed.Down) {
+      if (currentSpeedKmh > 0) {
+        currentSpeedKmh = Math.max(currentSpeedKmh - 70 * deltaTime, 0);
+      } else {
+        currentSpeedKmh = Math.max(currentSpeedKmh - 30 * deltaTime, MAX_REVERSE_SPEED_KMH);
+      }
+    } else {
+      if (currentSpeedKmh > 0) {
+        currentSpeedKmh = Math.max(currentSpeedKmh - 25 * deltaTime, 0);
+      } else if (currentSpeedKmh < 0) {
+        currentSpeedKmh = Math.min(currentSpeedKmh + 25 * deltaTime, 0);
+      }
+    }
+
+    const absSpeed = Math.abs(currentSpeedKmh);
+    const steerInput = (keysPressed.Right ? 1 : 0) - (keysPressed.Left ? 1 : 0);
+    const speedTurnScale = absSpeed < 1.0 ? 0 : Math.min(1, 0.35 + (absSpeed / 40) * 0.65);
+    const targetSteerRate = steerInput * 52 * speedTurnScale;
+    freeSteerRate += (targetSteerRate - freeSteerRate) * Math.min(1, 8.5 * deltaTime);
+
+    if (absSpeed > 0.1) {
+      const reverseDirFactor = currentSpeedKmh < -0.5 ? -1 : 1;
+      vehicleHeading = (vehicleHeading + freeSteerRate * reverseDirFactor * deltaTime + 360) % 360;
+
+      const speedMps = (currentSpeedKmh / 3.6) * speedMultiplier;
+      const metersToMove = speedMps * deltaTime;
+      const metersPerDegreeLat = 111320;
+      const metersPerDegreeLng = 111320 * Math.cos(busLat * (Math.PI / 180));
+
+      const rad = (vehicleHeading * Math.PI) / 180;
+      busLng += (metersToMove * Math.sin(rad)) / metersPerDegreeLng;
+      busLat += (metersToMove * Math.cos(rad)) / metersPerDegreeLat;
+    }
+
+    renderLng = busLng;
+    renderLat = busLat;
+    busWorldHeading = (vehicleHeading + freeSteerRate * 0.18 + 360) % 360;
+  }
+
+  const distStep = getMetersBetween(prev, [busLng, busLat]) / 1000;
+  if (!isNaN(distStep)) {
+    distanceCoveredKm += distStep;
+  }
+
+  const distFormatted = `${distanceCoveredKm.toFixed(2)} km`;
+  const isReversing = currentGameMode === 'free' && currentSpeedKmh < -0.5;
+  const speedRounded = Math.round(Math.abs(currentSpeedKmh));
+  const speedDisplay = isReversing ? `R ${speedRounded}` : `${speedRounded}`;
+
+  document.getElementById('kmCoveredDisplay').textContent = distFormatted;
+  document.getElementById('miniKmDisplay').textContent = distFormatted;
+  document.getElementById('speedValue').textContent = speedDisplay;
+  document.getElementById('miniSpeedDisplay').textContent = speedDisplay;
+
+  const currentCoords = [renderLng, renderLat];
+  if (busMarker) {
+    busMarker.setLngLat(currentCoords);
+    busMarker.setRotation(busWorldHeading);
+  }
+
+  const rawTargetBearing = currentGameMode === 'line' ? smoothHeading : vehicleHeading;
+  currentCameraBearing = lerpHeading(currentCameraBearing, rawTargetBearing, 5.5 * deltaTime);
+
+  map.jumpTo({
+    center: currentCoords,
+    bearing: currentCameraBearing,
+    pitch: 25,
+    zoom: currentZoomLevel
+  });
+
+  const isVehicleMovingNow = Math.abs(currentSpeedKmh) > 1.5;
+  if (keysPressed.Down && isVehicleMovingNow) {
+    if (!busAudio.wasBraking) {
+      const intensity = Math.min(1, Math.abs(currentSpeedKmh) / 90);
+      busAudio.playBrakeAir(intensity);
+    }
+    busAudio.wasBraking = true;
+  } else {
+    busAudio.wasBraking = false;
+  }
+
+  busAudio.updateEngine(
+    currentSpeedKmh,
+    Boolean(keysPressed.Up),
+    Boolean(map && !isLineFinished && (isTripActive || currentGameMode === 'free'))
+  );
+
+  if (!isLineFinished) {
+    animationFrameId = requestAnimationFrame(gameLoop);
+  }
+}
+
+document.getElementById('btnZoomNear').addEventListener('pointerdown', (e) => {
+  e.stopPropagation();
+  currentZoomLevel = ZOOM_NEAR_LEVEL;
+  document.getElementById('btnZoomNear').classList.add('active');
+  document.getElementById('btnZoomFar').classList.remove('active');
+});
+
+document.getElementById('btnZoomFar').addEventListener('pointerdown', (e) => {
+  e.stopPropagation();
+  currentZoomLevel = ZOOM_FAR_LEVEL;
+  document.getElementById('btnZoomFar').classList.add('active');
+  document.getElementById('btnZoomNear').classList.remove('active');
+});
+
+window.addEventListener('keydown', (e) => {
+  if (['ArrowUp', 'KeyW'].includes(e.code)) {
+    if (!keysPressed.Up) handleAccelerate();
+    keysPressed.Up = true;
+    document.getElementById('btnDpadUp')?.classList.add('pressed');
+  }
+  if (['ArrowDown', 'KeyS'].includes(e.code)) {
+    busAudio.init();
+    keysPressed.Down = true;
+    document.getElementById('btnDpadDown')?.classList.add('pressed');
+  }
+  if (['KeyH', 'KeyB'].includes(e.code) && !e.repeat) {
+    busAudio.playHorn();
+  }
+  if (['ArrowLeft', 'KeyA'].includes(e.code)) {
+    keysPressed.Left = true;
+    document.getElementById('btnDpadLeft')?.classList.add('pressed');
+  }
+  if (['ArrowRight', 'KeyD'].includes(e.code)) {
+    keysPressed.Right = true;
+    document.getElementById('btnDpadRight')?.classList.add('pressed');
+  }
+});
+
+window.addEventListener('keyup', (e) => {
+  if (['ArrowUp', 'KeyW'].includes(e.code)) {
+    keysPressed.Up = false;
+    document.getElementById('btnDpadUp')?.classList.remove('pressed');
+  }
+  if (['ArrowDown', 'KeyS'].includes(e.code)) {
+    keysPressed.Down = false;
+    document.getElementById('btnDpadDown')?.classList.remove('pressed');
+  }
+  if (['ArrowLeft', 'KeyA'].includes(e.code)) {
+    keysPressed.Left = false;
+    document.getElementById('btnDpadLeft')?.classList.remove('pressed');
+  }
+  if (['ArrowRight', 'KeyD'].includes(e.code)) {
+    keysPressed.Right = false;
+    document.getElementById('btnDpadRight')?.classList.remove('pressed');
+  }
+});
