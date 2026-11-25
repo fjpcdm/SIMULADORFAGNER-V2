@@ -1406,8 +1406,8 @@ document.getElementById('btnStartFreeMode').addEventListener('click', async () =
   isAutopilotMoving = false;
   isLineFinished = false;
   distanceCoveredKm = 0;
-  cruiseSpeedKmh = 90;
-  boostSpeedKmh = 135;
+  cruiseSpeedKmh = 85;
+  boostSpeedKmh = 120;
   speedMultiplier = 1.0;
   isTripActive = true;
   vehicleHeading = 0;
@@ -1433,13 +1433,11 @@ document.getElementById('btnStartFreeMode').addEventListener('click', async () =
           targetCoords = [lon, lat];
         }
       }
-    } catch (err) {
-      // Usa coordenada padrão em Belo Horizonte caso a busca falhe
-    }
+    } catch (err) {}
   }
 
   startSimulation(targetCoords, targetCoords);
-  showAlert('🗺️ Modo Livre ativo: use ↑/W para acelerar e ←/→ ou A/D para esterçar');
+  showAlert('🗺️ Modo Livre ativo: direção suave para curvas leves');
 });
 
 function startSimulation(baseCoords, initialRenderCoords) {
@@ -1782,7 +1780,6 @@ function createTrafficVehicleFromStation(seqNumber) {
   const initHeading = calculateBearing(p0, p1);
   const segLen = Math.max(0.5, getMetersBetween(p0, p1));
 
-  // Mantém a mesma cor oficial escolhida pelo usuário
   const officialPreset = COLOR_PRESETS[activePresetKey] || COLOR_PRESETS['vermelho'];
   const modelKey = currentVehicleType || (sameDirTraffic.isRoadLine ? 'rodoviario' : 'bhtrans');
   const label = `SAÍDA 0${seqNumber}`;
@@ -1808,7 +1805,6 @@ function createTrafficVehicleFromStation(seqNumber) {
     .setRotation(initHeading)
     .addTo(map);
 
-  // Nasce parado na estação por 3.2 segundos antes de iniciar o movimento
   return {
     id: seqNumber,
     lng: p0[0],
@@ -1837,7 +1833,6 @@ function maybeSpawnSameDirTraffic() {
   const remainingKm = Math.max(0, totalKm - distanceCoveredKm);
   if (remainingKm < 0.25) return;
 
-  // Evita acumular mais de 2 veículos simultâneos na linha, mas permite novos despachos sucessivos
   const activeCount = sameDirTraffic.vehicles.filter(v => !v.finished).length;
   if (activeCount >= 2) return;
 
@@ -1927,7 +1922,6 @@ function drawSideMinimap(nextVehicleItem, trailingCandidates) {
     return [w / 2 + dxMeters * scale, h / 2 - dyMeters * scale];
   };
 
-  // Traçado próximo da linha
   ctx.strokeStyle = 'rgba(148, 163, 184, 0.55)';
   ctx.lineWidth = 2.2;
   ctx.beginPath();
@@ -1945,14 +1939,12 @@ function drawSideMinimap(nextVehicleItem, trailingCandidates) {
   }
   ctx.stroke();
 
-  // Ponto inicial / estação no radar
   const [stX, stY] = toRadarXY(activePath[0][0], activePath[0][1]);
   ctx.fillStyle = '#f97316';
   ctx.beginPath();
   ctx.arc(Math.max(6, Math.min(w - 6, stX)), Math.max(6, Math.min(h - 6, stY)), 3.5, 0, Math.PI * 2);
   ctx.fill();
 
-  // Marcador do jogador no centro
   ctx.fillStyle = '#38bdf8';
   ctx.beginPath();
   ctx.arc(w / 2, h / 2, 4.5, 0, Math.PI * 2);
@@ -2311,33 +2303,35 @@ function gameLoop(now) {
     renderLat = lanePos[1];
     busWorldHeading = (smoothHeading + busVisualYawOffset + 360) % 360;
   } else {
-    // Modo Livre: aceleração, freio/ré e direção independentes da rota
+    // Modo Livre: aceleração, freio/ré e virada leve sem patinar
     if (keysPressed.Up) {
       if (currentSpeedKmh < 0) {
-        currentSpeedKmh = Math.min(currentSpeedKmh + 75 * deltaTime, 0);
+        currentSpeedKmh = Math.min(currentSpeedKmh + 65 * deltaTime, 0);
       } else {
         desiredSpeed = boostSpeedKmh;
-        currentSpeedKmh = Math.min(currentSpeedKmh + 55 * deltaTime, desiredSpeed);
+        currentSpeedKmh = Math.min(currentSpeedKmh + 42 * deltaTime, desiredSpeed);
       }
     } else if (keysPressed.Down) {
       if (currentSpeedKmh > 0) {
-        currentSpeedKmh = Math.max(currentSpeedKmh - 80 * deltaTime, 0);
+        currentSpeedKmh = Math.max(currentSpeedKmh - 65 * deltaTime, 0);
       } else {
-        currentSpeedKmh = Math.max(currentSpeedKmh - 35 * deltaTime, MAX_REVERSE_SPEED_KMH);
+        currentSpeedKmh = Math.max(currentSpeedKmh - 28 * deltaTime, MAX_REVERSE_SPEED_KMH);
       }
     } else {
       if (currentSpeedKmh > 0) {
-        currentSpeedKmh = Math.max(currentSpeedKmh - 28 * deltaTime, 0);
+        currentSpeedKmh = Math.max(currentSpeedKmh - 24 * deltaTime, 0);
       } else if (currentSpeedKmh < 0) {
-        currentSpeedKmh = Math.min(currentSpeedKmh + 28 * deltaTime, 0);
+        currentSpeedKmh = Math.min(currentSpeedKmh + 24 * deltaTime, 0);
       }
     }
 
     const absSpeed = Math.abs(currentSpeedKmh);
     const steerInput = (keysPressed.Right ? 1 : 0) - (keysPressed.Left ? 1 : 0);
-    const turnAuthority = absSpeed < 0.5 ? 0 : Math.min(1, 0.45 + (absSpeed / 30) * 0.55);
-    const targetSteerRate = steerInput * 68 * turnAuthority;
-    freeSteerRate += (targetSteerRate - freeSteerRate) * Math.min(1, 9.5 * deltaTime);
+    const speedGripFactor = absSpeed < 0.5
+      ? 0
+      : Math.max(0.45, Math.min(1, 1.05 - (absSpeed / 140) * 0.55));
+    const targetSteerRate = steerInput * 38 * speedGripFactor;
+    freeSteerRate += (targetSteerRate - freeSteerRate) * Math.min(1, 6.0 * deltaTime);
 
     if (absSpeed > 0.05) {
       const reverseDirFactor = currentSpeedKmh < -0.5 ? -1 : 1;
@@ -2356,7 +2350,7 @@ function gameLoop(now) {
 
     renderLng = busLng;
     renderLat = busLat;
-    busWorldHeading = (vehicleHeading + freeSteerRate * 0.16 + 360) % 360;
+    busWorldHeading = (vehicleHeading + freeSteerRate * 0.06 + 360) % 360;
   }
 
   const distStep = getMetersBetween(prev, [busLng, busLat]) / 1000;
@@ -2383,7 +2377,7 @@ function gameLoop(now) {
   }
 
   const rawTargetBearing = currentGameMode === 'line' ? smoothHeading : vehicleHeading;
-  currentCameraBearing = lerpHeading(currentCameraBearing, rawTargetBearing, 6.5 * deltaTime);
+  currentCameraBearing = lerpHeading(currentCameraBearing, rawTargetBearing, 5.5 * deltaTime);
 
   map.jumpTo({
     center: currentCoords,
