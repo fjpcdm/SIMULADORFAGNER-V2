@@ -1,9 +1,9 @@
 // ============================================================
 // ARQUIVO: script.js
-// MOTOR DE SIMULAÇÃO - MODO TRAJETO + MODO LIVRE + CÂMBIO + CABINE
+// MOTOR DE SIMULAÇÃO - MODO TRAJETO + MODO LIVRE + DIA/NOITE + FAROL AUTO
 // ============================================================
 
-const STORAGE_KEY_STATE = 'simulador_bus_estado_v4';
+const STORAGE_KEY_STATE = 'simulador_bus_estado_v6';
 
 const cssStyles = `
   * {
@@ -33,6 +33,26 @@ const cssStyles = `
     top: 0;
     left: 0;
     z-index: 1;
+    transition: filter 0.45s ease;
+  }
+
+  /* Modo Noite leve sem perder leitura das vias */
+  #map.night-mode-map {
+    filter: brightness(0.62) contrast(1.18) saturate(0.85);
+  }
+
+  .night-tint-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    background: radial-gradient(circle at 50% 48%, rgba(15, 23, 42, 0.08) 28%, rgba(2, 6, 23, 0.42) 100%);
+    opacity: 0;
+    transition: opacity 0.45s ease;
+  }
+
+  .night-tint-overlay.active {
+    opacity: 1;
   }
 
   /* ============================================================
@@ -165,60 +185,42 @@ const cssStyles = `
   }
 
   @media (max-width: 640px) {
-    .pov-validator-console {
-      display: none;
-    }
+    .pov-validator-console,
     .pov-handrail-yellow {
       display: none;
     }
   }
 
   /* ============================================================
-     SELETOR DE CÂMBIO (AUTOMÁTICO / MANUAL + MARCHAS)
+     PAINEL DE CÂMBIO AUTOMÁTICO (LEVE)
      ============================================================ */
   .gearbox-widget {
     position: fixed !important;
     left: 12px !important;
     bottom: calc(18px + env(safe-area-inset-bottom, 0px)) !important;
     z-index: 999999 !important;
-    background: rgba(15, 23, 42, 0.93);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
+    background: rgba(15, 23, 42, 0.92);
     border: 1.5px solid rgba(56, 189, 248, 0.55);
     border-radius: 14px;
     padding: 8px 10px;
     color: #ffffff;
-    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.65);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.6);
     display: none;
     flex-direction: column;
     gap: 6px;
-    width: 154px;
+    width: 148px;
   }
 
-  .gearbox-top-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 6px;
-  }
-
-  .btn-gear-mode {
-    flex: 1;
-    padding: 5px 6px;
+  .gearbox-header-pill {
+    padding: 4px 6px;
     border-radius: 8px;
-    border: 1px solid #38bdf8;
+    border: 1px solid rgba(56, 189, 248, 0.45);
     background: #1e293b;
     color: #38bdf8;
-    font-size: 0.7rem;
+    font-size: 0.68rem;
     font-weight: 800;
-    cursor: pointer;
     text-align: center;
-  }
-
-  .btn-gear-mode.manual-active {
-    background: #f59e0b;
-    border-color: #fbbf24;
-    color: #0f172a;
+    letter-spacing: 0.04em;
   }
 
   .gear-readout-row {
@@ -244,33 +246,11 @@ const cssStyles = `
     color: #cbd5e1;
   }
 
-  .gear-manual-btns {
-    display: flex;
-    gap: 6px;
-  }
-
-  .btn-gear-step {
-    flex: 1;
-    padding: 6px 0;
-    border-radius: 8px;
-    border: 1px solid #475569;
-    background: #334155;
-    color: #ffffff;
-    font-size: 0.76rem;
-    font-weight: 800;
-    cursor: pointer;
-  }
-
-  .btn-gear-step:active {
-    background: #38bdf8;
-    color: #0f172a;
-  }
-
   @media (max-width: 640px) {
     .gearbox-widget {
       left: 8px !important;
       bottom: calc(136px + env(safe-area-inset-bottom, 0px)) !important;
-      width: 132px;
+      width: 126px;
       padding: 6px 8px;
     }
   }
@@ -407,20 +387,18 @@ const cssStyles = `
     left: 50%;
     transform: translateX(-50%);
     background: rgba(15, 23, 42, 0.92);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
     border: 1px solid rgba(255, 255, 255, 0.25);
     border-radius: 20px;
-    padding: 6px 14px;
+    padding: 6px 12px;
     display: none;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     z-index: 999999;
     color: #ffffff;
-    font-size: 0.78rem;
+    font-size: 0.75rem;
     box-shadow: 0 4px 14px rgba(0,0,0,0.45);
     white-space: nowrap;
-    max-width: calc(100vw - 16px);
+    max-width: calc(100vw - 12px);
   }
 
   .btn-toggle-hud {
@@ -429,7 +407,7 @@ const cssStyles = `
     color: #ffffff;
     padding: 4px 8px;
     border-radius: 10px;
-    font-size: 0.7rem;
+    font-size: 0.68rem;
     font-weight: bold;
     cursor: pointer;
   }
@@ -438,9 +416,9 @@ const cssStyles = `
     background: #0f766e;
     border: 1px solid #2dd4bf;
     color: #ffffff;
-    padding: 4px 9px;
+    padding: 4px 8px;
     border-radius: 10px;
-    font-size: 0.7rem;
+    font-size: 0.68rem;
     font-weight: bold;
     cursor: pointer;
   }
@@ -451,14 +429,29 @@ const cssStyles = `
     color: #0f172a;
   }
 
+  .btn-time-cycle {
+    background: #1e293b;
+    border: 1px solid #fbbf24;
+    color: #fde047;
+    padding: 4px 8px;
+    border-radius: 10px;
+    font-size: 0.68rem;
+    font-weight: bold;
+    cursor: pointer;
+  }
+
+  .btn-time-cycle.night-on {
+    background: #312e81;
+    border-color: #818cf8;
+    color: #e0e7ff;
+  }
+
   .hud {
     position: absolute !important;
     top: 88px !important;
     left: 12px !important;
     z-index: 999999 !important;
     background: rgba(15, 23, 42, 0.92) !important;
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
     color: #ffffff !important;
     padding: 12px !important;
     border-radius: 12px !important;
@@ -586,6 +579,26 @@ const cssStyles = `
     color: #0f172a;
   }
 
+  .btn-pace-toggle {
+    width: 100%;
+    padding: 7px;
+    margin-top: 8px;
+    background: rgba(14, 116, 144, 0.85);
+    border: 1px solid #22d3ee;
+    border-radius: 6px;
+    color: #ffffff;
+    font-weight: bold;
+    font-size: 0.78rem;
+    cursor: pointer;
+    text-align: center;
+  }
+
+  .btn-pace-toggle.fast {
+    background: #d97706;
+    border-color: #fbbf24;
+    color: #0f172a;
+  }
+
   .btn-exit-game {
     width: 100%;
     padding: 8px;
@@ -607,8 +620,6 @@ const cssStyles = `
     transform: translateX(-50%) !important;
     z-index: 999999 !important;
     background: rgba(10, 15, 25, 0.9) !important;
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
     color: #38bdf8 !important;
     padding: 6px 18px !important;
     border-radius: 20px !important;
@@ -636,12 +647,10 @@ const cssStyles = `
     z-index: 999999 !important;
     width: 156px;
     background: rgba(15, 23, 42, 0.94);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
     border: 1.5px solid rgba(56, 189, 248, 0.65);
     border-radius: 14px;
     padding: 8px;
-    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.65);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.6);
     pointer-events: none;
     display: none;
     flex-direction: column;
@@ -857,8 +866,6 @@ const cssStyles = `
 
   .rear-indicator-pill {
     background: rgba(15, 23, 42, 0.92);
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
     border: 1.5px solid #f59e0b;
     color: #ffffff;
     padding: 5px 12px;
@@ -960,12 +967,43 @@ const cssStyles = `
     pointer-events: none !important;
   }
 
+  /* Wrapper do ônibus + facho de farol automático leve */
+  .bus-marker-wrap {
+    width: 56px;
+    height: 112px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    position: relative;
+    pointer-events: none !important;
+    transform-origin: center 84px;
+  }
+
+  .bus-headlight-beam {
+    position: absolute;
+    top: 2px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 44px;
+    height: 60px;
+    background: radial-gradient(ellipse at 50% 98%, rgba(254, 249, 195, 0.72) 0%, rgba(254, 240, 138, 0.28) 52%, rgba(254, 240, 138, 0) 100%);
+    clip-path: polygon(35% 100%, 65% 100%, 100% 0%, 0% 0%);
+    opacity: 0;
+    transition: opacity 0.35s ease;
+    pointer-events: none;
+  }
+
+  body.night-mode-active .bus-headlight-beam {
+    opacity: 1;
+  }
+
   .bus-marker-img {
     width: 18px !important;
     height: 54px !important;
     display: block !important;
     filter: drop-shadow(0px 3px 6px rgba(0, 0, 0, 0.95));
-    transform-origin: center center;
+    position: relative;
+    z-index: 2;
   }
 
   @media (max-width: 768px) {
@@ -979,16 +1017,23 @@ const styleElement = document.createElement('style');
 styleElement.innerHTML = cssStyles;
 document.head.appendChild(styleElement);
 
+const nightTintOverlay = document.createElement('div');
+nightTintOverlay.className = 'night-tint-overlay';
+nightTintOverlay.id = 'nightTintOverlay';
+document.body.appendChild(nightTintOverlay);
+
 const alertToast = document.createElement('div');
 alertToast.className = 'alert-toast';
 document.body.appendChild(alertToast);
 
+let toastTimeoutId = null;
 function showAlert(message) {
   alertToast.textContent = message;
   alertToast.style.display = 'block';
-  setTimeout(() => {
+  if (toastTimeoutId) clearTimeout(toastTimeoutId);
+  toastTimeoutId = setTimeout(() => {
     alertToast.style.display = 'none';
-  }, 2200);
+  }, 2400);
 }
 
 const COLOR_PRESETS = {
@@ -1138,10 +1183,10 @@ setupModal.innerHTML = `
       <select id="selectColorLine">${colorOptionsHtml}</select>
     </div>
     <div class="form-group">
-      <label>Tipo de Câmbio:</label>
-      <select id="selectGearboxLine">
-        <option value="auto">Automático</option>
-        <option value="manual">Manual</option>
+      <label>Período / Clima Visual:</label>
+      <select id="selectTimeModeLine">
+        <option value="day">☀️ Dia (Claro)</option>
+        <option value="night">🌙 Noite (Farol Automático)</option>
       </select>
     </div>
     <button class="btn-start-sim" id="btnStartLineMode">Iniciar Viagem</button>
@@ -1163,10 +1208,10 @@ setupModal.innerHTML = `
       <select id="selectColorFree">${colorOptionsHtml}</select>
     </div>
     <div class="form-group">
-      <label>Tipo de Câmbio:</label>
-      <select id="selectGearboxFree">
-        <option value="auto">Automático</option>
-        <option value="manual">Manual</option>
+      <label>Período / Clima Visual:</label>
+      <select id="selectTimeModeFree">
+        <option value="day">☀️ Dia (Claro)</option>
+        <option value="night">🌙 Noite (Farol Automático)</option>
       </select>
     </div>
     <div class="form-group">
@@ -1203,16 +1248,10 @@ const gearboxWidget = document.createElement('div');
 gearboxWidget.className = 'gearbox-widget';
 gearboxWidget.id = 'gearboxWidget';
 gearboxWidget.innerHTML = `
-  <div class="gearbox-top-row">
-    <button class="btn-gear-mode" id="btnToggleGearMode">AUTO</button>
-  </div>
+  <div class="gearbox-header-pill">CÂMBIO AUTO</div>
   <div class="gear-readout-row">
     <span class="gear-current-badge" id="gearBadgeDisplay">D1</span>
     <span class="gear-rpm-text" id="rpmDisplayText">900 RPM</span>
-  </div>
-  <div class="gear-manual-btns" id="gearManualBtns">
-    <button class="btn-gear-step" id="btnGearDown" title="Reduzir marcha (Q)">-M</button>
-    <button class="btn-gear-step" id="btnGearUp" title="Subir marcha (E)">+M</button>
   </div>
 `;
 document.body.appendChild(gearboxWidget);
@@ -1287,8 +1326,8 @@ function applySavedPreferencesToUI() {
   const modelFreeSelect = document.getElementById('selectModelFree');
   const colorLineSelect = document.getElementById('selectColorLine');
   const colorFreeSelect = document.getElementById('selectColorFree');
-  const gearLineSelect = document.getElementById('selectGearboxLine');
-  const gearFreeSelect = document.getElementById('selectGearboxFree');
+  const timeLineSelect = document.getElementById('selectTimeModeLine');
+  const timeFreeSelect = document.getElementById('selectTimeModeFree');
   const freeLocInput = document.getElementById('inputFreeLocation');
 
   if (prefs.categoryType && catSelect) {
@@ -1303,11 +1342,9 @@ function applySavedPreferencesToUI() {
   if (prefs.modelFree && modelFreeSelect && VALID_BUS_MODELS.includes(prefs.modelFree)) {
     modelFreeSelect.value = prefs.modelFree;
   }
-  if (prefs.gearboxMode && gearLineSelect && (prefs.gearboxMode === 'auto' || prefs.gearboxMode === 'manual')) {
-    gearLineSelect.value = prefs.gearboxMode;
-  }
-  if (prefs.gearboxMode && gearFreeSelect && (prefs.gearboxMode === 'auto' || prefs.gearboxMode === 'manual')) {
-    gearFreeSelect.value = prefs.gearboxMode;
+  if (prefs.timeMode && (prefs.timeMode === 'day' || prefs.timeMode === 'night')) {
+    if (timeLineSelect) timeLineSelect.value = prefs.timeMode;
+    if (timeFreeSelect) timeFreeSelect.value = prefs.timeMode;
   }
   if (prefs.freeLocation && freeLocInput) {
     freeLocInput.value = prefs.freeLocation;
@@ -1364,12 +1401,12 @@ document.getElementById('selectColorFree').addEventListener('change', (e) => {
   }
 });
 
-document.getElementById('selectGearboxLine').addEventListener('change', (e) => {
-  saveUserPreferences({ gearboxMode: e.target.value });
+document.getElementById('selectTimeModeLine').addEventListener('change', (e) => {
+  saveUserPreferences({ timeMode: e.target.value });
 });
 
-document.getElementById('selectGearboxFree').addEventListener('change', (e) => {
-  saveUserPreferences({ gearboxMode: e.target.value });
+document.getElementById('selectTimeModeFree').addEventListener('change', (e) => {
+  saveUserPreferences({ timeMode: e.target.value });
 });
 
 document.getElementById('inputFreeLocation').addEventListener('change', (e) => {
@@ -1393,6 +1430,7 @@ mobileTopBar.innerHTML = `
   <span>⏱️ <strong id="miniTimerDisplay" style="color:#10b981; font-family:monospace;">00:00</strong></span>
   <span>📍 <strong id="miniKmDisplay" style="color:#38bdf8;">0.00 km</strong></span>
   <span>🚀 <strong id="miniSpeedDisplay" style="color:#fbbf24;">0</strong> km/h</span>
+  <button class="btn-time-cycle" id="btnToggleTimeMode">☀️ Dia</button>
   <button class="btn-camera-view" id="btnToggleCameraView">👁️ Cabine</button>
   <button class="btn-toggle-hud" id="btnToggleHud">📊 Menu</button>
 `;
@@ -1426,6 +1464,7 @@ hudContainer.innerHTML = `
     <button id="btnZoomFar" class="btn-zoom active">🌐 Longe</button>
   </div>
 
+  <button class="btn-pace-toggle" id="btnTogglePace">⚡ Ritmo da Viagem: 1.0x</button>
   <button class="btn-exit-game" id="btnExitGame">🚪 Sair do Jogo</button>
 `;
 
@@ -1481,9 +1520,85 @@ let currentVehicleType = 'urbano';
 let activeLetreiroText = 'EXECUTIVO';
 
 let isCabinViewActive = false;
+let isNightMode = false;
 
 // ============================================================
-// SISTEMA DE CÂMBIO AUTOMÁTICO E MANUAL
+// SISTEMA DIA / NOITE COM FAROL AUTOMÁTICO LEVE
+// ============================================================
+function applyDayNightTheme(nightEnabled, silent = false) {
+  isNightMode = Boolean(nightEnabled);
+  const mapEl = document.getElementById('map');
+  const tintEl = document.getElementById('nightTintOverlay');
+  const btnTime = document.getElementById('btnToggleTimeMode');
+
+  document.body.classList.toggle('night-mode-active', isNightMode);
+  if (mapEl) mapEl.classList.toggle('night-mode-map', isNightMode);
+  if (tintEl) tintEl.classList.toggle('active', isNightMode);
+
+  if (btnTime) {
+    btnTime.classList.toggle('night-on', isNightMode);
+    btnTime.textContent = isNightMode ? '🌙 Noite' : '☀️ Dia';
+  }
+
+  saveUserPreferences({ timeMode: isNightMode ? 'night' : 'day' });
+  if (!silent) {
+    showAlert(isNightMode ? '🌙 Modo Noite ativo • Farol automático aceso' : '☀️ Modo Dia ativo');
+  }
+}
+
+document.getElementById('btnToggleTimeMode').addEventListener('pointerdown', (e) => {
+  e.stopPropagation();
+  applyDayNightTheme(!isNightMode, false);
+});
+
+// ============================================================
+// MARCOS DE PARADA / TERMINAIS NA ROTA (LEVE)
+// ============================================================
+const routeCheckpointState = {
+  totalKm: 0,
+  milestones: [],
+  finalApproachNotified: false
+};
+
+function setupRouteCheckpoints(pathCoords) {
+  routeCheckpointState.totalKm = computeRouteTotalKm(pathCoords);
+  routeCheckpointState.finalApproachNotified = false;
+  const total = routeCheckpointState.totalKm;
+
+  if (total < 1.2) {
+    routeCheckpointState.milestones = [];
+    return;
+  }
+
+  routeCheckpointState.milestones = [
+    { km: total * 0.25, label: '🚏 Ponto de Referência (25% do trajeto)', triggered: false },
+    { km: total * 0.50, label: '🚏 Ponto Central / Integração (50% do trajeto)', triggered: false },
+    { km: total * 0.75, label: '🚏 Trecho Final da Linha (75% do trajeto)', triggered: false }
+  ];
+}
+
+function checkRouteProgressAlerts() {
+  if (currentGameMode !== 'line' || !isTripActive || isLineFinished) return;
+  const total = routeCheckpointState.totalKm;
+  if (total <= 0) return;
+
+  for (const m of routeCheckpointState.milestones) {
+    if (!m.triggered && distanceCoveredKm >= m.km) {
+      m.triggered = true;
+      showAlert(m.label);
+      return;
+    }
+  }
+
+  const remainingMeters = (total - distanceCoveredKm) * 1000;
+  if (!routeCheckpointState.finalApproachNotified && remainingMeters > 40 && remainingMeters <= 300) {
+    routeCheckpointState.finalApproachNotified = true;
+    showAlert('🏁 Aproximando do ponto final / terminal (menos de 300 m)');
+  }
+}
+
+// ============================================================
+// SISTEMA DE CÂMBIO AUTOMÁTICO (LEVE)
 // ============================================================
 const GEAR_MAX_SPEEDS = {
   1: 24,
@@ -1494,90 +1609,41 @@ const GEAR_MAX_SPEEDS = {
   6: 180
 };
 
-let gearboxMode = 'auto';
 let currentGear = 1;
 let isReverseGearEngaged = false;
 let currentRpm = 850;
+let lastRpmUiUpdate = 0;
 
-function updateGearboxUI() {
-  const modeBtn = document.getElementById('btnToggleGearMode');
+function updateGearboxUI(force = false) {
+  const now = performance.now();
+  if (!force && now - lastRpmUiUpdate < 90) return;
+  lastRpmUiUpdate = now;
+
   const badgeEl = document.getElementById('gearBadgeDisplay');
   const rpmEl = document.getElementById('rpmDisplayText');
-  const manualBtns = document.getElementById('gearManualBtns');
-  if (!modeBtn || !badgeEl || !rpmEl || !manualBtns) return;
-
-  if (gearboxMode === 'manual') {
-    modeBtn.textContent = 'MANUAL';
-    modeBtn.classList.add('manual-active');
-    manualBtns.style.display = 'flex';
-    badgeEl.textContent = isReverseGearEngaged ? 'R' : `M${currentGear}`;
-  } else {
-    modeBtn.textContent = 'AUTO';
-    modeBtn.classList.remove('manual-active');
-    manualBtns.style.display = 'none';
-    badgeEl.textContent = isReverseGearEngaged ? 'R' : `D${currentGear}`;
-  }
-
-  rpmEl.textContent = `${Math.round(currentRpm)} RPM`;
-}
-
-function setGearboxMode(newMode) {
-  gearboxMode = newMode === 'manual' ? 'manual' : 'auto';
-  saveUserPreferences({ gearboxMode });
-  if (gearboxMode === 'auto') {
-    isReverseGearEngaged = false;
-    currentGear = Math.max(1, currentGear);
-  }
-  updateGearboxUI();
-  showAlert(gearboxMode === 'manual' ? '⚙️ Câmbio Manual ativo (E sobe / Q reduz)' : '⚙️ Câmbio Automático ativo');
-}
-
-function shiftManualGear(delta) {
-  if (gearboxMode !== 'manual') {
-    setGearboxMode('manual');
-  }
-  if (delta > 0) {
-    if (isReverseGearEngaged) {
-      isReverseGearEngaged = false;
-      currentGear = 1;
-    } else {
-      currentGear = Math.min(6, currentGear + 1);
-    }
-  } else if (delta < 0) {
-    if (currentGear <= 1 && Math.abs(currentSpeedKmh) < 1) {
-      isReverseGearEngaged = true;
-      currentGear = 1;
-    } else {
-      isReverseGearEngaged = false;
-      currentGear = Math.max(1, currentGear - 1);
-    }
-  }
-  updateGearboxUI();
+  if (badgeEl) badgeEl.textContent = isReverseGearEngaged ? 'R' : `D${currentGear}`;
+  if (rpmEl) rpmEl.textContent = `${Math.round(currentRpm)} RPM`;
 }
 
 function updateGearboxPhysics(deltaTime) {
   const absSpeed = Math.abs(currentSpeedKmh);
 
-  if (gearboxMode === 'auto') {
-    if (currentGameMode === 'free' && currentSpeedKmh < -0.5) {
-      isReverseGearEngaged = true;
-      currentGear = 1;
-    } else {
-      isReverseGearEngaged = false;
-      if (absSpeed < 18) currentGear = 1;
-      else if (absSpeed < 38) currentGear = 2;
-      else if (absSpeed < 62) currentGear = 3;
-      else if (absSpeed < 90) currentGear = 4;
-      else if (absSpeed < 122) currentGear = 5;
-      else currentGear = 6;
-    }
+  if (currentGameMode === 'free' && currentSpeedKmh < -0.5) {
+    isReverseGearEngaged = true;
+    currentGear = 1;
+  } else {
+    isReverseGearEngaged = false;
+    if (absSpeed < 18) currentGear = 1;
+    else if (absSpeed < 38) currentGear = 2;
+    else if (absSpeed < 62) currentGear = 3;
+    else if (absSpeed < 90) currentGear = 4;
+    else if (absSpeed < 122) currentGear = 5;
+    else currentGear = 6;
   }
 
   const maxGearSpeed = isReverseGearEngaged ? 25 : (GEAR_MAX_SPEEDS[currentGear] || 180);
   const gearRatioProgress = Math.min(1, absSpeed / Math.max(1, maxGearSpeed));
-  const targetRpm = absSpeed < 0.4
-    ? 850
-    : 1050 + gearRatioProgress * 2250;
+  const targetRpm = absSpeed < 0.4 ? 850 : 1050 + gearRatioProgress * 2250;
 
   currentRpm += (targetRpm - currentRpm) * Math.min(1, 8.0 * deltaTime);
   updateGearboxUI();
@@ -1606,21 +1672,6 @@ function setCabinView(enabled) {
 document.getElementById('btnToggleCameraView').addEventListener('pointerdown', (e) => {
   e.stopPropagation();
   setCabinView(!isCabinViewActive);
-});
-
-document.getElementById('btnToggleGearMode').addEventListener('pointerdown', (e) => {
-  e.stopPropagation();
-  setGearboxMode(gearboxMode === 'auto' ? 'manual' : 'auto');
-});
-
-document.getElementById('btnGearUp').addEventListener('pointerdown', (e) => {
-  e.stopPropagation();
-  shiftManualGear(1);
-});
-
-document.getElementById('btnGearDown').addEventListener('pointerdown', (e) => {
-  e.stopPropagation();
-  shiftManualGear(-1);
 });
 
 let activePath = [];
@@ -1658,6 +1709,21 @@ let tripStartTime = null;
 let tripTimerInterval = null;
 let tripStartRealTimeStr = '';
 let speedMultiplier = 1.0;
+
+function updatePaceButtonUI() {
+  const btnPace = document.getElementById('btnTogglePace');
+  if (!btnPace) return;
+  const isFast = speedMultiplier > 1.1;
+  btnPace.classList.toggle('fast', isFast);
+  btnPace.textContent = isFast ? '⚡ Ritmo da Viagem: 1.5x' : '⚡ Ritmo da Viagem: 1.0x';
+}
+
+document.getElementById('btnTogglePace').addEventListener('pointerdown', (e) => {
+  e.stopPropagation();
+  speedMultiplier = speedMultiplier > 1.1 ? 1.0 : 1.5;
+  updatePaceButtonUI();
+  showAlert(`⚡ Ritmo da viagem ajustado para ${speedMultiplier.toFixed(1)}x`);
+});
 
 const ZOOM_FAR_LEVEL = 18.3;
 const ZOOM_NEAR_LEVEL = 19.2;
@@ -1722,12 +1788,32 @@ document.getElementById('btnToggleHud').addEventListener('pointerdown', (e) => {
   hudContainer.classList.toggle('mobile-visible');
 });
 
+function createBusMarkerElement(bodyColor, stripeColor, modelKey, letreiroText, opacity = '1') {
+  const wrap = document.createElement('div');
+  wrap.className = 'bus-marker-wrap';
+  wrap.style.opacity = opacity;
+
+  const beam = document.createElement('div');
+  beam.className = 'bus-headlight-beam';
+
+  const img = document.createElement('img');
+  img.className = 'bus-marker-img';
+  img.src = getBusSvg(bodyColor, stripeColor, modelKey, letreiroText);
+
+  wrap.appendChild(beam);
+  wrap.appendChild(img);
+  return wrap;
+}
+
 function updateBusMarkerIcon(modelOverride = null, colorKeyOverride = null) {
   if (!busMarker) return;
   const chosenModel = modelOverride || currentVehicleType;
   const chosenColorKey = colorKeyOverride || activePresetKey;
   const preset = COLOR_PRESETS[chosenColorKey] || COLOR_PRESETS['vermelho'];
-  busMarker.getElement().src = getBusSvg(preset.bodyColor, preset.stripeColor, chosenModel, activeLetreiroText);
+  const imgEl = busMarker.getElement().querySelector('.bus-marker-img');
+  if (imgEl) {
+    imgEl.src = getBusSvg(preset.bodyColor, preset.stripeColor, chosenModel, activeLetreiroText);
+  }
 }
 
 function bindControlTouch(elementId, keyName) {
@@ -1797,14 +1883,13 @@ document.getElementById('btnStartLineMode').addEventListener('click', () => {
   currentGameMode = 'line';
   const selectedKey = document.getElementById('selectLine').value;
   activePresetKey = document.getElementById('selectColorLine').value || 'vermelho';
-  const selectedGear = document.getElementById('selectGearboxLine')?.value || 'auto';
-  saveUserPreferences({ lastLineKey: selectedKey, colorLine: activePresetKey, gearboxMode: selectedGear });
+  const chosenTimeMode = document.getElementById('selectTimeModeLine')?.value || 'day';
+  saveUserPreferences({ lastLineKey: selectedKey, colorLine: activePresetKey, timeMode: chosenTimeMode });
 
-  gearboxMode = selectedGear;
   currentGear = 1;
   isReverseGearEngaged = false;
   currentRpm = 850;
-  updateGearboxUI();
+  updateGearboxUI(true);
 
   const db = getLinesDatabase();
   const lineData = db[selectedKey] || Object.values(db)[0];
@@ -1830,7 +1915,9 @@ document.getElementById('btnStartLineMode').addEventListener('click', () => {
   activePath = extractCoordinates(lineData.trajeto);
   clearSameDirTraffic();
   configureTrafficThresholdsForRoute(activePath, isRoadCategory, activeLetreiroText);
+  setupRouteCheckpoints(activePath);
   speedMultiplier = 1.0;
+  updatePaceButtonUI();
 
   if (activePath.length < 2) {
     showAlert('A linha selecionada não possui coordenadas de trajeto válidas.');
@@ -1863,7 +1950,7 @@ document.getElementById('btnStartLineMode').addEventListener('click', () => {
   );
 
   updateTripStatus();
-  startSimulation(activePath[0], initialLanePos);
+  startSimulation(activePath[0], initialLanePos, chosenTimeMode === 'night');
 });
 
 document.getElementById('btnStartFreeMode').addEventListener('click', async () => {
@@ -1874,18 +1961,19 @@ document.getElementById('btnStartFreeMode').addEventListener('click', async () =
     ? 'RODOVIÁRIO'
     : (chosenFreeModel === 'metropolitano' ? 'METROPOLITANO' : 'BHTRANS LIVRE');
   activePresetKey = document.getElementById('selectColorFree').value || 'vermelho';
-  const selectedGear = document.getElementById('selectGearboxFree')?.value || 'auto';
+  const chosenTimeMode = document.getElementById('selectTimeModeFree')?.value || 'day';
   const locationQuery = document.getElementById('inputFreeLocation').value.trim();
-  saveUserPreferences({ modelFree: chosenFreeModel, colorFree: activePresetKey, gearboxMode: selectedGear, freeLocation: locationQuery });
+  saveUserPreferences({ modelFree: chosenFreeModel, colorFree: activePresetKey, timeMode: chosenTimeMode, freeLocation: locationQuery });
 
-  gearboxMode = selectedGear;
   currentGear = 1;
   isReverseGearEngaged = false;
   currentRpm = 850;
-  updateGearboxUI();
+  updateGearboxUI(true);
 
   clearSameDirTraffic();
   activePath = [];
+  routeCheckpointState.totalKm = 0;
+  routeCheckpointState.milestones = [];
   document.getElementById('lineBadgeDisplay').textContent = 'Modo Livre';
 
   currentSpeedKmh = 0;
@@ -1895,6 +1983,7 @@ document.getElementById('btnStartFreeMode').addEventListener('click', async () =
   cruiseSpeedKmh = 85;
   boostSpeedKmh = 120;
   speedMultiplier = 1.0;
+  updatePaceButtonUI();
   isTripActive = true;
   vehicleHeading = 0;
   smoothHeading = 0;
@@ -1922,11 +2011,11 @@ document.getElementById('btnStartFreeMode').addEventListener('click', async () =
     } catch (err) {}
   }
 
-  startSimulation(targetCoords, targetCoords);
-  showAlert('🗺️ Modo Livre ativo: direção suave para curvas leves');
+  startSimulation(targetCoords, targetCoords, chosenTimeMode === 'night');
+  showAlert(chosenTimeMode === 'night' ? '🌙 Modo Livre noturno com farol automático' : '🗺️ Modo Livre ativo');
 });
 
-function startSimulation(baseCoords, initialRenderCoords) {
+function startSimulation(baseCoords, initialRenderCoords, startAtNight = false) {
   setupModal.style.display = 'none';
 
   mobileTopBar.style.display = 'flex';
@@ -1949,6 +2038,7 @@ function startSimulation(baseCoords, initialRenderCoords) {
 
   const startRender = initialRenderCoords || baseCoords;
   initMap(startRender);
+  applyDayNightTheme(startAtNight, true);
   setTimeout(() => {
     if (map) map.resize();
   }, 250);
@@ -1968,6 +2058,7 @@ function exitGame() {
   stopTripTimer();
   clearSameDirTraffic();
   setCabinView(false);
+  applyDayNightTheme(false, true);
   if (animationFrameId) {
     cancelAnimationFrame(animationFrameId);
     animationFrameId = null;
@@ -1987,13 +2078,14 @@ function exitGame() {
   freeSteerRate = 0;
   distanceCoveredKm = 0;
   speedMultiplier = 1.0;
+  updatePaceButtonUI();
   lineLateralCorrectionMeters = 0;
   lineLateralVelocity = 0;
   busVisualYawOffset = 0;
   currentGear = 1;
   isReverseGearEngaged = false;
   currentRpm = 850;
-  updateGearboxUI();
+  updateGearboxUI(true);
 
   document.getElementById('tripTimerDisplay').textContent = '00:00';
   document.getElementById('miniTimerDisplay').textContent = '00:00';
@@ -2144,7 +2236,7 @@ function initMap(startCoords) {
 
   map = new maplibregl.Map({
     container: 'map',
-    antialias: true,
+    antialias: false,
     style: {
       version: 8,
       sources: {
@@ -2170,14 +2262,12 @@ function initMap(startCoords) {
   });
 
   const preset = COLOR_PRESETS[activePresetKey] || COLOR_PRESETS['vermelho'];
-
-  const busImg = document.createElement('img');
-  busImg.className = 'bus-marker-img';
-  busImg.src = getBusSvg(preset.bodyColor, preset.stripeColor, currentVehicleType, activeLetreiroText);
+  const busWrapEl = createBusMarkerElement(preset.bodyColor, preset.stripeColor, currentVehicleType, activeLetreiroText, '1');
 
   busMarker = new maplibregl.Marker({
-    element: busImg,
+    element: busWrapEl,
     anchor: 'center',
+    offset: [0, -28],
     rotationAlignment: 'map',
     pitchAlignment: 'map'
   })
@@ -2196,7 +2286,7 @@ function initMap(startCoords) {
 }
 
 // ============================================================
-// DESPACHO SEQUENCIAL NA ESTAÇÃO + RITMO DE VIAGEM MAIS RÁPIDO
+// DESPACHO SEQUENCIAL + DINÂMICA FLUIDA DE ULTRAPASSAGEM
 // + RADAR COM DESTAQUE DO PRÓXIMO CARRO + SENTIDO OPOSTO (IDA/VOLTA)
 // ============================================================
 
@@ -2205,7 +2295,6 @@ const sameDirTraffic = {
   totalRouteKm: 0,
   isRoadLine: false,
   hasRoundTrip: false,
-  allowsOvertake: true,
   spawnIntervalKm: 4,
   nextSpawnKm: 4,
   spawnedCount: 0,
@@ -2261,7 +2350,6 @@ function configureTrafficThresholdsForRoute(pathCoords, isRoad = false, lineName
   sameDirTraffic.totalRouteKm = totalKm;
   sameDirTraffic.isRoadLine = Boolean(isRoad);
   sameDirTraffic.hasRoundTrip = detectRoundTripRoute(pathCoords, lineNameText);
-  sameDirTraffic.allowsOvertake = true;
   sameDirTraffic.spawnIntervalKm = sameDirTraffic.isRoadLine ? 20 : 4;
   sameDirTraffic.nextSpawnKm = sameDirTraffic.spawnIntervalKm;
   sameDirTraffic.spawnedCount = 0;
@@ -2301,15 +2389,12 @@ function createTrafficVehicleFromStation(seqNumber) {
     : BASE_RIGHT_LANE_OFFSET_METERS - 0.25;
 
   const renderPos = applyRightLaneOffset(p0[0], p0[1], initHeading, baseOffset);
-
-  const el = document.createElement('img');
-  el.className = 'bus-marker-img';
-  el.style.opacity = '0.96';
-  el.src = getBusSvg(officialPreset.bodyColor, officialPreset.stripeColor, modelKey, label);
+  const wrapEl = createBusMarkerElement(officialPreset.bodyColor, officialPreset.stripeColor, modelKey, label, '0.96');
 
   const marker = new maplibregl.Marker({
-    element: el,
+    element: wrapEl,
     anchor: 'center',
+    offset: [0, -28],
     rotationAlignment: 'map',
     pitchAlignment: 'map'
   })
@@ -2332,7 +2417,7 @@ function createTrafficVehicleFromStation(seqNumber) {
     heading: initHeading,
     speedKmh: 0,
     targetCruiseKmh: cruiseTarget,
-    stationWaitSeconds: 2.6,
+    stationWaitSeconds: 2.5,
     baseLaneOffset: baseOffset,
     currentLaneOffset: baseOffset,
     overtakeState: 'none',
@@ -2397,7 +2482,7 @@ function updateRearDirectionalIndicator(trailingCandidates) {
     return `
       <div class="rear-indicator-pill ${isClose ? 'close' : ''}">
         <span class="rear-arrow-badge">${item.arrow}</span>
-        <span>${item.label} atrás</span>
+        <span>${item.label} ${item.tag || 'atrás'}</span>
         <span class="rear-dist-badge">${distText}</span>
       </div>
     `;
@@ -2554,14 +2639,15 @@ function updateSameDirTraffic(deltaTime, frameNow = performance.now()) {
       };
     }
 
-    if (!v.returnTripActive && deltaAlongRouteMeters > 12) {
+    if (!v.returnTripActive && deltaAlongRouteMeters > 10) {
       trailingCandidates.push({
         label: `SAÍDA 0${v.id}`,
+        tag: v.overtakeState === 'passing' ? 'ultrapassando' : 'atrás',
         distMeters: directDistMeters,
         arrow: getRelativeBearingArrow([busLng, busLat], [v.lng, v.lat], smoothHeading)
       });
 
-      if (directDistMeters <= 110 && (frameNow - sameDirTraffic.lastCloseAlertTime > 12000)) {
+      if (directDistMeters <= 115 && (frameNow - sameDirTraffic.lastCloseAlertTime > 12000)) {
         sameDirTraffic.lastCloseAlertTime = frameNow;
         showAlert(`⬅️ SAÍDA 0${v.id} se aproximando (${Math.round(directDistMeters)} m)`);
       }
@@ -2572,30 +2658,33 @@ function updateSameDirTraffic(deltaTime, frameNow = performance.now()) {
         v.stationWaitSeconds = Math.max(0, v.stationWaitSeconds - deltaTime);
         v.speedKmh = 0;
       } else {
-        const baseCruiseCap = sameDirTraffic.isRoadLine ? 136 : 98;
+        const baseCruiseCap = sameDirTraffic.isRoadLine ? 138 : 100;
         const paceBoost = v.id === 1 ? 8 : 5;
         let targetSpeedKmh = Math.min(baseCruiseCap, Math.max(v.targetCruiseKmh, currentSpeedKmh + paceBoost));
         if (currentSpeedKmh < 12) {
-          targetSpeedKmh = Math.min(v.targetCruiseKmh, 42);
+          targetSpeedKmh = Math.min(v.targetCruiseKmh, 44);
         }
 
         let desiredLaneOffset = v.returnTripActive ? -BASE_RIGHT_LANE_OFFSET_METERS : v.baseLaneOffset;
 
-        const isBehindInOvertakeWindow = !v.returnTripActive && deltaAlongRouteMeters > 6 && deltaAlongRouteMeters < 52 && directDistMeters < 58;
-        const canOvertakeCalmly = currentSpeedKmh <= baseCruiseCap;
+        const isBehindInOvertakeZone = !v.returnTripActive && deltaAlongRouteMeters > 5 && deltaAlongRouteMeters < 68 && directDistMeters < 72;
+        const playerIsPullingAway = currentSpeedKmh > (v.targetCruiseKmh + 6);
 
-        if (v.overtakeState === 'none' && isBehindInOvertakeWindow && canOvertakeCalmly) {
+        if (v.overtakeState === 'none' && isBehindInOvertakeZone && !playerIsPullingAway) {
           v.overtakeState = 'passing';
           v.overtakeStartDistMeters = vRouteMeters;
         }
 
         if (v.overtakeState === 'passing') {
           const passedMeters = vRouteMeters - v.overtakeStartDistMeters;
-          desiredLaneOffset = Math.max(-1.6, v.baseLaneOffset - 2.6);
-          targetSpeedKmh = Math.min(baseCruiseCap, Math.max(v.targetCruiseKmh + 6, currentSpeedKmh + 10));
-
-          if (passedMeters >= 62 || deltaAlongRouteMeters < -32) {
+          if (playerIsPullingAway && passedMeters < 24) {
             v.overtakeState = 'returning';
+          } else {
+            desiredLaneOffset = Math.max(-1.8, v.baseLaneOffset - 2.85);
+            targetSpeedKmh = Math.min(baseCruiseCap, Math.max(v.targetCruiseKmh + 8, currentSpeedKmh + 12));
+            if (passedMeters >= 72 || deltaAlongRouteMeters < -38) {
+              v.overtakeState = 'returning';
+            }
           }
         } else if (v.overtakeState === 'returning') {
           desiredLaneOffset = v.baseLaneOffset;
@@ -2604,13 +2693,14 @@ function updateSameDirTraffic(deltaTime, frameNow = performance.now()) {
           }
         }
 
+        const speedRate = v.overtakeState === 'passing' ? 38 : 28;
         if (v.speedKmh < targetSpeedKmh) {
-          v.speedKmh = Math.min(targetSpeedKmh, v.speedKmh + 28 * deltaTime);
+          v.speedKmh = Math.min(targetSpeedKmh, v.speedKmh + speedRate * deltaTime);
         } else if (v.speedKmh > targetSpeedKmh) {
           v.speedKmh = Math.max(targetSpeedKmh, v.speedKmh - 26 * deltaTime);
         }
 
-        v.currentLaneOffset += (desiredLaneOffset - v.currentLaneOffset) * Math.min(1, 3.0 * deltaTime);
+        v.currentLaneOffset += (desiredLaneOffset - v.currentLaneOffset) * Math.min(1, 3.8 * deltaTime);
 
         const speedMps = (v.speedKmh / 3.6) * speedMultiplier;
         let remDist = speedMps * deltaTime;
@@ -2856,21 +2946,16 @@ function gameLoop(now) {
     busWorldHeading = (smoothHeading + busVisualYawOffset + 360) % 360;
   } else {
     if (keysPressed.Up) {
-      if (gearboxMode === 'manual' && isReverseGearEngaged) {
-        const revCap = -Math.min(Math.abs(MAX_REVERSE_SPEED_KMH), gearCapKmh);
-        currentSpeedKmh = Math.max(currentSpeedKmh - 28 * deltaTime, revCap);
+      if (currentSpeedKmh < 0) {
+        currentSpeedKmh = Math.min(currentSpeedKmh + 65 * deltaTime, 0);
       } else {
-        if (currentSpeedKmh < 0) {
-          currentSpeedKmh = Math.min(currentSpeedKmh + 65 * deltaTime, 0);
-        } else {
-          desiredSpeed = Math.min(boostSpeedKmh, gearCapKmh);
-          currentSpeedKmh = Math.min(currentSpeedKmh + 42 * deltaTime, desiredSpeed);
-        }
+        desiredSpeed = Math.min(boostSpeedKmh, gearCapKmh);
+        currentSpeedKmh = Math.min(currentSpeedKmh + 42 * deltaTime, desiredSpeed);
       }
     } else if (keysPressed.Down) {
       if (currentSpeedKmh > 0) {
         currentSpeedKmh = Math.max(currentSpeedKmh - 65 * deltaTime, 0);
-      } else if (gearboxMode === 'auto' || isReverseGearEngaged) {
+      } else {
         const revCap = -Math.min(Math.abs(MAX_REVERSE_SPEED_KMH), gearCapKmh);
         currentSpeedKmh = Math.max(currentSpeedKmh - 28 * deltaTime, revCap);
       }
@@ -2914,6 +2999,8 @@ function gameLoop(now) {
   if (!isNaN(distStep)) {
     distanceCoveredKm += distStep;
   }
+
+  checkRouteProgressAlerts();
 
   const distFormatted = `${distanceCoveredKm.toFixed(2)} km`;
   const isReversing = currentSpeedKmh < -0.5;
@@ -2979,12 +3066,6 @@ window.addEventListener('keydown', (e) => {
   if (['ArrowRight', 'KeyD'].includes(e.code)) {
     keysPressed.Right = true;
     document.getElementById('btnDpadRight')?.classList.add('pressed');
-  }
-  if (e.code === 'KeyE') {
-    shiftManualGear(1);
-  }
-  if (e.code === 'KeyQ') {
-    shiftManualGear(-1);
   }
 });
 
