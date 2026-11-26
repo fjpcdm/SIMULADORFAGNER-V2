@@ -967,7 +967,7 @@ const cssStyles = `
     pointer-events: none !important;
   }
 
-  /* Wrapper do ônibus + facho de farol automático leve */
+  /* Wrapper do ônibus + facho de farol + luzes internas nas janelas à noite */
   .bus-marker-wrap {
     width: 56px;
     height: 112px;
@@ -991,9 +991,33 @@ const cssStyles = `
     opacity: 0;
     transition: opacity 0.35s ease;
     pointer-events: none;
+    z-index: 1;
   }
 
-  body.night-mode-active .bus-headlight-beam {
+  .bus-window-lights {
+    position: absolute;
+    bottom: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 14px;
+    height: 30px;
+    border-radius: 3px;
+    background: repeating-linear-gradient(
+      to bottom,
+      rgba(254, 240, 138, 0.92) 0px,
+      rgba(254, 240, 138, 0.92) 4px,
+      rgba(15, 23, 42, 0.15) 4px,
+      rgba(15, 23, 42, 0.15) 7px
+    );
+    box-shadow: 0 0 8px rgba(253, 224, 71, 0.75);
+    opacity: 0;
+    transition: opacity 0.35s ease;
+    pointer-events: none;
+    z-index: 3;
+  }
+
+  body.night-mode-active .bus-headlight-beam,
+  body.night-mode-active .bus-window-lights {
     opacity: 1;
   }
 
@@ -1186,7 +1210,7 @@ setupModal.innerHTML = `
       <label>Período / Clima Visual:</label>
       <select id="selectTimeModeLine">
         <option value="day">☀️ Dia (Claro)</option>
-        <option value="night">🌙 Noite (Farol Automático)</option>
+        <option value="night">🌙 Noite (Farol e Janelas Acesas)</option>
       </select>
     </div>
     <button class="btn-start-sim" id="btnStartLineMode">Iniciar Viagem</button>
@@ -1211,7 +1235,7 @@ setupModal.innerHTML = `
       <label>Período / Clima Visual:</label>
       <select id="selectTimeModeFree">
         <option value="day">☀️ Dia (Claro)</option>
-        <option value="night">🌙 Noite (Farol Automático)</option>
+        <option value="night">🌙 Noite (Farol e Janelas Acesas)</option>
       </select>
     </div>
     <div class="form-group">
@@ -1523,7 +1547,7 @@ let isCabinViewActive = false;
 let isNightMode = false;
 
 // ============================================================
-// SISTEMA DIA / NOITE COM FAROL AUTOMÁTICO LEVE
+// SISTEMA DIA / NOITE COM FAROL E LUZES NAS JANELAS
 // ============================================================
 function applyDayNightTheme(nightEnabled, silent = false) {
   isNightMode = Boolean(nightEnabled);
@@ -1542,7 +1566,7 @@ function applyDayNightTheme(nightEnabled, silent = false) {
 
   saveUserPreferences({ timeMode: isNightMode ? 'night' : 'day' });
   if (!silent) {
-    showAlert(isNightMode ? '🌙 Modo Noite ativo • Farol automático aceso' : '☀️ Modo Dia ativo');
+    showAlert(isNightMode ? '🌙 Modo Noite ativo • Farol e luzes das janelas acesos' : '☀️ Modo Dia ativo');
   }
 }
 
@@ -1800,8 +1824,12 @@ function createBusMarkerElement(bodyColor, stripeColor, modelKey, letreiroText, 
   img.className = 'bus-marker-img';
   img.src = getBusSvg(bodyColor, stripeColor, modelKey, letreiroText);
 
+  const windowLights = document.createElement('div');
+  windowLights.className = 'bus-window-lights';
+
   wrap.appendChild(beam);
   wrap.appendChild(img);
+  wrap.appendChild(windowLights);
   return wrap;
 }
 
@@ -2012,7 +2040,7 @@ document.getElementById('btnStartFreeMode').addEventListener('click', async () =
   }
 
   startSimulation(targetCoords, targetCoords, chosenTimeMode === 'night');
-  showAlert(chosenTimeMode === 'night' ? '🌙 Modo Livre noturno com farol automático' : '🗺️ Modo Livre ativo');
+  showAlert(chosenTimeMode === 'night' ? '🌙 Modo Livre noturno com farol e janelas acesos' : '🗺️ Modo Livre ativo');
 });
 
 function startSimulation(baseCoords, initialRenderCoords, startAtNight = false) {
@@ -2286,8 +2314,15 @@ function initMap(startCoords) {
 }
 
 // ============================================================
-// DESPACHO SEQUENCIAL + ULTRAPASSAGEM REAL + CRUZAMENTO NO TRAJETO (3 KM)
+// DESPACHO A CADA 3 KM + CICLO DE 2 CARROS (ULTRAPASSA / ACOMPANHA) + CONTROLE DE FLUXO
 // ============================================================
+
+const SUPPORT_CAR_COLORS = [
+  { bodyColor: '#1d5fa7', stripeColor: '#e2e8f0' },
+  { bodyColor: '#ea580c', stripeColor: '#ffff00' },
+  { bodyColor: '#16a34a', stripeColor: '#ffffff' },
+  { bodyColor: '#e2e8f0', stripeColor: '#334155' }
+];
 
 const sameDirTraffic = {
   vehicles: [],
@@ -2298,6 +2333,7 @@ const sameDirTraffic = {
   nextSpawnKm: 3,
   oppositeSpawned: false,
   spawnedCount: 0,
+  heldSpawnPending: false,
   lastToastMessage: '',
   lastCloseAlertTime: 0
 };
@@ -2377,6 +2413,7 @@ function configureTrafficThresholdsForRoute(pathCoords, isRoad = false, lineName
   sameDirTraffic.nextSpawnKm = 3;
   sameDirTraffic.oppositeSpawned = false;
   sameDirTraffic.spawnedCount = 0;
+  sameDirTraffic.heldSpawnPending = false;
   sameDirTraffic.lastToastMessage = '';
   sameDirTraffic.lastCloseAlertTime = 0;
 }
@@ -2391,27 +2428,57 @@ function clearSameDirTraffic() {
   sameDirTraffic.spawnedCount = 0;
   sameDirTraffic.nextSpawnKm = 3;
   sameDirTraffic.oppositeSpawned = false;
+  sameDirTraffic.heldSpawnPending = false;
   sameDirTraffic.lastToastMessage = '';
   sameDirTraffic.lastCloseAlertTime = 0;
   hideRearIndicator();
   drawSideMinimap(null, []);
 }
 
-function createOvertakingBusBehindPlayer(seqNumber) {
+// Verifica densidade de carros na linha para segurar e soltar escalonado sem encavalar
+function isTrafficCongestedForSpawn() {
+  const maxConcurrent = sameDirTraffic.isRoadLine ? 2 : 3;
+  const activeCount = sameDirTraffic.vehicles.filter(v => !v.finished).length;
+  if (activeCount >= maxConcurrent) return true;
+
+  const playerRouteMeters = getRouteProgressMeters(currentSegIndex, segProgressMeters);
+  const minSpacingMeters = sameDirTraffic.isRoadLine ? 190 : 120;
+
+  for (const v of sameDirTraffic.vehicles) {
+    if (v.finished) continue;
+    const vMeters = getRouteProgressMeters(v.segIndex, v.segProgress);
+    if (!v.returnTripActive && Math.abs(vMeters - playerRouteMeters) < minSpacingMeters) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// A cada ciclo de 2 carros:
+// - 1º e 2º do par (role: 'overtake') seguem mais rápido e ultrapassam
+// - 3º e 4º do par (role: 'escort') seguem no mesmo ritmo próximo ao carro oficial
+function getCycleBehaviorRole(seqNumber) {
+  const posInBlockOfFour = ((seqNumber - 1) % 4) + 1;
+  return posInBlockOfFour <= 2 ? 'overtake' : 'escort';
+}
+
+function createFollowingBusBehindPlayer(seqNumber) {
   if (!map || !Array.isArray(activePath) || activePath.length < 2) return null;
 
   const playerMeters = getRouteProgressMeters(currentSegIndex, segProgressMeters);
-  const spawnMeters = Math.max(0, playerMeters - 175);
+  const spawnGapMeters = sameDirTraffic.isRoadLine ? 185 : 145;
+  const spawnMeters = Math.max(0, playerMeters - spawnGapMeters);
   const spawnPt = getPointAtRouteMeters(spawnMeters);
   if (!spawnPt) return null;
 
-  const officialPreset = COLOR_PRESETS[activePresetKey] || COLOR_PRESETS['vermelho'];
-  const modelKey = currentVehicleType || (sameDirTraffic.isRoadLine ? 'rodoviario' : 'bhtrans');
-  const label = `CARRO 0${seqNumber}`;
+  const palette = SUPPORT_CAR_COLORS[(seqNumber - 1) % SUPPORT_CAR_COLORS.length];
+  const modelKey = sameDirTraffic.isRoadLine ? 'rodoviario' : (currentVehicleType === 'rodoviario' ? 'bhtrans' : currentVehicleType);
+  const role = getCycleBehaviorRole(seqNumber);
+  const label = role === 'overtake' ? `APOIO 0${seqNumber} • ULTRAP.` : `APOIO 0${seqNumber} • ROTA`;
   const baseOffset = BASE_RIGHT_LANE_OFFSET_METERS;
 
   const renderPos = applyRightLaneOffset(spawnPt.lng, spawnPt.lat, spawnPt.heading, baseOffset);
-  const wrapEl = createBusMarkerElement(officialPreset.bodyColor, officialPreset.stripeColor, modelKey, label, '0.97');
+  const wrapEl = createBusMarkerElement(palette.bodyColor, palette.stripeColor, modelKey, label, '0.96');
 
   const marker = new maplibregl.Marker({
     element: wrapEl,
@@ -2424,24 +2491,25 @@ function createOvertakingBusBehindPlayer(seqNumber) {
     .setRotation(spawnPt.heading)
     .addTo(map);
 
-  const maxLineCap = sameDirTraffic.isRoadLine ? 185 : 135;
-  const startSpeed = Math.min(maxLineCap, Math.max(68, currentSpeedKmh + 22));
+  const maxLineCap = sameDirTraffic.isRoadLine ? 175 : 130;
+  const initialSpeed = role === 'overtake'
+    ? Math.min(maxLineCap, Math.max(66, currentSpeedKmh + (sameDirTraffic.isRoadLine ? 16 : 22)))
+    : Math.max(45, currentSpeedKmh + 6);
 
   return {
     id: seqNumber,
+    role: role,
     lng: spawnPt.lng,
     lat: spawnPt.lat,
     segIndex: spawnPt.segIndex,
     segProgress: spawnPt.segProgress,
     segLength: spawnPt.segLength,
     heading: spawnPt.heading,
-    speedKmh: startSpeed,
-    targetCruiseKmh: startSpeed,
-    stationWaitSeconds: 0,
+    speedKmh: initialSpeed,
+    targetCruiseKmh: initialSpeed,
     baseLaneOffset: baseOffset,
     currentLaneOffset: baseOffset,
     overtakeState: 'none',
-    overtakeStartDistMeters: 0,
     returnTripActive: false,
     finished: false,
     marker: marker
@@ -2459,14 +2527,14 @@ function createOppositeDirectionBusOnRoute(seqNumber) {
   const spawnPt = getPointAtRouteMeters(spawnAheadMeters);
   if (!spawnPt) return null;
 
-  const officialPreset = COLOR_PRESETS[activePresetKey] || COLOR_PRESETS['vermelho'];
-  const modelKey = currentVehicleType || (sameDirTraffic.isRoadLine ? 'rodoviario' : 'bhtrans');
+  const palette = SUPPORT_CAR_COLORS[seqNumber % SUPPORT_CAR_COLORS.length];
+  const modelKey = sameDirTraffic.isRoadLine ? 'rodoviario' : 'bhtrans';
   const label = `VOLTA 0${seqNumber}`;
   const oppHeading = (spawnPt.heading + 180) % 360;
   const oppLaneOffset = -BASE_RIGHT_LANE_OFFSET_METERS;
 
   const renderPos = applyRightLaneOffset(spawnPt.lng, spawnPt.lat, oppHeading, oppLaneOffset);
-  const wrapEl = createBusMarkerElement(officialPreset.bodyColor, officialPreset.stripeColor, modelKey, label, '0.97');
+  const wrapEl = createBusMarkerElement(palette.bodyColor, palette.stripeColor, modelKey, label, '0.96');
 
   const marker = new maplibregl.Marker({
     element: wrapEl,
@@ -2479,10 +2547,11 @@ function createOppositeDirectionBusOnRoute(seqNumber) {
     .setRotation(oppHeading)
     .addTo(map);
 
-  const oppCruise = sameDirTraffic.isRoadLine ? 92 : 62;
+  const oppCruise = sameDirTraffic.isRoadLine ? 90 : 60;
 
   return {
     id: seqNumber,
+    role: 'opposite',
     lng: spawnPt.lng,
     lat: spawnPt.lat,
     segIndex: spawnPt.segIndex,
@@ -2491,11 +2560,9 @@ function createOppositeDirectionBusOnRoute(seqNumber) {
     heading: oppHeading,
     speedKmh: oppCruise,
     targetCruiseKmh: oppCruise,
-    stationWaitSeconds: 0,
     baseLaneOffset: oppLaneOffset,
     currentLaneOffset: oppLaneOffset,
     overtakeState: 'none',
-    overtakeStartDistMeters: 0,
     returnTripActive: true,
     finished: false,
     marker: marker
@@ -2510,29 +2577,40 @@ function maybeSpawnSameDirTraffic() {
   const remainingKm = Math.max(0, totalKm - distanceCoveredKm);
   if (remainingKm < 0.35) return;
 
-  // 1) Encontro com carro da mesma linha vindo no sentido oposto logo no trecho inicial
+  // Encontro no sentido contrário logo após 0,8 km
   if (!sameDirTraffic.oppositeSpawned && distanceCoveredKm >= 0.8 && remainingKm >= 1.0) {
-    sameDirTraffic.oppositeSpawned = true;
-    sameDirTraffic.spawnedCount++;
-    const oppBus = createOppositeDirectionBusOnRoute(sameDirTraffic.spawnedCount);
-    if (oppBus) {
-      sameDirTraffic.vehicles.push(oppBus);
-      showAlert(`↔️ Carro 0${oppBus.id} da mesma linha vindo no sentido oposto`);
+    if (!isTrafficCongestedForSpawn()) {
+      sameDirTraffic.oppositeSpawned = true;
+      sameDirTraffic.spawnedCount++;
+      const oppBus = createOppositeDirectionBusOnRoute(sameDirTraffic.spawnedCount);
+      if (oppBus) {
+        sameDirTraffic.vehicles.push(oppBus);
+        showAlert(`↔️ Veículo da linha vindo no sentido oposto`);
+      }
     }
   }
 
-  // 2) Carro atrás a cada 3 km para encostar e fazer ultrapassagem real
-  const activeSameDirCount = sameDirTraffic.vehicles.filter(v => !v.finished && !v.returnTripActive).length;
-  if (activeSameDirCount >= 1) return;
-
+  // Disparo a cada 3 km com verificação de fluxo (segura se houver congestionamento e solta depois)
   if (distanceCoveredKm >= sameDirTraffic.nextSpawnKm) {
+    sameDirTraffic.heldSpawnPending = true;
+  }
+
+  if (sameDirTraffic.heldSpawnPending) {
+    if (isTrafficCongestedForSpawn()) {
+      return;
+    }
+
     sameDirTraffic.spawnedCount++;
-    const newVeh = createOvertakingBusBehindPlayer(sameDirTraffic.spawnedCount);
+    const newVeh = createFollowingBusBehindPlayer(sameDirTraffic.spawnedCount);
     if (newVeh) {
       sameDirTraffic.vehicles.push(newVeh);
-      const triggerKm = sameDirTraffic.nextSpawnKm;
+      sameDirTraffic.heldSpawnPending = false;
       sameDirTraffic.nextSpawnKm += sameDirTraffic.spawnIntervalKm;
-      const msg = `🚌 Carro 0${newVeh.id} da linha se aproximando atrás (${triggerKm.toFixed(0)} km)`;
+
+      const roleText = newVeh.role === 'overtake'
+        ? 'mais rápido para ultrapassar'
+        : 'no mesmo ritmo próximo';
+      const msg = `🚌 Apoio 0${newVeh.id} entrou na linha (${roleText})`;
       if (sameDirTraffic.lastToastMessage !== msg) {
         sameDirTraffic.lastToastMessage = msg;
         showAlert(msg);
@@ -2560,7 +2638,7 @@ function updateRearDirectionalIndicator(trailingCandidates) {
 
   rearIndicatorEl.style.display = 'flex';
   rearIndicatorEl.innerHTML = visibleItems.map(item => {
-    const isClose = item.distMeters <= 140;
+    const isClose = item.distMeters <= 120;
     const distText = item.distMeters >= 1000
       ? `${(item.distMeters / 1000).toFixed(2)} km`
       : `${Math.round(item.distMeters)} m`;
@@ -2642,8 +2720,10 @@ function drawSideMinimap(nextVehicleItem, trailingCandidates) {
   const activeList = sameDirTraffic.vehicles.filter(v => !v.finished);
   if (activeList.length === 0) {
     const faltaKm = Math.max(0, sameDirTraffic.nextSpawnKm - distanceCoveredKm);
-    badgeEl.textContent = `${sameDirTraffic.spawnIntervalKm}km`;
-    infoEl.textContent = faltaKm > 0 ? `Próx: ${faltaKm.toFixed(1)} km` : 'Aguardando';
+    badgeEl.textContent = sameDirTraffic.heldSpawnPending ? 'Segurando' : `${sameDirTraffic.spawnIntervalKm}km`;
+    infoEl.textContent = sameDirTraffic.heldSpawnPending
+      ? 'Fluxo cheio: aguardando'
+      : (faltaKm > 0 ? `Próx: ${faltaKm.toFixed(1)} km` : 'Aguardando');
     return;
   }
 
@@ -2661,7 +2741,7 @@ function drawSideMinimap(nextVehicleItem, trailingCandidates) {
       ctx.stroke();
     }
 
-    ctx.fillStyle = v.returnTripActive ? '#38bdf8' : (v.overtakeState === 'passing' ? '#f59e0b' : (isNext ? '#fbbf24' : '#34d399'));
+    ctx.fillStyle = v.returnTripActive ? '#38bdf8' : (v.role === 'overtake' ? '#f59e0b' : '#34d399');
     ctx.beginPath();
     ctx.arc(clampedX, clampedY, isNext ? 5.5 : 3.8, 0, Math.PI * 2);
     ctx.fill();
@@ -2671,7 +2751,7 @@ function drawSideMinimap(nextVehicleItem, trailingCandidates) {
     const distStr = nextVehicleItem.distMeters >= 1000
       ? `${(nextVehicleItem.distMeters / 1000).toFixed(2)} km`
       : `${Math.round(nextVehicleItem.distMeters)} m`;
-    badgeEl.textContent = nextVehicleItem.isOpposite ? `OPOSTO` : `CARRO 0${nextVehicleItem.id}`;
+    badgeEl.textContent = nextVehicleItem.isOpposite ? `OPOSTO` : `APOIO 0${nextVehicleItem.id}`;
     infoEl.textContent = `${distStr} • ${Math.round(nextVehicleItem.speedKmh || 0)}km/h`;
   } else if (trailingCandidates && trailingCandidates.length > 0) {
     const nearest = trailingCandidates[0];
@@ -2718,22 +2798,24 @@ function updateSameDirTraffic(deltaTime, frameNow = performance.now()) {
     }
 
     if (!v.returnTripActive && deltaAlongRouteMeters > 4) {
+      const tagText = v.role === 'overtake'
+        ? (v.overtakeState === 'passing' ? 'ultrapassando' : 'ultrapassa')
+        : 'acompanha';
       trailingCandidates.push({
-        label: `CARRO 0${v.id}`,
-        tag: v.overtakeState === 'passing' ? 'ultrapassando' : 'atrás',
+        label: `APOIO 0${v.id}`,
+        tag: tagText,
         distMeters: directDistMeters,
         arrow: getRelativeBearingArrow([busLng, busLat], [v.lng, v.lat], smoothHeading)
       });
 
-      if (directDistMeters <= 125 && (frameNow - sameDirTraffic.lastCloseAlertTime > 10000)) {
+      if (v.role === 'overtake' && directDistMeters <= 125 && (frameNow - sameDirTraffic.lastCloseAlertTime > 10000)) {
         sameDirTraffic.lastCloseAlertTime = frameNow;
-        showAlert(`⬅️ CARRO 0${v.id} ultrapassando pela esquerda (${Math.round(directDistMeters)} m)`);
+        showAlert(`⬅️ APOIO 0${v.id} ultrapassando pela esquerda (${Math.round(directDistMeters)} m)`);
       }
     }
 
     if (isTripActive && !isLineFinished) {
       if (v.returnTripActive) {
-        // Movimento fluido no sentido oposto (do destino em direção ao início da linha)
         const oppSpeedMps = (v.speedKmh / 3.6) * speedMultiplier;
         let remDist = oppSpeedMps * deltaTime;
 
@@ -2786,47 +2868,82 @@ function updateSameDirTraffic(deltaTime, frameNow = performance.now()) {
           }
         }
 
-        // Remove discretamente após passar 300m para trás de você
         if (vRouteMeters < playerRouteMeters - 300) {
           v.finished = true;
         }
       } else {
-        // Carro no mesmo sentido: sempre mantém ritmo superior ao seu para alcançar e ultrapassar
-        const maxTrafficSpeed = sameDirTraffic.isRoadLine ? 195 : 145;
-        let targetSpeedKmh = Math.min(maxTrafficSpeed, Math.max(72, currentSpeedKmh + 24));
-        let desiredLaneOffset = v.baseLaneOffset;
-
-        const isApproachingBehind = deltaAlongRouteMeters > 4 && deltaAlongRouteMeters < 110;
-        if (v.overtakeState === 'none' && isApproachingBehind) {
-          v.overtakeState = 'passing';
-          v.overtakeStartDistMeters = vRouteMeters;
+        // Verifica distância segura em relação ao veículo imediatamente à frente na mesma rota (evita encavalar)
+        let minAheadGapMeters = Infinity;
+        for (const other of sameDirTraffic.vehicles) {
+          if (other.id === v.id || other.finished || other.returnTripActive) continue;
+          const otherMeters = getRouteProgressMeters(other.segIndex, other.segProgress);
+          const gap = otherMeters - vRouteMeters;
+          if (gap > 0 && gap < minAheadGapMeters) {
+            minAheadGapMeters = gap;
+          }
         }
 
-        if (v.overtakeState === 'passing') {
-          // Desloca para a faixa da esquerda (-2.2m) para ultrapassar sem passar por cima
-          desiredLaneOffset = -2.2;
-          targetSpeedKmh = Math.min(maxTrafficSpeed, Math.max(78, currentSpeedKmh + 28));
-          if (deltaAlongRouteMeters < -45) {
-            v.overtakeState = 'returning';
+        const maxTrafficSpeed = sameDirTraffic.isRoadLine ? 185 : 138;
+        let targetSpeedKmh = currentSpeedKmh;
+        let desiredLaneOffset = v.baseLaneOffset;
+
+        if (v.role === 'overtake') {
+          // 1º e 2º do ciclo: aproxima, abre pela esquerda e ultrapassa
+          const isApproachingBehind = deltaAlongRouteMeters > 4 && deltaAlongRouteMeters < 115;
+          if (v.overtakeState === 'none' && isApproachingBehind) {
+            v.overtakeState = 'passing';
           }
-        } else if (v.overtakeState === 'returning') {
-          desiredLaneOffset = v.baseLaneOffset;
-          targetSpeedKmh = Math.min(maxTrafficSpeed, Math.max(70, currentSpeedKmh + 16));
-          if (Math.abs(v.currentLaneOffset - v.baseLaneOffset) < 0.15) {
-            v.overtakeState = 'done';
+
+          if (v.overtakeState === 'passing') {
+            desiredLaneOffset = -2.4;
+            targetSpeedKmh = Math.min(maxTrafficSpeed, Math.max(75, currentSpeedKmh + (sameDirTraffic.isRoadLine ? 18 : 26)));
+            if (deltaAlongRouteMeters < -50) {
+              v.overtakeState = 'returning';
+            }
+          } else if (v.overtakeState === 'returning') {
+            desiredLaneOffset = v.baseLaneOffset;
+            targetSpeedKmh = Math.min(maxTrafficSpeed, Math.max(68, currentSpeedKmh + 14));
+            if (Math.abs(v.currentLaneOffset - v.baseLaneOffset) < 0.15) {
+              v.overtakeState = 'done';
+            }
+          } else if (v.overtakeState === 'done') {
+            desiredLaneOffset = v.baseLaneOffset;
+            targetSpeedKmh = Math.min(maxTrafficSpeed, Math.max(65, currentSpeedKmh + 12));
+            if (deltaAlongRouteMeters < -450) {
+              v.finished = true;
+            }
+          } else {
+            targetSpeedKmh = Math.min(maxTrafficSpeed, Math.max(70, currentSpeedKmh + 22));
           }
-        } else if (v.overtakeState === 'done') {
+        } else {
+          // 3º e 4º do ciclo: acompanha o carro oficial mantendo distância próxima e segura
+          const idealFollowGapMeters = sameDirTraffic.isRoadLine ? 75 : 55;
+          const gapDiff = deltaAlongRouteMeters - idealFollowGapMeters;
+
+          if (gapDiff > 15) {
+            targetSpeedKmh = Math.min(maxTrafficSpeed, currentSpeedKmh + 14);
+          } else if (gapDiff < -15) {
+            targetSpeedKmh = Math.max(25, currentSpeedKmh - 12);
+          } else {
+            targetSpeedKmh = currentSpeedKmh;
+          }
           desiredLaneOffset = v.baseLaneOffset;
-          targetSpeedKmh = Math.min(maxTrafficSpeed, Math.max(68, currentSpeedKmh + 14));
-          if (deltaAlongRouteMeters < -420) {
+
+          // Encerra acompanhamento suave quando a rota avança bastante
+          if (deltaAlongRouteMeters < -520) {
             v.finished = true;
           }
         }
 
+        // Proteção anti-encavalamento com outro carro à frente no mesmo sentido
+        if (minAheadGapMeters < 42) {
+          targetSpeedKmh = Math.min(targetSpeedKmh, Math.max(20, currentSpeedKmh - 18));
+        }
+
         if (v.speedKmh < targetSpeedKmh) {
-          v.speedKmh = Math.min(targetSpeedKmh, v.speedKmh + 45 * deltaTime);
+          v.speedKmh = Math.min(targetSpeedKmh, v.speedKmh + 42 * deltaTime);
         } else if (v.speedKmh > targetSpeedKmh) {
-          v.speedKmh = Math.max(targetSpeedKmh, v.speedKmh - 30 * deltaTime);
+          v.speedKmh = Math.max(targetSpeedKmh, v.speedKmh - 36 * deltaTime);
         }
 
         v.currentLaneOffset += (desiredLaneOffset - v.currentLaneOffset) * Math.min(1, 4.5 * deltaTime);
