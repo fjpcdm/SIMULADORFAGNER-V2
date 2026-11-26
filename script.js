@@ -1,9 +1,9 @@
 // ============================================================
 // ARQUIVO: script.js
-// MOTOR DE SIMULAÇÃO - MODO TRAJETO + MODO LIVRE + PERSISTÊNCIA
+// MOTOR DE SIMULAÇÃO - MODO TRAJETO + MODO LIVRE + CÂMBIO + CABINE
 // ============================================================
 
-const STORAGE_KEY_STATE = 'simulador_bus_estado_v2';
+const STORAGE_KEY_STATE = 'simulador_bus_estado_v3';
 
 const cssStyles = `
   * {
@@ -35,6 +35,331 @@ const cssStyles = `
     z-index: 1;
   }
 
+  /* ============================================================
+     VISTA DE CABINE / PRIMEIRA PESSOA (INSPIRADA NA IMAGEM)
+     ============================================================ */
+  .cockpit-pov-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 999990;
+    pointer-events: none;
+    display: none;
+    overflow: hidden;
+  }
+
+  .cockpit-pov-overlay.active {
+    display: block;
+  }
+
+  .pov-motion-vignette {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 50% 42%, rgba(255,255,255,0.03) 35%, rgba(2, 6, 23, 0.58) 100%);
+  }
+
+  .pov-visor-top {
+    position: absolute;
+    top: 0;
+    left: 12%;
+    right: 12%;
+    height: 11%;
+    background: linear-gradient(180deg, #090d16 0%, #1e293b 88%, #0f172a 100%);
+    border-bottom: 3px solid #334155;
+    border-radius: 0 0 12px 12px;
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.65);
+  }
+
+  .pov-pillar-left {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 9%;
+    height: 78%;
+    background: linear-gradient(90deg, #090d16 0%, #1e293b 82%, #0f172a 100%);
+    clip-path: polygon(0 0, 100% 0, 58% 100%, 0 100%);
+    box-shadow: 8px 0 22px rgba(0, 0, 0, 0.7);
+  }
+
+  .pov-pillar-right {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 9%;
+    height: 78%;
+    background: linear-gradient(270deg, #090d16 0%, #1e293b 82%, #0f172a 100%);
+    clip-path: polygon(0 0, 100% 0, 100% 100%, 42% 100%);
+    box-shadow: -8px 0 22px rgba(0, 0, 0, 0.7);
+  }
+
+  .pov-mirror {
+    position: absolute;
+    top: 12%;
+    width: 118px;
+    height: 152px;
+    background: linear-gradient(145deg, #1e293b 0%, #0f172a 100%);
+    border: 3px solid #334155;
+    border-radius: 12px;
+    box-shadow: 0 12px 26px rgba(0, 0, 0, 0.75);
+    overflow: hidden;
+  }
+
+  .pov-mirror-left {
+    left: 2.2%;
+  }
+
+  .pov-mirror-right {
+    right: 2.2%;
+  }
+
+  .pov-mirror-glass {
+    position: absolute;
+    inset: 6px;
+    border-radius: 8px;
+    background: linear-gradient(180deg, rgba(56, 189, 248, 0.16) 0%, rgba(15, 23, 42, 0.72) 55%, rgba(22, 101, 52, 0.28) 100%);
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    padding: 6px;
+    color: #e2e8f0;
+    font-size: 0.65rem;
+    font-family: monospace;
+  }
+
+  .pov-dashboard {
+    position: absolute;
+    left: -2%;
+    right: -2%;
+    bottom: 0;
+    height: 25%;
+    background: linear-gradient(180deg, #291d18 0%, #181210 58%, #090d16 100%);
+    border-top: 3px solid #3f3029;
+    box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.85);
+  }
+
+  .pov-validator-console {
+    position: absolute;
+    left: 34%;
+    bottom: 21%;
+    width: 112px;
+    height: 68px;
+    background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+    border: 2px solid #475569;
+    border-radius: 8px 8px 3px 3px;
+    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.75);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 4px;
+  }
+
+  .pov-validator-screen {
+    width: 90%;
+    height: 26px;
+    background: #020617;
+    border: 1px solid #38bdf8;
+    border-radius: 4px;
+    color: #4ade80;
+    font-family: monospace;
+    font-size: 0.62rem;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding: 0 4px;
+  }
+
+  .pov-validator-keys {
+    width: 84%;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2px;
+  }
+
+  .pov-validator-keys span {
+    height: 6px;
+    background: #334155;
+    border-radius: 1px;
+  }
+
+  .pov-handrail-yellow {
+    position: absolute;
+    right: 17%;
+    bottom: 9%;
+    width: 120px;
+    height: 14px;
+    border: 4px solid #eab308;
+    border-bottom: none;
+    border-radius: 14px 14px 0 0;
+    opacity: 0.92;
+  }
+
+  .pov-steering-wheel {
+    position: absolute;
+    left: 16%;
+    bottom: 4%;
+    width: 132px;
+    height: 132px;
+    border-radius: 50%;
+    border: 12px solid #111827;
+    box-shadow: 0 0 0 2px #374151, 0 10px 24px rgba(0, 0, 0, 0.85);
+    transform-origin: center center;
+    transition: transform 0.05s linear;
+  }
+
+  .pov-steering-spoke-h {
+    position: absolute;
+    top: 50%;
+    left: 8%;
+    right: 8%;
+    height: 10px;
+    background: #1f2937;
+    transform: translateY(-50%);
+    border-radius: 4px;
+  }
+
+  .pov-steering-spoke-v {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 14px;
+    height: 42%;
+    background: #1f2937;
+    transform: translateX(-50%);
+    border-radius: 0 0 6px 6px;
+  }
+
+  @media (max-width: 640px) {
+    .pov-mirror {
+      width: 74px;
+      height: 102px;
+      top: 13%;
+    }
+    .pov-validator-console {
+      display: none;
+    }
+    .pov-steering-wheel {
+      left: 8%;
+      bottom: 8%;
+      width: 92px;
+      height: 92px;
+      border-width: 9px;
+    }
+    .pov-handrail-yellow {
+      display: none;
+    }
+  }
+
+  /* ============================================================
+     SELETOR DE CÂMBIO (AUTOMÁTICO / MANUAL + MARCHAS)
+     ============================================================ */
+  .gearbox-widget {
+    position: fixed !important;
+    left: 12px !important;
+    bottom: calc(18px + env(safe-area-inset-bottom, 0px)) !important;
+    z-index: 999999 !important;
+    background: rgba(15, 23, 42, 0.93);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1.5px solid rgba(56, 189, 248, 0.55);
+    border-radius: 14px;
+    padding: 8px 10px;
+    color: #ffffff;
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.65);
+    display: none;
+    flex-direction: column;
+    gap: 6px;
+    width: 154px;
+  }
+
+  .gearbox-top-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+  }
+
+  .btn-gear-mode {
+    flex: 1;
+    padding: 5px 6px;
+    border-radius: 8px;
+    border: 1px solid #38bdf8;
+    background: #1e293b;
+    color: #38bdf8;
+    font-size: 0.7rem;
+    font-weight: 800;
+    cursor: pointer;
+    text-align: center;
+  }
+
+  .btn-gear-mode.manual-active {
+    background: #f59e0b;
+    border-color: #fbbf24;
+    color: #0f172a;
+  }
+
+  .gear-readout-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: rgba(2, 6, 23, 0.85);
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    border-radius: 8px;
+    padding: 5px 8px;
+  }
+
+  .gear-current-badge {
+    font-family: monospace;
+    font-size: 1.05rem;
+    font-weight: 900;
+    color: #10b981;
+  }
+
+  .gear-rpm-text {
+    font-family: monospace;
+    font-size: 0.68rem;
+    color: #cbd5e1;
+  }
+
+  .gear-manual-btns {
+    display: flex;
+    gap: 6px;
+  }
+
+  .btn-gear-step {
+    flex: 1;
+    padding: 6px 0;
+    border-radius: 8px;
+    border: 1px solid #475569;
+    background: #334155;
+    color: #ffffff;
+    font-size: 0.76rem;
+    font-weight: 800;
+    cursor: pointer;
+  }
+
+  .btn-gear-step:active {
+    background: #38bdf8;
+    color: #0f172a;
+  }
+
+  @media (max-width: 640px) {
+    .gearbox-widget {
+      left: 8px !important;
+      bottom: calc(136px + env(safe-area-inset-bottom, 0px)) !important;
+      width: 132px;
+      padding: 6px 8px;
+    }
+  }
+
+  /* ============================================================
+     ESTILOS GERAIS / HUD / CONTROLES
+     ============================================================ */
   .setup-modal-overlay {
     position: fixed;
     top: 0;
@@ -171,7 +496,7 @@ const cssStyles = `
     padding: 6px 14px;
     display: none;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
     z-index: 999999;
     color: #ffffff;
     font-size: 0.78rem;
@@ -189,6 +514,23 @@ const cssStyles = `
     font-size: 0.7rem;
     font-weight: bold;
     cursor: pointer;
+  }
+
+  .btn-camera-view {
+    background: #0f766e;
+    border: 1px solid #2dd4bf;
+    color: #ffffff;
+    padding: 4px 9px;
+    border-radius: 10px;
+    font-size: 0.7rem;
+    font-weight: bold;
+    cursor: pointer;
+  }
+
+  .btn-camera-view.cabine-on {
+    background: #f59e0b;
+    border-color: #fbbf24;
+    color: #0f172a;
   }
 
   .hud {
@@ -877,6 +1219,13 @@ setupModal.innerHTML = `
       <label>Cor do Veículo:</label>
       <select id="selectColorLine">${colorOptionsHtml}</select>
     </div>
+    <div class="form-group">
+      <label>Tipo de Câmbio:</label>
+      <select id="selectGearboxLine">
+        <option value="auto">Automático</option>
+        <option value="manual">Manual</option>
+      </select>
+    </div>
     <button class="btn-start-sim" id="btnStartLineMode">Iniciar Viagem</button>
     <button class="btn-back-menu" id="btnBackLine">Voltar</button>
   </div>
@@ -896,6 +1245,13 @@ setupModal.innerHTML = `
       <select id="selectColorFree">${colorOptionsHtml}</select>
     </div>
     <div class="form-group">
+      <label>Tipo de Câmbio:</label>
+      <select id="selectGearboxFree">
+        <option value="auto">Automático</option>
+        <option value="manual">Manual</option>
+      </select>
+    </div>
+    <div class="form-group">
       <label>Pesquisar Local / Rua:</label>
       <input type="text" id="inputFreeLocation" value="Avenida Amazonas, Belo Horizonte" />
     </div>
@@ -904,6 +1260,58 @@ setupModal.innerHTML = `
   </div>
 `;
 document.body.appendChild(setupModal);
+
+const cockpitOverlay = document.createElement('div');
+cockpitOverlay.className = 'cockpit-pov-overlay';
+cockpitOverlay.id = 'cockpitPovOverlay';
+cockpitOverlay.innerHTML = `
+  <div class="pov-motion-vignette"></div>
+  <div class="pov-visor-top"></div>
+  <div class="pov-pillar-left"></div>
+  <div class="pov-pillar-right"></div>
+  <div class="pov-mirror pov-mirror-left">
+    <div class="pov-mirror-glass">
+      <span id="povLeftMirrorInfo">ESQ • PISTA</span>
+    </div>
+  </div>
+  <div class="pov-mirror pov-mirror-right">
+    <div class="pov-mirror-glass">
+      <span id="povRightMirrorInfo">DIR • PISTA</span>
+    </div>
+  </div>
+  <div class="pov-dashboard">
+    <div class="pov-validator-console">
+      <div class="pov-validator-screen" id="povValidatorText">LINHA</div>
+      <div class="pov-validator-keys">
+        <span></span><span></span><span></span><span></span><span></span><span></span>
+      </div>
+    </div>
+    <div class="pov-handrail-yellow"></div>
+  </div>
+  <div class="pov-steering-wheel" id="povSteeringWheel">
+    <div class="pov-steering-spoke-h"></div>
+    <div class="pov-steering-spoke-v"></div>
+  </div>
+`;
+document.body.appendChild(cockpitOverlay);
+
+const gearboxWidget = document.createElement('div');
+gearboxWidget.className = 'gearbox-widget';
+gearboxWidget.id = 'gearboxWidget';
+gearboxWidget.innerHTML = `
+  <div class="gearbox-top-row">
+    <button class="btn-gear-mode" id="btnToggleGearMode">AUTO</button>
+  </div>
+  <div class="gear-readout-row">
+    <span class="gear-current-badge" id="gearBadgeDisplay">D1</span>
+    <span class="gear-rpm-text" id="rpmDisplayText">900 RPM</span>
+  </div>
+  <div class="gear-manual-btns" id="gearManualBtns">
+    <button class="btn-gear-step" id="btnGearDown" title="Reduzir marcha (Q)">-M</button>
+    <button class="btn-gear-step" id="btnGearUp" title="Subir marcha (E)">+M</button>
+  </div>
+`;
+document.body.appendChild(gearboxWidget);
 
 function refreshLinesDropdown() {
   const select = document.getElementById('selectLine');
@@ -975,6 +1383,8 @@ function applySavedPreferencesToUI() {
   const modelFreeSelect = document.getElementById('selectModelFree');
   const colorLineSelect = document.getElementById('selectColorLine');
   const colorFreeSelect = document.getElementById('selectColorFree');
+  const gearLineSelect = document.getElementById('selectGearboxLine');
+  const gearFreeSelect = document.getElementById('selectGearboxFree');
   const freeLocInput = document.getElementById('inputFreeLocation');
 
   if (prefs.categoryType && catSelect) {
@@ -988,6 +1398,12 @@ function applySavedPreferencesToUI() {
   }
   if (prefs.modelFree && modelFreeSelect && VALID_BUS_MODELS.includes(prefs.modelFree)) {
     modelFreeSelect.value = prefs.modelFree;
+  }
+  if (prefs.gearboxMode && gearLineSelect && (prefs.gearboxMode === 'auto' || prefs.gearboxMode === 'manual')) {
+    gearLineSelect.value = prefs.gearboxMode;
+  }
+  if (prefs.gearboxMode && gearFreeSelect && (prefs.gearboxMode === 'auto' || prefs.gearboxMode === 'manual')) {
+    gearFreeSelect.value = prefs.gearboxMode;
   }
   if (prefs.freeLocation && freeLocInput) {
     freeLocInput.value = prefs.freeLocation;
@@ -1044,6 +1460,14 @@ document.getElementById('selectColorFree').addEventListener('change', (e) => {
   }
 });
 
+document.getElementById('selectGearboxLine').addEventListener('change', (e) => {
+  saveUserPreferences({ gearboxMode: e.target.value });
+});
+
+document.getElementById('selectGearboxFree').addEventListener('change', (e) => {
+  saveUserPreferences({ gearboxMode: e.target.value });
+});
+
 document.getElementById('inputFreeLocation').addEventListener('change', (e) => {
   saveUserPreferences({ freeLocation: e.target.value.trim() });
 });
@@ -1065,6 +1489,7 @@ mobileTopBar.innerHTML = `
   <span>⏱️ <strong id="miniTimerDisplay" style="color:#10b981; font-family:monospace;">00:00</strong></span>
   <span>📍 <strong id="miniKmDisplay" style="color:#38bdf8;">0.00 km</strong></span>
   <span>🚀 <strong id="miniSpeedDisplay" style="color:#fbbf24;">0</strong> km/h</span>
+  <button class="btn-camera-view" id="btnToggleCameraView">👁️ Cabine</button>
   <button class="btn-toggle-hud" id="btnToggleHud">📊 Menu</button>
 `;
 document.body.appendChild(mobileTopBar);
@@ -1150,6 +1575,149 @@ let currentGameMode = 'line';
 let activePresetKey = 'vermelho';
 let currentVehicleType = 'urbano';
 let activeLetreiroText = 'EXECUTIVO';
+
+let isCabinViewActive = false;
+
+// ============================================================
+// SISTEMA DE CÂMBIO AUTOMÁTICO E MANUAL
+// ============================================================
+const GEAR_MAX_SPEEDS = {
+  1: 24,
+  2: 44,
+  3: 68,
+  4: 96,
+  5: 130,
+  6: 180
+};
+
+let gearboxMode = 'auto'; // 'auto' | 'manual'
+let currentGear = 1; // 1..6 (0 = Neutro / Ré)
+let isReverseGearEngaged = false;
+let currentRpm = 850;
+
+function updateGearboxUI() {
+  const modeBtn = document.getElementById('btnToggleGearMode');
+  const badgeEl = document.getElementById('gearBadgeDisplay');
+  const rpmEl = document.getElementById('rpmDisplayText');
+  const manualBtns = document.getElementById('gearManualBtns');
+  if (!modeBtn || !badgeEl || !rpmEl || !manualBtns) return;
+
+  if (gearboxMode === 'manual') {
+    modeBtn.textContent = 'MANUAL';
+    modeBtn.classList.add('manual-active');
+    manualBtns.style.display = 'flex';
+    badgeEl.textContent = isReverseGearEngaged ? 'R' : `M${currentGear}`;
+  } else {
+    modeBtn.textContent = 'AUTO';
+    modeBtn.classList.remove('manual-active');
+    manualBtns.style.display = 'none';
+    badgeEl.textContent = isReverseGearEngaged ? 'R' : `D${currentGear}`;
+  }
+
+  rpmEl.textContent = `${Math.round(currentRpm)} RPM`;
+}
+
+function setGearboxMode(newMode) {
+  gearboxMode = newMode === 'manual' ? 'manual' : 'auto';
+  saveUserPreferences({ gearboxMode });
+  if (gearboxMode === 'auto') {
+    isReverseGearEngaged = false;
+    currentGear = Math.max(1, currentGear);
+  }
+  updateGearboxUI();
+  showAlert(gearboxMode === 'manual' ? '⚙️ Câmbio Manual ativo (E sobe / Q reduz)' : '⚙️ Câmbio Automático ativo');
+}
+
+function shiftManualGear(delta) {
+  if (gearboxMode !== 'manual') {
+    setGearboxMode('manual');
+  }
+  if (delta > 0) {
+    if (isReverseGearEngaged) {
+      isReverseGearEngaged = false;
+      currentGear = 1;
+    } else {
+      currentGear = Math.min(6, currentGear + 1);
+    }
+  } else if (delta < 0) {
+    if (currentGear <= 1 && Math.abs(currentSpeedKmh) < 1) {
+      isReverseGearEngaged = true;
+      currentGear = 1;
+    } else {
+      isReverseGearEngaged = false;
+      currentGear = Math.max(1, currentGear - 1);
+    }
+  }
+  updateGearboxUI();
+}
+
+function updateGearboxPhysics(deltaTime) {
+  const absSpeed = Math.abs(currentSpeedKmh);
+
+  if (gearboxMode === 'auto') {
+    if (currentGameMode === 'free' && currentSpeedKmh < -0.5) {
+      isReverseGearEngaged = true;
+      currentGear = 1;
+    } else {
+      isReverseGearEngaged = false;
+      if (absSpeed < 18) currentGear = 1;
+      else if (absSpeed < 38) currentGear = 2;
+      else if (absSpeed < 62) currentGear = 3;
+      else if (absSpeed < 90) currentGear = 4;
+      else if (absSpeed < 122) currentGear = 5;
+      else currentGear = 6;
+    }
+  }
+
+  const maxGearSpeed = isReverseGearEngaged ? 25 : (GEAR_MAX_SPEEDS[currentGear] || 180);
+  const gearRatioProgress = Math.min(1, absSpeed / Math.max(1, maxGearSpeed));
+  const targetRpm = absSpeed < 0.4
+    ? 850
+    : 1050 + gearRatioProgress * 2250;
+
+  currentRpm += (targetRpm - currentRpm) * Math.min(1, 8.0 * deltaTime);
+  updateGearboxUI();
+  return maxGearSpeed;
+}
+
+function setCabinView(enabled) {
+  isCabinViewActive = Boolean(enabled);
+  const btnCam = document.getElementById('btnToggleCameraView');
+  const validatorEl = document.getElementById('povValidatorText');
+  if (cockpitOverlay) {
+    cockpitOverlay.classList.toggle('active', isCabinViewActive);
+  }
+  if (btnCam) {
+    btnCam.classList.toggle('cabine-on', isCabinViewActive);
+    btnCam.textContent = isCabinViewActive ? '🗺️ Mapa' : '👁️ Cabine';
+  }
+  if (validatorEl) {
+    validatorEl.textContent = activeLetreiroText || 'LINHA';
+  }
+  if (map) {
+    map.setPitch(isCabinViewActive ? 45 : 25);
+  }
+}
+
+document.getElementById('btnToggleCameraView').addEventListener('pointerdown', (e) => {
+  e.stopPropagation();
+  setCabinView(!isCabinViewActive);
+});
+
+document.getElementById('btnToggleGearMode').addEventListener('pointerdown', (e) => {
+  e.stopPropagation();
+  setGearboxMode(gearboxMode === 'auto' ? 'manual' : 'auto');
+});
+
+document.getElementById('btnGearUp').addEventListener('pointerdown', (e) => {
+  e.stopPropagation();
+  shiftManualGear(1);
+});
+
+document.getElementById('btnGearDown').addEventListener('pointerdown', (e) => {
+  e.stopPropagation();
+  shiftManualGear(-1);
+});
 
 let activePath = [];
 let busLng = 0;
@@ -1325,7 +1893,14 @@ document.getElementById('btnStartLineMode').addEventListener('click', () => {
   currentGameMode = 'line';
   const selectedKey = document.getElementById('selectLine').value;
   activePresetKey = document.getElementById('selectColorLine').value || 'vermelho';
-  saveUserPreferences({ lastLineKey: selectedKey, colorLine: activePresetKey });
+  const selectedGear = document.getElementById('selectGearboxLine')?.value || 'auto';
+  saveUserPreferences({ lastLineKey: selectedKey, colorLine: activePresetKey, gearboxMode: selectedGear });
+
+  gearboxMode = selectedGear;
+  currentGear = 1;
+  isReverseGearEngaged = false;
+  currentRpm = 850;
+  updateGearboxUI();
 
   const db = getLinesDatabase();
   const lineData = db[selectedKey] || Object.values(db)[0];
@@ -1395,8 +1970,15 @@ document.getElementById('btnStartFreeMode').addEventListener('click', async () =
     ? 'RODOVIÁRIO'
     : (chosenFreeModel === 'metropolitano' ? 'METROPOLITANO' : 'BHTRANS LIVRE');
   activePresetKey = document.getElementById('selectColorFree').value || 'vermelho';
+  const selectedGear = document.getElementById('selectGearboxFree')?.value || 'auto';
   const locationQuery = document.getElementById('inputFreeLocation').value.trim();
-  saveUserPreferences({ modelFree: chosenFreeModel, colorFree: activePresetKey, freeLocation: locationQuery });
+  saveUserPreferences({ modelFree: chosenFreeModel, colorFree: activePresetKey, gearboxMode: selectedGear, freeLocation: locationQuery });
+
+  gearboxMode = selectedGear;
+  currentGear = 1;
+  isReverseGearEngaged = false;
+  currentRpm = 850;
+  updateGearboxUI();
 
   clearSameDirTraffic();
   activePath = [];
@@ -1446,6 +2028,8 @@ function startSimulation(baseCoords, initialRenderCoords) {
   mobileTopBar.style.display = 'flex';
   bottomCockpitBar.style.display = 'flex';
   speedBox.style.display = 'flex';
+  gearboxWidget.style.display = 'flex';
+  setCabinView(false);
 
   if (currentGameMode === 'free') {
     btnTripToggle.style.display = 'none';
@@ -1479,6 +2063,7 @@ function hideRearIndicator() {
 function exitGame() {
   stopTripTimer();
   clearSameDirTraffic();
+  setCabinView(false);
   if (animationFrameId) {
     cancelAnimationFrame(animationFrameId);
     animationFrameId = null;
@@ -1501,6 +2086,11 @@ function exitGame() {
   lineLateralCorrectionMeters = 0;
   lineLateralVelocity = 0;
   busVisualYawOffset = 0;
+  currentGear = 1;
+  isReverseGearEngaged = false;
+  currentRpm = 850;
+  updateGearboxUI();
+
   document.getElementById('tripTimerDisplay').textContent = '00:00';
   document.getElementById('miniTimerDisplay').textContent = '00:00';
   document.getElementById('kmCoveredDisplay').textContent = '0.00 km';
@@ -1511,6 +2101,7 @@ function exitGame() {
   hudContainer.classList.remove('mobile-visible');
   speedBox.style.display = 'none';
   sideMinimapBox.style.display = 'none';
+  gearboxWidget.style.display = 'none';
   mobileTopBar.style.display = 'none';
   bottomCockpitBar.style.display = 'none';
   mapBanner.style.display = 'none';
@@ -1669,7 +2260,7 @@ function initMap(startCoords) {
     },
     center: startCoords,
     zoom: currentZoomLevel,
-    pitch: 25,
+    pitch: isCabinViewActive ? 45 : 25,
     bearing: initialBearing,
     renderWorldCopies: false
   });
@@ -2178,6 +2769,7 @@ function gameLoop(now) {
   lastFrameTime = now;
 
   const prev = [busLng, busLat];
+  const gearCapKmh = updateGearboxPhysics(deltaTime);
 
   let desiredSpeed = 0;
 
@@ -2204,9 +2796,9 @@ function gameLoop(now) {
           isAutopilotMoving = false;
         }
       } else if (keysPressed.Up) {
-        desiredSpeed = boostSpeedKmh;
+        desiredSpeed = Math.min(boostSpeedKmh, gearCapKmh);
       } else {
-        desiredSpeed = cruiseSpeedKmh;
+        desiredSpeed = Math.min(cruiseSpeedKmh, gearCapKmh);
       }
     }
 
@@ -2303,19 +2895,25 @@ function gameLoop(now) {
     renderLat = lanePos[1];
     busWorldHeading = (smoothHeading + busVisualYawOffset + 360) % 360;
   } else {
-    // Modo Livre: aceleração, freio/ré e virada leve sem patinar
+    // Modo Livre: aceleração, freio/ré, câmbio e virada leve sem patinar
     if (keysPressed.Up) {
-      if (currentSpeedKmh < 0) {
-        currentSpeedKmh = Math.min(currentSpeedKmh + 65 * deltaTime, 0);
+      if (gearboxMode === 'manual' && isReverseGearEngaged) {
+        const revCap = -Math.min(Math.abs(MAX_REVERSE_SPEED_KMH), gearCapKmh);
+        currentSpeedKmh = Math.max(currentSpeedKmh - 28 * deltaTime, revCap);
       } else {
-        desiredSpeed = boostSpeedKmh;
-        currentSpeedKmh = Math.min(currentSpeedKmh + 42 * deltaTime, desiredSpeed);
+        if (currentSpeedKmh < 0) {
+          currentSpeedKmh = Math.min(currentSpeedKmh + 65 * deltaTime, 0);
+        } else {
+          desiredSpeed = Math.min(boostSpeedKmh, gearCapKmh);
+          currentSpeedKmh = Math.min(currentSpeedKmh + 42 * deltaTime, desiredSpeed);
+        }
       }
     } else if (keysPressed.Down) {
       if (currentSpeedKmh > 0) {
         currentSpeedKmh = Math.max(currentSpeedKmh - 65 * deltaTime, 0);
-      } else {
-        currentSpeedKmh = Math.max(currentSpeedKmh - 28 * deltaTime, MAX_REVERSE_SPEED_KMH);
+      } else if (gearboxMode === 'auto' || isReverseGearEngaged) {
+        const revCap = -Math.min(Math.abs(MAX_REVERSE_SPEED_KMH), gearCapKmh);
+        currentSpeedKmh = Math.max(currentSpeedKmh - 28 * deltaTime, revCap);
       }
     } else {
       if (currentSpeedKmh > 0) {
@@ -2359,7 +2957,7 @@ function gameLoop(now) {
   }
 
   const distFormatted = `${distanceCoveredKm.toFixed(2)} km`;
-  const isReversing = currentGameMode === 'free' && currentSpeedKmh < -0.5;
+  const isReversing = currentSpeedKmh < -0.5;
   const speedRounded = Math.round(Math.abs(currentSpeedKmh));
   const speedDisplay = isReversing ? `R ${speedRounded}` : `${speedRounded}`;
 
@@ -2367,6 +2965,20 @@ function gameLoop(now) {
   document.getElementById('miniKmDisplay').textContent = distFormatted;
   document.getElementById('speedValue').textContent = speedDisplay;
   document.getElementById('miniSpeedDisplay').textContent = speedDisplay;
+
+  if (isCabinViewActive) {
+    const wheelEl = document.getElementById('povSteeringWheel');
+    const steerAngleDeg = currentGameMode === 'free'
+      ? Math.max(-55, Math.min(55, freeSteerRate * 1.15))
+      : Math.max(-45, Math.min(45, lineLateralVelocity * 14));
+    if (wheelEl) {
+      wheelEl.style.transform = `rotate(${steerAngleDeg.toFixed(1)}deg)`;
+    }
+    const leftMirrorEl = document.getElementById('povLeftMirrorInfo');
+    const rightMirrorEl = document.getElementById('povRightMirrorInfo');
+    if (leftMirrorEl) leftMirrorEl.textContent = `ESQ • ${speedRounded} KM/H`;
+    if (rightMirrorEl) rightMirrorEl.textContent = `DIR • ${isReverseGearEngaged ? 'RÉ' : (gearboxMode === 'manual' ? `M${currentGear}` : `D${currentGear}`)}`;
+  }
 
   updateSameDirTraffic(deltaTime, now);
 
@@ -2382,8 +2994,8 @@ function gameLoop(now) {
   map.jumpTo({
     center: currentCoords,
     bearing: currentCameraBearing,
-    pitch: 25,
-    zoom: currentZoomLevel
+    pitch: isCabinViewActive ? 45 : 25,
+    zoom: isCabinViewActive ? Math.max(currentZoomLevel, 18.8) : currentZoomLevel
   });
 
   if (!isLineFinished) {
@@ -2422,6 +3034,12 @@ window.addEventListener('keydown', (e) => {
   if (['ArrowRight', 'KeyD'].includes(e.code)) {
     keysPressed.Right = true;
     document.getElementById('btnDpadRight')?.classList.add('pressed');
+  }
+  if (e.code === 'KeyE') {
+    shiftManualGear(1);
+  }
+  if (e.code === 'KeyQ') {
+    shiftManualGear(-1);
   }
 });
 
