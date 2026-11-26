@@ -2178,3 +2178,1029 @@ function getBusSvg(bodyColor, stripeColor, tipo = 'bhtrans', letreiroText = 'EXE
         <rect x="33" y="96" width="34" height="14" rx="3" fill="#0f172a" stroke="#fb923c" stroke-width="1.2" />
         <path d="M 15,9 L 85,9 L 81,36 L 19,36 Z" fill="#0f172a" stroke="#e2e8f0" stroke-width="1.4" />
         <rect x="23" y="13" width="54" height="13" rx="2" fill="#020617" stroke="#fb923c" stroke-width="0.9" />
+        <text x="50" y="22" fill="#fb923c" font-size="7.2" font-weight="bold" font-family="monospace" text-anchor="middle">${safeText}</text>
+        <rect x="14" y="3" width="13" height="4" rx="1.5" fill="#fde047" />
+        <rect x="73" y="3" width="13" height="4" rx="1.5" fill="#fde047" />
+        <rect x="16" y="193" width="12" height="3.5" rx="1" fill="#ef4444" />
+        <rect x="72" y="193" width="12" height="3.5" rx="1" fill="#ef4444" />
+      </svg>
+    `;
+  } else if (modelKey === 'rodoviario') {
+    svgContent = `
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 200" width="100" height="200">
+        <rect x="7" y="5" width="86" height="190" rx="16" fill="rgba(0,0,0,0.48)" />
+        <path d="M 14,22 C 14,8 24,3 50,3 C 76,3 86,8 86,22 L 88,184 C 88,193 78,197 50,197 C 22,197 12,193 12,184 Z" fill="${bodyColor}" stroke="#0f172a" stroke-width="2" />
+        <path d="M 14,44 C 24,38 76,38 86,44 L 87,158 L 13,158 Z" fill="#0f172a" opacity="0.92" />
+        <path d="M 13,144 L 87,144 L 87,165 L 13,165 Z" fill="${stripeColor}" opacity="0.92" />
+        <line x1="28" y1="50" x2="28" y2="138" stroke="#475569" stroke-width="1.4" stroke-dasharray="6 4" />
+        <line x1="72" y1="50" x2="72" y2="138" stroke="#475569" stroke-width="1.4" stroke-dasharray="6 4" />
+        <rect x="32" y="70" width="36" height="30" rx="5" fill="#1e293b" stroke="#64748b" stroke-width="1.2" />
+        <path d="M 18,10 C 30,6 70,6 82,10 L 79,36 C 64,33 36,33 21,36 Z" fill="#090d16" stroke="#cbd5e1" stroke-width="1.3" />
+        <rect x="26" y="13" width="48" height="12" rx="2" fill="#020617" stroke="#38bdf8" stroke-width="0.9" />
+        <text x="50" y="21.5" fill="#4ade80" font-size="6.8" font-weight="bold" font-family="monospace" text-anchor="middle">${safeText}</text>
+        <rect x="17" y="4" width="12" height="4" rx="1.5" fill="#fef08a" />
+        <rect x="71" y="4" width="12" height="4" rx="1.5" fill="#fef08a" />
+        <rect x="18" y="193" width="14" height="3.5" rx="1" fill="#dc2626" />
+        <rect x="68" y="193" width="14" height="3.5" rx="1" fill="#dc2626" />
+      </svg>
+    `;
+  } else {
+    svgContent = `
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 200" width="100" height="200">
+        <rect x="6" y="6" width="88" height="188" rx="10" fill="rgba(0,0,0,0.45)" />
+        <path d="M 10,14 C 10,6 18,4 50,4 C 82,4 90,6 90,14 L 90,187 C 90,194 82,196 50,196 C 18,196 10,194 10,187 Z" fill="${bodyColor}" stroke="#0f172a" stroke-width="2" />
+        <rect x="11" y="44" width="78" height="102" rx="3" fill="${stripeColor}" opacity="0.9" />
+        <rect x="24" y="52" width="52" height="84" rx="4" fill="#1e293b" stroke="#cbd5e1" stroke-width="1.2" />
+        <circle cx="50" cy="94" r="10" fill="#334155" stroke="#38bdf8" stroke-width="1.2" />
+        <path d="M 14,9 L 86,9 L 81,37 L 19,37 Z" fill="#0f172a" stroke="#e2e8f0" stroke-width="1.4" />
+        <rect x="23" y="13" width="54" height="13" rx="2" fill="#020617" stroke="#38bdf8" stroke-width="0.9" />
+        <text x="50" y="22" fill="#4ade80" font-size="7.2" font-weight="bold" font-family="monospace" text-anchor="middle">${safeText}</text>
+        <rect x="14" y="3" width="12" height="4" rx="1.5" fill="#fbbf24" />
+        <rect x="74" y="3" width="12" height="4" rx="1.5" fill="#fbbf24" />
+        <rect x="16" y="193" width="11" height="3.5" rx="1" fill="#ef4444" />
+        <rect x="73" y="193" width="11" height="3.5" rx="1" fill="#ef4444" />
+      </svg>
+    `;
+  }
+
+  return 'data:image/svg+xml;utf8,' + encodeURIComponent(svgContent.trim());
+}
+
+function initMap(startCoords) {
+  if (map) {
+    map.remove();
+    map = null;
+  }
+
+  const initialBearing = currentGameMode === 'line' ? smoothHeading : vehicleHeading;
+
+  map = new maplibregl.Map({
+    container: 'map',
+    antialias: false,
+    style: {
+      version: 8,
+      sources: {
+        'google-hybrid-source': {
+          type: 'raster',
+          tiles: [
+            'https://mt0.google.com/vt/lyrs=y,h&x={x}&y={y}&z={z}',
+            'https://mt1.google.com/vt/lyrs=y,h&x={x}&y={y}&z={z}',
+            'https://mt2.google.com/vt/lyrs=y,h&x={x}&y={y}&z={z}',
+            'https://mt3.google.com/vt/lyrs=y,h&x={x}&y={y}&z={z}'
+          ],
+          tileSize: 256,
+          maxzoom: 22
+        }
+      },
+      layers: [{ id: 'google-hybrid-layer', type: 'raster', source: 'google-hybrid-source', minzoom: 0, maxzoom: 22 }]
+    },
+    center: startCoords,
+    zoom: currentZoomLevel,
+    pitch: isCabinViewActive ? 45 : 25,
+    bearing: initialBearing,
+    renderWorldCopies: false
+  });
+
+  const preset = COLOR_PRESETS[activePresetKey] || COLOR_PRESETS['vermelho'];
+  const busWrapEl = createBusMarkerElement(preset.bodyColor, preset.stripeColor, currentVehicleType, activeLetreiroText, '1');
+
+  busMarker = new maplibregl.Marker({
+    element: busWrapEl,
+    anchor: 'center',
+    offset: [0, -28],
+    rotationAlignment: 'map',
+    pitchAlignment: 'map'
+  })
+    .setLngLat(startCoords)
+    .setRotation(initialBearing)
+    .addTo(map);
+
+  map.on('load', () => {
+    map.resize();
+    setTimeout(() => { if (map) map.resize(); }, 250);
+    busMarker.setLngLat(startCoords);
+    lastFrameTime = performance.now();
+    if (animationFrameId) cancelAnimationFrame(animationFrameId);
+    animationFrameId = requestAnimationFrame(gameLoop);
+  });
+}
+
+// ============================================================
+// DESPACHO SEQUENCIAL + ULTRAPASSAGEM REAL + CRUZAMENTO NO TRAJETO (3 KM)
+// ============================================================
+
+const sameDirTraffic = {
+  vehicles: [],
+  totalRouteKm: 0,
+  isRoadLine: false,
+  hasRoundTrip: false,
+  spawnIntervalKm: 3,
+  nextSpawnKm: 3,
+  oppositeSpawned: false,
+  spawnedCount: 0,
+  lastToastMessage: '',
+  lastCloseAlertTime: 0
+};
+
+function getRouteProgressMeters(segIndex, segProgress) {
+  if (!Array.isArray(activePath) || activePath.length < 2) return 0;
+  let meters = 0;
+  const maxSeg = Math.min(segIndex, activePath.length - 1);
+  for (let i = 0; i < maxSeg; i++) {
+    meters += getMetersBetween(activePath[i], activePath[i + 1]);
+  }
+  return meters + Math.max(0, segProgress);
+}
+
+function getPointAtRouteMeters(targetMeters) {
+  if (!Array.isArray(activePath) || activePath.length < 2) return null;
+  let remaining = Math.max(0, targetMeters);
+
+  for (let i = 0; i < activePath.length - 1; i++) {
+    const p1 = activePath[i];
+    const p2 = activePath[i + 1];
+    const segLen = getMetersBetween(p1, p2);
+    if (segLen <= 0.1) continue;
+
+    if (remaining <= segLen) {
+      const ratio = remaining / segLen;
+      return {
+        lng: p1[0] + (p2[0] - p1[0]) * ratio,
+        lat: p1[1] + (p2[1] - p1[1]) * ratio,
+        segIndex: i,
+        segProgress: remaining,
+        segLength: segLen,
+        heading: calculateBearing(p1, p2)
+      };
+    }
+    remaining -= segLen;
+  }
+
+  const lastIdx = activePath.length - 2;
+  const pStart = activePath[lastIdx];
+  const pEnd = activePath[lastIdx + 1];
+  const lastLen = Math.max(0.5, getMetersBetween(pStart, pEnd));
+  return {
+    lng: pEnd[0],
+    lat: pEnd[1],
+    segIndex: lastIdx,
+    segProgress: lastLen,
+    segLength: lastLen,
+    heading: calculateBearing(pStart, pEnd)
+  };
+}
+
+function getRelativeBearingArrow(fromCoord, toCoord, referenceHeadingDeg) {
+  const bearingToTarget = calculateBearing(fromCoord, toCoord);
+  let relAngle = (bearingToTarget - referenceHeadingDeg + 360) % 360;
+  if (relAngle > 180) relAngle -= 360;
+  if (relAngle < -155 || relAngle > 155) return '⬇';
+  if (relAngle < 0) return '↙';
+  return '↘';
+}
+
+function computeRouteTotalKm(pathCoords) {
+  if (!Array.isArray(pathCoords) || pathCoords.length < 2) return 0;
+  let totalMeters = 0;
+  for (let i = 0; i < pathCoords.length - 1; i++) {
+    totalMeters += getMetersBetween(pathCoords[i], pathCoords[i + 1]);
+  }
+  return totalMeters / 1000;
+}
+
+function configureTrafficThresholdsForRoute(pathCoords, isRoad = false, lineNameText = '') {
+  const totalKm = computeRouteTotalKm(pathCoords);
+  sameDirTraffic.totalRouteKm = totalKm;
+  sameDirTraffic.isRoadLine = Boolean(isRoad);
+  sameDirTraffic.hasRoundTrip = totalKm >= 1.5;
+  sameDirTraffic.spawnIntervalKm = 3;
+  sameDirTraffic.nextSpawnKm = 3;
+  sameDirTraffic.oppositeSpawned = false;
+  sameDirTraffic.spawnedCount = 0;
+  sameDirTraffic.lastToastMessage = '';
+  sameDirTraffic.lastCloseAlertTime = 0;
+}
+
+function clearSameDirTraffic() {
+  for (const v of sameDirTraffic.vehicles) {
+    if (v.marker) {
+      try { v.marker.remove(); } catch (e) {}
+    }
+  }
+  sameDirTraffic.vehicles = [];
+  sameDirTraffic.spawnedCount = 0;
+  sameDirTraffic.nextSpawnKm = 3;
+  sameDirTraffic.oppositeSpawned = false;
+  sameDirTraffic.lastToastMessage = '';
+  sameDirTraffic.lastCloseAlertTime = 0;
+  hideRearIndicator();
+  drawSideMinimap(null, []);
+}
+
+function createOvertakingBusBehindPlayer(seqNumber) {
+  if (!map || !Array.isArray(activePath) || activePath.length < 2) return null;
+
+  const playerMeters = getRouteProgressMeters(currentSegIndex, segProgressMeters);
+  const spawnMeters = Math.max(0, playerMeters - 175);
+  const spawnPt = getPointAtRouteMeters(spawnMeters);
+  if (!spawnPt) return null;
+
+  const officialPreset = COLOR_PRESETS[activePresetKey] || COLOR_PRESETS['vermelho'];
+  const modelKey = currentVehicleType || (sameDirTraffic.isRoadLine ? 'rodoviario' : 'bhtrans');
+  const label = `CARRO 0${seqNumber}`;
+  const baseOffset = BASE_RIGHT_LANE_OFFSET_METERS;
+
+  const renderPos = applyRightLaneOffset(spawnPt.lng, spawnPt.lat, spawnPt.heading, baseOffset);
+  const wrapEl = createBusMarkerElement(officialPreset.bodyColor, officialPreset.stripeColor, modelKey, label, '0.97');
+
+  const marker = new maplibregl.Marker({
+    element: wrapEl,
+    anchor: 'center',
+    offset: [0, -28],
+    rotationAlignment: 'map',
+    pitchAlignment: 'map'
+  })
+    .setLngLat(renderPos)
+    .setRotation(spawnPt.heading)
+    .addTo(map);
+
+  const maxLineCap = sameDirTraffic.isRoadLine ? 185 : 135;
+  const startSpeed = Math.min(maxLineCap, Math.max(68, currentSpeedKmh + 22));
+
+  return {
+    id: seqNumber,
+    lng: spawnPt.lng,
+    lat: spawnPt.lat,
+    segIndex: spawnPt.segIndex,
+    segProgress: spawnPt.segProgress,
+    segLength: spawnPt.segLength,
+    heading: spawnPt.heading,
+    speedKmh: startSpeed,
+    targetCruiseKmh: startSpeed,
+    stationWaitSeconds: 0,
+    baseLaneOffset: baseOffset,
+    currentLaneOffset: baseOffset,
+    overtakeState: 'none',
+    overtakeStartDistMeters: 0,
+    returnTripActive: false,
+    finished: false,
+    marker: marker
+  };
+}
+
+function createOppositeDirectionBusOnRoute(seqNumber) {
+  if (!map || !Array.isArray(activePath) || activePath.length < 2) return null;
+
+  const totalMeters = (sameDirTraffic.totalRouteKm || computeRouteTotalKm(activePath)) * 1000;
+  const playerMeters = getRouteProgressMeters(currentSegIndex, segProgressMeters);
+  const spawnAheadMeters = Math.min(totalMeters - 60, playerMeters + 850);
+  if (spawnAheadMeters <= playerMeters + 220) return null;
+
+  const spawnPt = getPointAtRouteMeters(spawnAheadMeters);
+  if (!spawnPt) return null;
+
+  const officialPreset = COLOR_PRESETS[activePresetKey] || COLOR_PRESETS['vermelho'];
+  const modelKey = currentVehicleType || (sameDirTraffic.isRoadLine ? 'rodoviario' : 'bhtrans');
+  const label = `VOLTA 0${seqNumber}`;
+  const oppHeading = (spawnPt.heading + 180) % 360;
+  const oppLaneOffset = -BASE_RIGHT_LANE_OFFSET_METERS;
+
+  const renderPos = applyRightLaneOffset(spawnPt.lng, spawnPt.lat, oppHeading, oppLaneOffset);
+  const wrapEl = createBusMarkerElement(officialPreset.bodyColor, officialPreset.stripeColor, modelKey, label, '0.97');
+
+  const marker = new maplibregl.Marker({
+    element: wrapEl,
+    anchor: 'center',
+    offset: [0, -28],
+    rotationAlignment: 'map',
+    pitchAlignment: 'map'
+  })
+    .setLngLat(renderPos)
+    .setRotation(oppHeading)
+    .addTo(map);
+
+  const oppCruise = sameDirTraffic.isRoadLine ? 92 : 62;
+
+  return {
+    id: seqNumber,
+    lng: spawnPt.lng,
+    lat: spawnPt.lat,
+    segIndex: spawnPt.segIndex,
+    segProgress: spawnPt.segProgress,
+    segLength: spawnPt.segLength,
+    heading: oppHeading,
+    speedKmh: oppCruise,
+    targetCruiseKmh: oppCruise,
+    stationWaitSeconds: 0,
+    baseLaneOffset: oppLaneOffset,
+    currentLaneOffset: oppLaneOffset,
+    overtakeState: 'none',
+    overtakeStartDistMeters: 0,
+    returnTripActive: true,
+    finished: false,
+    marker: marker
+  };
+}
+
+function maybeSpawnSameDirTraffic() {
+  if (currentGameMode !== 'line' || !isTripActive || isLineFinished) return;
+  if (!Array.isArray(activePath) || activePath.length < 2) return;
+
+  const totalKm = sameDirTraffic.totalRouteKm || computeRouteTotalKm(activePath);
+  const remainingKm = Math.max(0, totalKm - distanceCoveredKm);
+  if (remainingKm < 0.35) return;
+
+  // 1) Encontro com carro da mesma linha vindo no sentido oposto logo no trecho inicial
+  if (!sameDirTraffic.oppositeSpawned && distanceCoveredKm >= 0.8 && remainingKm >= 1.0) {
+    sameDirTraffic.oppositeSpawned = true;
+    sameDirTraffic.spawnedCount++;
+    const oppBus = createOppositeDirectionBusOnRoute(sameDirTraffic.spawnedCount);
+    if (oppBus) {
+      sameDirTraffic.vehicles.push(oppBus);
+      showAlert(`↔️ Carro 0${oppBus.id} da mesma linha vindo no sentido oposto`);
+    }
+  }
+
+  // 2) Carro atrás a cada 3 km para encostar e fazer ultrapassagem real
+  const activeSameDirCount = sameDirTraffic.vehicles.filter(v => !v.finished && !v.returnTripActive).length;
+  if (activeSameDirCount >= 1) return;
+
+  if (distanceCoveredKm >= sameDirTraffic.nextSpawnKm) {
+    sameDirTraffic.spawnedCount++;
+    const newVeh = createOvertakingBusBehindPlayer(sameDirTraffic.spawnedCount);
+    if (newVeh) {
+      sameDirTraffic.vehicles.push(newVeh);
+      const triggerKm = sameDirTraffic.nextSpawnKm;
+      sameDirTraffic.nextSpawnKm += sameDirTraffic.spawnIntervalKm;
+      const msg = `🚌 Carro 0${newVeh.id} da linha se aproximando atrás (${triggerKm.toFixed(0)} km)`;
+      if (sameDirTraffic.lastToastMessage !== msg) {
+        sameDirTraffic.lastToastMessage = msg;
+        showAlert(msg);
+      }
+    }
+  }
+}
+
+function updateRearDirectionalIndicator(trailingCandidates) {
+  if (!rearIndicatorEl) return;
+  if (currentGameMode !== 'line' || !isTripActive || isLineFinished || !Array.isArray(trailingCandidates) || trailingCandidates.length === 0) {
+    hideRearIndicator();
+    return;
+  }
+
+  const visibleItems = trailingCandidates
+    .filter(item => item.distMeters <= 1200)
+    .sort((a, b) => a.distMeters - b.distMeters)
+    .slice(0, 2);
+
+  if (visibleItems.length === 0) {
+    hideRearIndicator();
+    return;
+  }
+
+  rearIndicatorEl.style.display = 'flex';
+  rearIndicatorEl.innerHTML = visibleItems.map(item => {
+    const isClose = item.distMeters <= 140;
+    const distText = item.distMeters >= 1000
+      ? `${(item.distMeters / 1000).toFixed(2)} km`
+      : `${Math.round(item.distMeters)} m`;
+    return `
+      <div class="rear-indicator-pill ${isClose ? 'close' : ''}">
+        <span class="rear-arrow-badge">${item.arrow}</span>
+        <span>${item.label} ${item.tag || 'atrás'}</span>
+        <span class="rear-dist-badge">${distText}</span>
+      </div>
+    `;
+  }).join('');
+}
+
+function drawSideMinimap(nextVehicleItem, trailingCandidates) {
+  const canvas = document.getElementById('sideMinimapCanvas');
+  const badgeEl = document.getElementById('minimapNextBadge');
+  const infoEl = document.getElementById('minimapNextInfo');
+  if (!canvas || !badgeEl || !infoEl) return;
+
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width;
+  const h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
+
+  ctx.strokeStyle = 'rgba(56, 189, 248, 0.12)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(w / 2, 0);
+  ctx.lineTo(w / 2, h);
+  ctx.moveTo(0, h / 2);
+  ctx.lineTo(w, h / 2);
+  ctx.stroke();
+
+  if (!Array.isArray(activePath) || activePath.length < 2) {
+    badgeEl.textContent = 'Off';
+    infoEl.textContent = 'Sem rota';
+    return;
+  }
+
+  const metersPerDegreeLat = 111320;
+  const metersPerDegreeLng = 111320 * Math.cos(busLat * (Math.PI / 180));
+  const radarRadiusMeters = sameDirTraffic.isRoadLine ? 900 : 550;
+  const scale = (w * 0.42) / radarRadiusMeters;
+
+  const toRadarXY = (lng, lat) => {
+    const dxMeters = (lng - busLng) * metersPerDegreeLng;
+    const dyMeters = (lat - busLat) * metersPerDegreeLat;
+    return [w / 2 + dxMeters * scale, h / 2 - dyMeters * scale];
+  };
+
+  ctx.strokeStyle = 'rgba(148, 163, 184, 0.55)';
+  ctx.lineWidth = 2.2;
+  ctx.beginPath();
+  let started = false;
+  const startIdx = Math.max(0, currentSegIndex - 25);
+  const endIdx = Math.min(activePath.length - 1, currentSegIndex + 40);
+  for (let i = startIdx; i <= endIdx; i++) {
+    const [px, py] = toRadarXY(activePath[i][0], activePath[i][1]);
+    if (!started) {
+      ctx.moveTo(px, py);
+      started = true;
+    } else {
+      ctx.lineTo(px, py);
+    }
+  }
+  ctx.stroke();
+
+  const [stX, stY] = toRadarXY(activePath[0][0], activePath[0][1]);
+  ctx.fillStyle = '#f97316';
+  ctx.beginPath();
+  ctx.arc(Math.max(6, Math.min(w - 6, stX)), Math.max(6, Math.min(h - 6, stY)), 3.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = '#38bdf8';
+  ctx.beginPath();
+  ctx.arc(w / 2, h / 2, 4.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  const activeList = sameDirTraffic.vehicles.filter(v => !v.finished);
+  if (activeList.length === 0) {
+    const faltaKm = Math.max(0, sameDirTraffic.nextSpawnKm - distanceCoveredKm);
+    badgeEl.textContent = `${sameDirTraffic.spawnIntervalKm}km`;
+    infoEl.textContent = faltaKm > 0 ? `Próx: ${faltaKm.toFixed(1)} km` : 'Aguardando';
+    return;
+  }
+
+  for (const v of activeList) {
+    const [vx, vy] = toRadarXY(v.lng, v.lat);
+    const clampedX = Math.max(8, Math.min(w - 8, vx));
+    const clampedY = Math.max(8, Math.min(h - 8, vy));
+    const isNext = nextVehicleItem && nextVehicleItem.id === v.id;
+
+    if (isNext) {
+      ctx.strokeStyle = '#fbbf24';
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.arc(clampedX, clampedY, 8.5, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    ctx.fillStyle = v.returnTripActive ? '#38bdf8' : (v.overtakeState === 'passing' ? '#f59e0b' : (isNext ? '#fbbf24' : '#34d399'));
+    ctx.beginPath();
+    ctx.arc(clampedX, clampedY, isNext ? 5.5 : 3.8, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  if (nextVehicleItem) {
+    const distStr = nextVehicleItem.distMeters >= 1000
+      ? `${(nextVehicleItem.distMeters / 1000).toFixed(2)} km`
+      : `${Math.round(nextVehicleItem.distMeters)} m`;
+    badgeEl.textContent = nextVehicleItem.isOpposite ? `OPOSTO` : `CARRO 0${nextVehicleItem.id}`;
+    infoEl.textContent = `${distStr} • ${Math.round(nextVehicleItem.speedKmh || 0)}km/h`;
+  } else if (trailingCandidates && trailingCandidates.length > 0) {
+    const nearest = trailingCandidates[0];
+    const distStr = nearest.distMeters >= 1000
+      ? `${(nearest.distMeters / 1000).toFixed(2)} km`
+      : `${Math.round(nearest.distMeters)} m`;
+    badgeEl.textContent = 'Rota';
+    infoEl.textContent = `Atrás: ${distStr}`;
+  }
+}
+
+function updateSameDirTraffic(deltaTime, frameNow = performance.now()) {
+  if (currentGameMode !== 'line' || !map) {
+    hideRearIndicator();
+    return;
+  }
+
+  maybeSpawnSameDirTraffic();
+
+  if (sameDirTraffic.vehicles.length === 0) {
+    hideRearIndicator();
+    drawSideMinimap(null, []);
+    return;
+  }
+
+  const playerRouteMeters = getRouteProgressMeters(currentSegIndex, segProgressMeters);
+  const trailingCandidates = [];
+  let nextVehicleSummary = null;
+
+  for (const v of sameDirTraffic.vehicles) {
+    if (v.finished || !v.marker) continue;
+
+    const vRouteMeters = getRouteProgressMeters(v.segIndex, v.segProgress);
+    const deltaAlongRouteMeters = playerRouteMeters - vRouteMeters;
+    const directDistMeters = getMetersBetween([v.lng, v.lat], [busLng, busLat]);
+
+    if (!nextVehicleSummary || directDistMeters < nextVehicleSummary.distMeters) {
+      nextVehicleSummary = {
+        id: v.id,
+        distMeters: directDistMeters,
+        speedKmh: v.speedKmh,
+        isOpposite: v.returnTripActive
+      };
+    }
+
+    if (!v.returnTripActive && deltaAlongRouteMeters > 4) {
+      trailingCandidates.push({
+        label: `CARRO 0${v.id}`,
+        tag: v.overtakeState === 'passing' ? 'ultrapassando' : 'atrás',
+        distMeters: directDistMeters,
+        arrow: getRelativeBearingArrow([busLng, busLat], [v.lng, v.lat], smoothHeading)
+      });
+
+      if (directDistMeters <= 125 && (frameNow - sameDirTraffic.lastCloseAlertTime > 10000)) {
+        sameDirTraffic.lastCloseAlertTime = frameNow;
+        showAlert(`⬅️ CARRO 0${v.id} ultrapassando pela esquerda (${Math.round(directDistMeters)} m)`);
+      }
+    }
+
+    if (isTripActive && !isLineFinished) {
+      if (v.returnTripActive) {
+        // Movimento fluido no sentido oposto (do destino em direção ao início da linha)
+        const oppSpeedMps = (v.speedKmh / 3.6) * speedMultiplier;
+        let remDist = oppSpeedMps * deltaTime;
+
+        while (remDist > 0 && v.segIndex >= 0) {
+          const p1 = activePath[v.segIndex];
+          const p2 = activePath[v.segIndex + 1];
+          if (!p1 || !p2) {
+            v.finished = true;
+            break;
+          }
+
+          if (v.segLength <= 0) {
+            v.segLength = getMetersBetween(p1, p2);
+          }
+
+          if (v.segLength <= 0.1) {
+            v.segIndex--;
+            if (v.segIndex < 0) {
+              v.finished = true;
+              break;
+            }
+            v.segLength = getMetersBetween(activePath[v.segIndex], activePath[v.segIndex + 1]);
+            v.segProgress = v.segLength;
+            continue;
+          }
+
+          if (remDist < v.segProgress) {
+            v.segProgress -= remDist;
+            remDist = 0;
+            const ratio = v.segProgress / v.segLength;
+            v.lng = p1[0] + (p2[0] - p1[0]) * ratio;
+            v.lat = p1[1] + (p2[1] - p1[1]) * ratio;
+            const oppBear = (calculateBearing(p1, p2) + 180) % 360;
+            v.heading = lerpHeading(v.heading, oppBear, Math.min(1, 9.0 * deltaTime));
+          } else {
+            remDist -= v.segProgress;
+            v.segIndex--;
+            if (v.segIndex < 0) {
+              v.lng = activePath[0][0];
+              v.lat = activePath[0][1];
+              v.finished = true;
+              break;
+            }
+            v.segLength = getMetersBetween(activePath[v.segIndex], activePath[v.segIndex + 1]);
+            v.segProgress = v.segLength;
+            v.lng = activePath[v.segIndex + 1][0];
+            v.lat = activePath[v.segIndex + 1][1];
+            const oppBear = (calculateBearing(activePath[v.segIndex], activePath[v.segIndex + 1]) + 180) % 360;
+            v.heading = lerpHeading(v.heading, oppBear, Math.min(1, 9.0 * deltaTime));
+          }
+        }
+
+        // Remove discretamente após passar 300m para trás de você
+        if (vRouteMeters < playerRouteMeters - 300) {
+          v.finished = true;
+        }
+      } else {
+        // Carro no mesmo sentido: sempre mantém ritmo superior ao seu para alcançar e ultrapassar
+        const maxTrafficSpeed = sameDirTraffic.isRoadLine ? 195 : 145;
+        let targetSpeedKmh = Math.min(maxTrafficSpeed, Math.max(72, currentSpeedKmh + 24));
+        let desiredLaneOffset = v.baseLaneOffset;
+
+        const isApproachingBehind = deltaAlongRouteMeters > 4 && deltaAlongRouteMeters < 110;
+        if (v.overtakeState === 'none' && isApproachingBehind) {
+          v.overtakeState = 'passing';
+          v.overtakeStartDistMeters = vRouteMeters;
+        }
+
+        if (v.overtakeState === 'passing') {
+          // Desloca para a faixa da esquerda (-2.2m) para ultrapassar sem passar por cima
+          desiredLaneOffset = -2.2;
+          targetSpeedKmh = Math.min(maxTrafficSpeed, Math.max(78, currentSpeedKmh + 28));
+          if (deltaAlongRouteMeters < -45) {
+            v.overtakeState = 'returning';
+          }
+        } else if (v.overtakeState === 'returning') {
+          desiredLaneOffset = v.baseLaneOffset;
+          targetSpeedKmh = Math.min(maxTrafficSpeed, Math.max(70, currentSpeedKmh + 16));
+          if (Math.abs(v.currentLaneOffset - v.baseLaneOffset) < 0.15) {
+            v.overtakeState = 'done';
+          }
+        } else if (v.overtakeState === 'done') {
+          desiredLaneOffset = v.baseLaneOffset;
+          targetSpeedKmh = Math.min(maxTrafficSpeed, Math.max(68, currentSpeedKmh + 14));
+          if (deltaAlongRouteMeters < -420) {
+            v.finished = true;
+          }
+        }
+
+        if (v.speedKmh < targetSpeedKmh) {
+          v.speedKmh = Math.min(targetSpeedKmh, v.speedKmh + 45 * deltaTime);
+        } else if (v.speedKmh > targetSpeedKmh) {
+          v.speedKmh = Math.max(targetSpeedKmh, v.speedKmh - 30 * deltaTime);
+        }
+
+        v.currentLaneOffset += (desiredLaneOffset - v.currentLaneOffset) * Math.min(1, 4.5 * deltaTime);
+
+        const speedMps = (v.speedKmh / 3.6) * speedMultiplier;
+        let remDist = speedMps * deltaTime;
+
+        while (remDist > 0 && v.segIndex < activePath.length - 1) {
+          const p1 = activePath[v.segIndex];
+          const p2 = activePath[v.segIndex + 1];
+
+          if (v.segLength <= 0) {
+            v.segLength = getMetersBetween(p1, p2);
+          }
+
+          if (v.segLength <= 0.1) {
+            v.segIndex++;
+            v.segProgress = 0;
+            v.segLength = v.segIndex < activePath.length - 1
+              ? getMetersBetween(activePath[v.segIndex], activePath[v.segIndex + 1])
+              : 0;
+            continue;
+          }
+
+          const leftInSeg = v.segLength - v.segProgress;
+          if (remDist < leftInSeg) {
+            v.segProgress += remDist;
+            remDist = 0;
+            const ratio = v.segProgress / v.segLength;
+            v.lng = p1[0] + (p2[0] - p1[0]) * ratio;
+            v.lat = p1[1] + (p2[1] - p1[1]) * ratio;
+            const segBear = calculateBearing(p1, p2);
+            v.heading = lerpHeading(v.heading, segBear, Math.min(1, 8.5 * deltaTime));
+          } else {
+            remDist -= leftInSeg;
+            v.segIndex++;
+            v.segProgress = 0;
+            if (v.segIndex >= activePath.length - 1) {
+              v.lng = activePath[activePath.length - 1][0];
+              v.lat = activePath[activePath.length - 1][1];
+              v.finished = true;
+              break;
+            } else {
+              v.segLength = getMetersBetween(activePath[v.segIndex], activePath[v.segIndex + 1]);
+              v.lng = activePath[v.segIndex][0];
+              v.lat = activePath[v.segIndex][1];
+              const segBear = calculateBearing(activePath[v.segIndex], activePath[v.segIndex + 1]);
+              v.heading = lerpHeading(v.heading, segBear, Math.min(1, 8.5 * deltaTime));
+            }
+          }
+        }
+      }
+    }
+
+    if (v.finished) {
+      try { v.marker.remove(); } catch (e) {}
+      v.marker = null;
+      continue;
+    }
+
+    const pos = applyRightLaneOffset(v.lng, v.lat, v.heading, v.currentLaneOffset);
+    v.marker.setLngLat(pos);
+    v.marker.setRotation(v.heading);
+  }
+
+  sameDirTraffic.vehicles = sameDirTraffic.vehicles.filter(v => !v.finished && v.marker);
+  updateRearDirectionalIndicator(trailingCandidates);
+  drawSideMinimap(nextVehicleSummary, trailingCandidates);
+}
+
+function updateTripStatus() {
+  const badge = document.getElementById('tripStatusBadge');
+  if (!isTripActive && !isLineFinished) {
+    badge.className = 'trip-status-badge stopped';
+    badge.textContent = 'Aguardando Início';
+    btnTripToggle.className = 'btn-trip-toggle start';
+    btnTripToggle.textContent = '▶️ Dar Entrada na Viagem';
+  } else if (isLineFinished) {
+    badge.className = 'trip-status-badge stopped';
+    badge.textContent = 'Viagem Concluída';
+    btnTripToggle.className = 'btn-trip-toggle start';
+    btnTripToggle.textContent = '🔄 Reiniciar Viagem';
+  } else {
+    badge.className = 'trip-status-badge running';
+    badge.textContent = 'Em Viagem';
+    btnTripToggle.className = 'btn-trip-toggle stop';
+    btnTripToggle.textContent = '🛑 Encerrar Viagem';
+  }
+}
+
+function handleAccelerate() {
+  if (!isTripActive && currentGameMode === 'line') {
+    isTripActive = true;
+    startTripTimer();
+  }
+  mapBanner.style.display = 'none';
+  isAutopilotMoving = true;
+  updateTripStatus();
+}
+
+let lastFrameTime = performance.now();
+
+function gameLoop(now) {
+  if (!map) return;
+
+  const deltaTime = Math.min((now - lastFrameTime) / 1000, 0.1);
+  lastFrameTime = now;
+
+  const prev = [busLng, busLat];
+  const gearCapKmh = updateGearboxPhysics(deltaTime);
+
+  let desiredSpeed = 0;
+
+  if (keysPressed.Up) {
+    if (!isTripActive && currentGameMode === 'line') {
+      isTripActive = true;
+      startTripTimer();
+    }
+    mapBanner.style.display = 'none';
+    isAutopilotMoving = true;
+    updateTripStatus();
+  }
+
+  let renderLng = busLng;
+  let renderLat = busLat;
+  let busWorldHeading = vehicleHeading;
+
+  if (currentGameMode === 'line') {
+    if (isTripActive && isAutopilotMoving && !isLineFinished) {
+      if (keysPressed.Down) {
+        desiredSpeed = 0;
+        currentSpeedKmh = Math.max(currentSpeedKmh - 60 * deltaTime, 0);
+        if (currentSpeedKmh <= 2) {
+          isAutopilotMoving = false;
+        }
+      } else if (keysPressed.Up) {
+        desiredSpeed = Math.min(boostSpeedKmh, gearCapKmh);
+      } else {
+        desiredSpeed = Math.min(cruiseSpeedKmh, gearCapKmh);
+      }
+    }
+
+    if (currentSpeedKmh < desiredSpeed) {
+      currentSpeedKmh = Math.min(currentSpeedKmh + 50 * deltaTime, desiredSpeed);
+    } else if (currentSpeedKmh > desiredSpeed) {
+      currentSpeedKmh = Math.max(currentSpeedKmh - 40 * deltaTime, desiredSpeed);
+    }
+
+    if (currentSpeedKmh > 0 && !isLineFinished && isTripActive) {
+      const speedMps = (currentSpeedKmh / 3.6) * speedMultiplier;
+      let remainingDistance = speedMps * deltaTime;
+
+      while (remainingDistance > 0 && currentSegIndex < activePath.length - 1) {
+        const p1 = activePath[currentSegIndex];
+        const p2 = activePath[currentSegIndex + 1];
+
+        if (currentSegLength <= 0) {
+          currentSegLength = getMetersBetween(p1, p2);
+        }
+
+        if (currentSegLength <= 0.1) {
+          currentSegIndex++;
+          segProgressMeters = 0;
+          currentSegLength = currentSegIndex < activePath.length - 1
+            ? getMetersBetween(activePath[currentSegIndex], activePath[currentSegIndex + 1])
+            : 0;
+          continue;
+        }
+
+        const distanceLeftInSeg = currentSegLength - segProgressMeters;
+
+        if (remainingDistance < distanceLeftInSeg) {
+          segProgressMeters += remainingDistance;
+          remainingDistance = 0;
+
+          const ratio = segProgressMeters / currentSegLength;
+          busLng = p1[0] + (p2[0] - p1[0]) * ratio;
+          busLat = p1[1] + (p2[1] - p1[1]) * ratio;
+
+          targetHeading = calculateBearing(p1, p2);
+        } else {
+          remainingDistance -= distanceLeftInSeg;
+          currentSegIndex++;
+          segProgressMeters = 0;
+
+          if (currentSegIndex >= activePath.length - 1) {
+            busLng = activePath[activePath.length - 1][0];
+            busLat = activePath[activePath.length - 1][1];
+            isLineFinished = true;
+            mostrarRelatorioFinal();
+            break;
+          } else {
+            currentSegLength = getMetersBetween(activePath[currentSegIndex], activePath[currentSegIndex + 1]);
+            busLng = activePath[currentSegIndex][0];
+            busLat = activePath[currentSegIndex][1];
+            targetHeading = calculateBearing(activePath[currentSegIndex], activePath[currentSegIndex + 1]);
+          }
+        }
+      }
+
+      const speedFactor = Math.min(1, Math.max(0.15, currentSpeedKmh / 35));
+      const maxLateralSpeed = 2.6 * speedFactor;
+      let targetLateralVel = 0;
+
+      if (keysPressed.Left) {
+        targetLateralVel = -maxLateralSpeed;
+      } else if (keysPressed.Right) {
+        targetLateralVel = maxLateralSpeed;
+      }
+
+      lineLateralVelocity += (targetLateralVel - lineLateralVelocity) * Math.min(1, 7.5 * deltaTime);
+      lineLateralCorrectionMeters = Math.max(
+        -MAX_LINE_LATERAL_ADJUST_METERS,
+        Math.min(MAX_LINE_LATERAL_ADJUST_METERS, lineLateralCorrectionMeters + lineLateralVelocity * deltaTime)
+      );
+
+      if (!keysPressed.Left && !keysPressed.Right) {
+        lineLateralCorrectionMeters += (0 - lineLateralCorrectionMeters) * Math.min(1, 2.2 * deltaTime);
+      }
+
+      const targetYawOffset = (lineLateralVelocity / Math.max(0.5, maxLateralSpeed)) * 15;
+      busVisualYawOffset += (targetYawOffset - busVisualYawOffset) * Math.min(1, 9.0 * deltaTime);
+    } else {
+      lineLateralVelocity = 0;
+      busVisualYawOffset += (0 - busVisualYawOffset) * Math.min(1, 8.0 * deltaTime);
+    }
+
+    smoothHeading = lerpHeading(smoothHeading, targetHeading, 6.0 * deltaTime);
+
+    const totalRightOffset = BASE_RIGHT_LANE_OFFSET_METERS + lineLateralCorrectionMeters;
+    const lanePos = applyRightLaneOffset(busLng, busLat, smoothHeading, totalRightOffset);
+    renderLng = lanePos[0];
+    renderLat = lanePos[1];
+    busWorldHeading = (smoothHeading + busVisualYawOffset + 360) % 360;
+  } else {
+    if (keysPressed.Up) {
+      if (currentSpeedKmh < 0) {
+        currentSpeedKmh = Math.min(currentSpeedKmh + 65 * deltaTime, 0);
+      } else {
+        desiredSpeed = Math.min(boostSpeedKmh, gearCapKmh);
+        currentSpeedKmh = Math.min(currentSpeedKmh + 42 * deltaTime, desiredSpeed);
+      }
+    } else if (keysPressed.Down) {
+      if (currentSpeedKmh > 0) {
+        currentSpeedKmh = Math.max(currentSpeedKmh - 65 * deltaTime, 0);
+      } else {
+        const revCap = -Math.min(Math.abs(MAX_REVERSE_SPEED_KMH), gearCapKmh);
+        currentSpeedKmh = Math.max(currentSpeedKmh - 28 * deltaTime, revCap);
+      }
+    } else {
+      if (currentSpeedKmh > 0) {
+        currentSpeedKmh = Math.max(currentSpeedKmh - 24 * deltaTime, 0);
+      } else if (currentSpeedKmh < 0) {
+        currentSpeedKmh = Math.min(currentSpeedKmh + 24 * deltaTime, 0);
+      }
+    }
+
+    const absSpeed = Math.abs(currentSpeedKmh);
+    const steerInput = (keysPressed.Right ? 1 : 0) - (keysPressed.Left ? 1 : 0);
+    const speedGripFactor = absSpeed < 0.5
+      ? 0
+      : Math.max(0.45, Math.min(1, 1.05 - (absSpeed / 140) * 0.55));
+    const targetSteerRate = steerInput * 38 * speedGripFactor;
+    freeSteerRate += (targetSteerRate - freeSteerRate) * Math.min(1, 6.0 * deltaTime);
+
+    if (absSpeed > 0.05) {
+      const reverseDirFactor = currentSpeedKmh < -0.5 ? -1 : 1;
+      vehicleHeading = (vehicleHeading + freeSteerRate * reverseDirFactor * deltaTime + 360) % 360;
+
+      const speedMps = (currentSpeedKmh / 3.6) * speedMultiplier;
+      const metersToMove = speedMps * deltaTime;
+      const metersPerDegreeLat = 111320;
+      const cosLat = Math.max(0.1, Math.cos(busLat * (Math.PI / 180)));
+      const metersPerDegreeLng = 111320 * cosLat;
+
+      const rad = (vehicleHeading * Math.PI) / 180;
+      busLng += (metersToMove * Math.sin(rad)) / metersPerDegreeLng;
+      busLat += (metersToMove * Math.cos(rad)) / metersPerDegreeLat;
+    }
+
+    renderLng = busLng;
+    renderLat = busLat;
+    busWorldHeading = (vehicleHeading + freeSteerRate * 0.06 + 360) % 360;
+  }
+
+  const distStep = getMetersBetween(prev, [busLng, busLat]) / 1000;
+  if (!isNaN(distStep)) {
+    distanceCoveredKm += distStep;
+  }
+
+  checkRouteProgressAlerts();
+
+  const distFormatted = `${distanceCoveredKm.toFixed(2)} km`;
+  const isReversing = currentSpeedKmh < -0.5;
+  const speedRounded = Math.round(Math.abs(currentSpeedKmh));
+  const speedDisplay = isReversing ? `R ${speedRounded}` : `${speedRounded}`;
+
+  document.getElementById('kmCoveredDisplay').textContent = distFormatted;
+  document.getElementById('miniKmDisplay').textContent = distFormatted;
+  document.getElementById('speedValue').textContent = speedDisplay;
+  document.getElementById('miniSpeedDisplay').textContent = speedDisplay;
+
+  updateSameDirTraffic(deltaTime, now);
+
+  const currentCoords = [renderLng, renderLat];
+  if (busMarker) {
+    busMarker.setLngLat(currentCoords);
+    busMarker.setRotation(busWorldHeading);
+  }
+
+  const rawTargetBearing = currentGameMode === 'line' ? smoothHeading : vehicleHeading;
+  currentCameraBearing = lerpHeading(currentCameraBearing, rawTargetBearing, 5.5 * deltaTime);
+
+  map.jumpTo({
+    center: currentCoords,
+    bearing: currentCameraBearing,
+    pitch: isCabinViewActive ? 45 : 25,
+    zoom: isCabinViewActive ? Math.max(currentZoomLevel, 18.8) : currentZoomLevel
+  });
+
+  if (!isLineFinished) {
+    animationFrameId = requestAnimationFrame(gameLoop);
+  }
+}
+
+document.getElementById('btnZoomNear').addEventListener('pointerdown', (e) => {
+  e.stopPropagation();
+  currentZoomLevel = ZOOM_NEAR_LEVEL;
+  document.getElementById('btnZoomNear').classList.add('active');
+  document.getElementById('btnZoomFar').classList.remove('active');
+});
+
+document.getElementById('btnZoomFar').addEventListener('pointerdown', (e) => {
+  e.stopPropagation();
+  currentZoomLevel = ZOOM_FAR_LEVEL;
+  document.getElementById('btnZoomFar').classList.add('active');
+  document.getElementById('btnZoomNear').classList.remove('active');
+});
+
+window.addEventListener('keydown', (e) => {
+  if (['ArrowUp', 'KeyW'].includes(e.code)) {
+    if (!keysPressed.Up) handleAccelerate();
+    keysPressed.Up = true;
+    document.getElementById('btnDpadUp')?.classList.add('pressed');
+  }
+  if (['ArrowDown', 'KeyS'].includes(e.code)) {
+    keysPressed.Down = true;
+    document.getElementById('btnDpadDown')?.classList.add('pressed');
+  }
+  if (['ArrowLeft', 'KeyA'].includes(e.code)) {
+    keysPressed.Left = true;
+    document.getElementById('btnDpadLeft')?.classList.add('pressed');
+  }
+  if (['ArrowRight', 'KeyD'].includes(e.code)) {
+    keysPressed.Right = true;
+    document.getElementById('btnDpadRight')?.classList.add('pressed');
+  }
+});
+
+window.addEventListener('keyup', (e) => {
+  if (['ArrowUp', 'KeyW'].includes(e.code)) {
+    keysPressed.Up = false;
+    document.getElementById('btnDpadUp')?.classList.remove('pressed');
+  }
+  if (['ArrowDown', 'KeyS'].includes(e.code)) {
+    keysPressed.Down = false;
+    document.getElementById('btnDpadDown')?.classList.remove('pressed');
+  }
+  if (['ArrowLeft', 'KeyA'].includes(e.code)) {
+    keysPressed.Left = false;
+    document.getElementById('btnDpadLeft')?.classList.remove('pressed');
+  }
+  if (['ArrowRight', 'KeyD'].includes(e.code)) {
+    keysPressed.Right = false;
+    document.getElementById('btnDpadRight')?.classList.remove('pressed');
+  }
+});
