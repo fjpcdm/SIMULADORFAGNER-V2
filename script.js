@@ -3,7 +3,7 @@
 // MOTOR DE SIMULAÇÃO - MODO TRAJETO + MODO LIVRE + DIA/NOITE + FAROL AUTO
 // ============================================================
 
-const STORAGE_KEY_STATE = 'simulador_bus_estado_v6';
+const STORAGE_KEY_STATE = 'simulador_bus_estado_v7';
 
 const cssStyles = `
   * {
@@ -56,7 +56,7 @@ const cssStyles = `
   }
 
   /* ============================================================
-     VISTA DE CABINE / PRIMEIRA PESSOA (SEM VOLANTE E SEM RETROVISORES)
+     VISTA DE CABINE / PRIMEIRA PESSOA (APENAS GUIADA DE DIREÇÃO NO DESKTOP)
      ============================================================ */
   .cockpit-pov-overlay {
     position: fixed;
@@ -74,41 +74,41 @@ const cssStyles = `
   .pov-motion-vignette {
     position: absolute;
     inset: 0;
-    background: radial-gradient(circle at 50% 42%, rgba(255,255,255,0.02) 38%, rgba(2, 6, 23, 0.52) 100%);
+    background: radial-gradient(circle at 50% 42%, rgba(255,255,255,0.02) 42%, rgba(2, 6, 23, 0.46) 100%);
   }
 
   .pov-visor-top {
     position: absolute;
     top: 0;
-    left: 12%;
-    right: 12%;
-    height: 10%;
+    left: 14%;
+    right: 14%;
+    height: 8%;
     background: linear-gradient(180deg, #090d16 0%, #1e293b 88%, #0f172a 100%);
-    border-bottom: 3px solid #334155;
+    border-bottom: 2px solid #334155;
     border-radius: 0 0 12px 12px;
-    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.65);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.55);
   }
 
   .pov-pillar-left {
     position: absolute;
     top: 0;
     left: 0;
-    width: 8.5%;
-    height: 78%;
+    width: 7%;
+    height: 75%;
     background: linear-gradient(90deg, #090d16 0%, #1e293b 82%, #0f172a 100%);
-    clip-path: polygon(0 0, 100% 0, 58% 100%, 0 100%);
-    box-shadow: 8px 0 22px rgba(0, 0, 0, 0.7);
+    clip-path: polygon(0 0, 100% 0, 56% 100%, 0 100%);
+    box-shadow: 6px 0 18px rgba(0, 0, 0, 0.65);
   }
 
   .pov-pillar-right {
     position: absolute;
     top: 0;
     right: 0;
-    width: 8.5%;
-    height: 78%;
+    width: 7%;
+    height: 75%;
     background: linear-gradient(270deg, #090d16 0%, #1e293b 82%, #0f172a 100%);
-    clip-path: polygon(0 0, 100% 0, 100% 100%, 42% 100%);
-    box-shadow: -8px 0 22px rgba(0, 0, 0, 0.7);
+    clip-path: polygon(0 0, 100% 0, 100% 100%, 44% 100%);
+    box-shadow: -6px 0 18px rgba(0, 0, 0, 0.65);
   }
 
   .pov-dashboard {
@@ -116,143 +116,30 @@ const cssStyles = `
     left: -2%;
     right: -2%;
     bottom: 0;
-    height: 22%;
-    background: linear-gradient(180deg, #291d18 0%, #181210 58%, #090d16 100%);
-    border-top: 3px solid #3f3029;
-    box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.85);
+    height: 16%;
+    background: linear-gradient(180deg, #1e293b 0%, #0f172a 65%, #020617 100%);
+    border-top: 2px solid #334155;
+    box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.75);
   }
 
-  .pov-validator-console {
-    position: absolute;
-    left: 34%;
-    bottom: 18%;
-    width: 112px;
-    height: 66px;
-    background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
-    border: 2px solid #475569;
-    border-radius: 8px 8px 3px 3px;
-    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.75);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 4px;
-    padding: 4px;
-  }
-
-  .pov-validator-screen {
-    width: 90%;
-    height: 26px;
-    background: #020617;
-    border: 1px solid #38bdf8;
-    border-radius: 4px;
-    color: #4ade80;
-    font-family: monospace;
-    font-size: 0.62rem;
-    font-weight: bold;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    padding: 0 4px;
-  }
-
-  .pov-validator-keys {
-    width: 84%;
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 2px;
-  }
-
-  .pov-validator-keys span {
-    height: 6px;
-    background: #334155;
-    border-radius: 1px;
-  }
-
-  .pov-handrail-yellow {
-    position: absolute;
-    right: 17%;
-    bottom: 8%;
-    width: 120px;
-    height: 14px;
-    border: 4px solid #eab308;
-    border-bottom: none;
-    border-radius: 14px 14px 0 0;
-    opacity: 0.92;
-  }
-
-  @media (max-width: 640px) {
+  /* No desktop, mantém apenas a guiada de direção limpa */
+  @media (min-width: 769px) {
     .pov-validator-console,
     .pov-handrail-yellow {
-      display: none;
+      display: none !important;
     }
   }
 
-  /* ============================================================
-     PAINEL DE CÂMBIO AUTOMÁTICO (LEVE)
-     ============================================================ */
+  @media (max-width: 768px) {
+    .pov-validator-console,
+    .pov-handrail-yellow {
+      display: none !important;
+    }
+  }
+
+  /* Caixa de câmbio removida conforme solicitado */
   .gearbox-widget {
-    position: fixed !important;
-    left: 12px !important;
-    bottom: calc(18px + env(safe-area-inset-bottom, 0px)) !important;
-    z-index: 999999 !important;
-    background: rgba(15, 23, 42, 0.92);
-    border: 1.5px solid rgba(56, 189, 248, 0.55);
-    border-radius: 14px;
-    padding: 8px 10px;
-    color: #ffffff;
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.6);
-    display: none;
-    flex-direction: column;
-    gap: 6px;
-    width: 148px;
-  }
-
-  .gearbox-header-pill {
-    padding: 4px 6px;
-    border-radius: 8px;
-    border: 1px solid rgba(56, 189, 248, 0.45);
-    background: #1e293b;
-    color: #38bdf8;
-    font-size: 0.68rem;
-    font-weight: 800;
-    text-align: center;
-    letter-spacing: 0.04em;
-  }
-
-  .gear-readout-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    background: rgba(2, 6, 23, 0.85);
-    border: 1px solid rgba(148, 163, 184, 0.25);
-    border-radius: 8px;
-    padding: 5px 8px;
-  }
-
-  .gear-current-badge {
-    font-family: monospace;
-    font-size: 1.05rem;
-    font-weight: 900;
-    color: #10b981;
-  }
-
-  .gear-rpm-text {
-    font-family: monospace;
-    font-size: 0.68rem;
-    color: #cbd5e1;
-  }
-
-  @media (max-width: 640px) {
-    .gearbox-widget {
-      left: 8px !important;
-      bottom: calc(136px + env(safe-area-inset-bottom, 0px)) !important;
-      width: 126px;
-      padding: 6px 8px;
-    }
+    display: none !important;
   }
 
   /* ============================================================
@@ -701,9 +588,12 @@ const cssStyles = `
     }
   }
 
+  /* ============================================================
+     CONTROLES INFERIORES: D-PAD (TRAJETO) E VOLANTE GRANDE (MODO LIVRE)
+     ============================================================ */
   .bottom-cockpit-bar {
     position: fixed !important;
-    bottom: calc(14px + env(safe-area-inset-bottom, 0px)) !important;
+    bottom: calc(12px + env(safe-area-inset-bottom, 0px)) !important;
     left: 50% !important;
     transform: translateX(-50%) !important;
     z-index: 999999 !important;
@@ -808,28 +698,97 @@ const cssStyles = `
     height: var(--arm-w);
   }
 
-  @media (max-width: 480px) {
-    .cross-dpad {
-      --pad-size: 114px;
-      --arm-w: 38px;
-      --arm-r: 10px;
-    }
-    .dpad-arm-btn svg {
-      width: 15px;
-      height: 15px;
+  /* Volante maior e mais livre no Modo Livre */
+  .free-mode-controls {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    pointer-events: auto;
+  }
+
+  body.free-mode-active .cross-dpad {
+    display: none !important;
+  }
+
+  body.free-mode-active .free-mode-controls {
+    display: flex !important;
+  }
+
+  .free-wheel-stage {
+    position: relative;
+    width: 210px;
+    height: 210px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  @media (max-width: 640px) {
+    .free-wheel-stage {
+      width: 176px;
+      height: 176px;
     }
   }
 
-  @media (min-width: 900px) {
-    .cross-dpad {
-      --pad-size: 144px;
-      --arm-w: 48px;
-      --arm-r: 13px;
-    }
-    .dpad-arm-btn svg {
-      width: 20px;
-      height: 20px;
-    }
+  .free-steering-wheel {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    transition: transform 0.06s linear;
+    filter: drop-shadow(0 8px 18px rgba(0, 0, 0, 0.85));
+    pointer-events: none;
+  }
+
+  .free-steer-zone {
+    position: absolute;
+    top: 12%;
+    bottom: 12%;
+    width: 44%;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    z-index: 3;
+    border-radius: 28px;
+  }
+
+  .free-steer-left {
+    left: 0;
+  }
+
+  .free-steer-right {
+    right: 0;
+  }
+
+  .free-pedals-col {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .free-pedal-btn {
+    width: 78px;
+    height: 68px;
+    border-radius: 14px;
+    border: 2px solid rgba(255, 255, 255, 0.25);
+    font-weight: 800;
+    font-size: 0.78rem;
+    color: #ffffff;
+    cursor: pointer;
+    box-shadow: 0 6px 14px rgba(0, 0, 0, 0.65);
+  }
+
+  .free-pedal-accel {
+    background: linear-gradient(180deg, #10b981 0%, #047857 100%);
+  }
+
+  .free-pedal-brake {
+    background: linear-gradient(180deg, #ef4444 0%, #991b1b 100%);
+  }
+
+  .free-pedal-btn.pressed {
+    transform: scale(0.95);
+    filter: brightness(1.18);
   }
 
   .alert-toast {
@@ -852,7 +811,7 @@ const cssStyles = `
 
   .rear-indicator-bar {
     position: fixed !important;
-    bottom: calc(156px + env(safe-area-inset-bottom, 0px)) !important;
+    bottom: calc(234px + env(safe-area-inset-bottom, 0px)) !important;
     left: 50% !important;
     transform: translateX(-50%) !important;
     z-index: 999999 !important;
@@ -967,7 +926,7 @@ const cssStyles = `
     pointer-events: none !important;
   }
 
-  /* Wrapper do ônibus + facho de farol + luzes internas nas janelas à noite */
+  /* Wrapper do ônibus + APENAS facho de farol à noite */
   .bus-marker-wrap {
     width: 56px;
     height: 112px;
@@ -984,9 +943,9 @@ const cssStyles = `
     top: 2px;
     left: 50%;
     transform: translateX(-50%);
-    width: 44px;
-    height: 60px;
-    background: radial-gradient(ellipse at 50% 98%, rgba(254, 249, 195, 0.72) 0%, rgba(254, 240, 138, 0.28) 52%, rgba(254, 240, 138, 0) 100%);
+    width: 46px;
+    height: 64px;
+    background: radial-gradient(ellipse at 50% 98%, rgba(254, 249, 195, 0.78) 0%, rgba(254, 240, 138, 0.32) 52%, rgba(254, 240, 138, 0) 100%);
     clip-path: polygon(35% 100%, 65% 100%, 100% 0%, 0% 0%);
     opacity: 0;
     transition: opacity 0.35s ease;
@@ -995,29 +954,10 @@ const cssStyles = `
   }
 
   .bus-window-lights {
-    position: absolute;
-    bottom: 12px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 14px;
-    height: 30px;
-    border-radius: 3px;
-    background: repeating-linear-gradient(
-      to bottom,
-      rgba(254, 240, 138, 0.92) 0px,
-      rgba(254, 240, 138, 0.92) 4px,
-      rgba(15, 23, 42, 0.15) 4px,
-      rgba(15, 23, 42, 0.15) 7px
-    );
-    box-shadow: 0 0 8px rgba(253, 224, 71, 0.75);
-    opacity: 0;
-    transition: opacity 0.35s ease;
-    pointer-events: none;
-    z-index: 3;
+    display: none !important;
   }
 
-  body.night-mode-active .bus-headlight-beam,
-  body.night-mode-active .bus-window-lights {
+  body.night-mode-active .bus-headlight-beam {
     opacity: 1;
   }
 
@@ -1210,7 +1150,7 @@ setupModal.innerHTML = `
       <label>Período / Clima Visual:</label>
       <select id="selectTimeModeLine">
         <option value="day">☀️ Dia (Claro)</option>
-        <option value="night">🌙 Noite (Farol e Janelas Acesas)</option>
+        <option value="night">🌙 Noite (Apenas Farol)</option>
       </select>
     </div>
     <button class="btn-start-sim" id="btnStartLineMode">Iniciar Viagem</button>
@@ -1235,7 +1175,7 @@ setupModal.innerHTML = `
       <label>Período / Clima Visual:</label>
       <select id="selectTimeModeFree">
         <option value="day">☀️ Dia (Claro)</option>
-        <option value="night">🌙 Noite (Farol e Janelas Acesas)</option>
+        <option value="night">🌙 Noite (Apenas Farol)</option>
       </select>
     </div>
     <div class="form-group">
@@ -1256,29 +1196,9 @@ cockpitOverlay.innerHTML = `
   <div class="pov-visor-top"></div>
   <div class="pov-pillar-left"></div>
   <div class="pov-pillar-right"></div>
-  <div class="pov-dashboard">
-    <div class="pov-validator-console">
-      <div class="pov-validator-screen" id="povValidatorText">LINHA</div>
-      <div class="pov-validator-keys">
-        <span></span><span></span><span></span><span></span><span></span><span></span>
-      </div>
-    </div>
-    <div class="pov-handrail-yellow"></div>
-  </div>
+  <div class="pov-dashboard"></div>
 `;
 document.body.appendChild(cockpitOverlay);
-
-const gearboxWidget = document.createElement('div');
-gearboxWidget.className = 'gearbox-widget';
-gearboxWidget.id = 'gearboxWidget';
-gearboxWidget.innerHTML = `
-  <div class="gearbox-header-pill">CÂMBIO AUTO</div>
-  <div class="gear-readout-row">
-    <span class="gear-current-badge" id="gearBadgeDisplay">D1</span>
-    <span class="gear-rpm-text" id="rpmDisplayText">900 RPM</span>
-  </div>
-`;
-document.body.appendChild(gearboxWidget);
 
 function refreshLinesDropdown() {
   const select = document.getElementById('selectLine');
@@ -1511,6 +1431,22 @@ sideMinimapBox.innerHTML = `
 `;
 document.body.appendChild(sideMinimapBox);
 
+function getSteeringWheelSvg() {
+  const wheelSvg = `
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+      <circle cx="100" cy="100" r="84" fill="none" stroke="#090d16" stroke-width="20"/>
+      <circle cx="100" cy="100" r="84" fill="none" stroke="#334155" stroke-width="5"/>
+      <path d="M 24 102 L 76 102" stroke="#0f172a" stroke-width="16" stroke-linecap="round"/>
+      <path d="M 124 102 L 176 102" stroke="#0f172a" stroke-width="16" stroke-linecap="round"/>
+      <path d="M 100 116 L 100 176" stroke="#0f172a" stroke-width="18" stroke-linecap="round"/>
+      <circle cx="100" cy="102" r="24" fill="#1e293b" stroke="#38bdf8" stroke-width="3"/>
+      <path d="M 100 22 L 94 34 L 106 34 Z" fill="#f59e0b"/>
+      <text x="100" y="106" fill="#e2e8f0" font-size="9" font-weight="bold" font-family="sans-serif" text-anchor="middle">BUS</text>
+    </svg>
+  `;
+  return 'data:image/svg+xml;utf8,' + encodeURIComponent(wheelSvg.trim());
+}
+
 let bottomCockpitBar = document.createElement('div');
 bottomCockpitBar.className = 'bottom-cockpit-bar';
 bottomCockpitBar.style.display = 'none';
@@ -1531,6 +1467,18 @@ bottomCockpitBar.innerHTML = `
       <svg viewBox="0 0 24 24"><path d="M12 19.5c-.6 0-1.2-.3-1.5-.9L3.7 7.4c-.7-1.1.1-2.6 1.5-2.6h13.6c1.4 0 2.2 1.5 1.5 2.6l-6.8 11.2c-.3.6-.9.9-1.5.9z"/></svg>
     </button>
   </div>
+
+  <div class="free-mode-controls" id="freeModeControls">
+    <div class="free-wheel-stage">
+      <img class="free-steering-wheel" id="freeSteeringWheelImg" src="${getSteeringWheelSvg()}" alt="Volante" />
+      <button class="free-steer-zone free-steer-left" id="btnWheelLeft" title="Virar Esquerda"></button>
+      <button class="free-steer-zone free-steer-right" id="btnWheelRight" title="Virar Direita"></button>
+    </div>
+    <div class="free-pedals-col">
+      <button class="free-pedal-btn free-pedal-accel" id="btnFreeAccel">▲ ACE</button>
+      <button class="free-pedal-btn free-pedal-brake" id="btnFreeBrake">▼ FRE</button>
+    </div>
+  </div>
 `;
 document.body.appendChild(bottomCockpitBar);
 
@@ -1545,9 +1493,14 @@ let activeLetreiroText = 'EXECUTIVO';
 
 let isCabinViewActive = false;
 let isNightMode = false;
+let wheelAngleDeg = 0;
+
+function syncModeBodyClass() {
+  document.body.classList.toggle('free-mode-active', currentGameMode === 'free');
+}
 
 // ============================================================
-// SISTEMA DIA / NOITE COM FAROL E LUZES NAS JANELAS
+// SISTEMA DIA / NOITE (APENAS FAROL NO ÔNIBUS À NOITE)
 // ============================================================
 function applyDayNightTheme(nightEnabled, silent = false) {
   isNightMode = Boolean(nightEnabled);
@@ -1566,7 +1519,7 @@ function applyDayNightTheme(nightEnabled, silent = false) {
 
   saveUserPreferences({ timeMode: isNightMode ? 'night' : 'day' });
   if (!silent) {
-    showAlert(isNightMode ? '🌙 Modo Noite ativo • Farol e luzes das janelas acesos' : '☀️ Modo Dia ativo');
+    showAlert(isNightMode ? '🌙 Modo Noite ativo • Apenas farol aceso' : '☀️ Modo Dia ativo');
   }
 }
 
@@ -1621,72 +1574,15 @@ function checkRouteProgressAlerts() {
   }
 }
 
-// ============================================================
-// SISTEMA DE CÂMBIO AUTOMÁTICO (LEVE)
-// ============================================================
-const GEAR_MAX_SPEEDS = {
-  1: 24,
-  2: 44,
-  3: 68,
-  4: 96,
-  5: 130,
-  6: 180
-};
-
-let currentGear = 1;
-let isReverseGearEngaged = false;
-let currentRpm = 850;
-let lastRpmUiUpdate = 0;
-
-function updateGearboxUI(force = false) {
-  const now = performance.now();
-  if (!force && now - lastRpmUiUpdate < 90) return;
-  lastRpmUiUpdate = now;
-
-  const badgeEl = document.getElementById('gearBadgeDisplay');
-  const rpmEl = document.getElementById('rpmDisplayText');
-  if (badgeEl) badgeEl.textContent = isReverseGearEngaged ? 'R' : `D${currentGear}`;
-  if (rpmEl) rpmEl.textContent = `${Math.round(currentRpm)} RPM`;
-}
-
-function updateGearboxPhysics(deltaTime) {
-  const absSpeed = Math.abs(currentSpeedKmh);
-
-  if (currentGameMode === 'free' && currentSpeedKmh < -0.5) {
-    isReverseGearEngaged = true;
-    currentGear = 1;
-  } else {
-    isReverseGearEngaged = false;
-    if (absSpeed < 18) currentGear = 1;
-    else if (absSpeed < 38) currentGear = 2;
-    else if (absSpeed < 62) currentGear = 3;
-    else if (absSpeed < 90) currentGear = 4;
-    else if (absSpeed < 122) currentGear = 5;
-    else currentGear = 6;
-  }
-
-  const maxGearSpeed = isReverseGearEngaged ? 25 : (GEAR_MAX_SPEEDS[currentGear] || 180);
-  const gearRatioProgress = Math.min(1, absSpeed / Math.max(1, maxGearSpeed));
-  const targetRpm = absSpeed < 0.4 ? 850 : 1050 + gearRatioProgress * 2250;
-
-  currentRpm += (targetRpm - currentRpm) * Math.min(1, 8.0 * deltaTime);
-  updateGearboxUI();
-  return maxGearSpeed;
-}
-
 function setCabinView(enabled) {
   isCabinViewActive = Boolean(enabled);
   const btnCam = document.getElementById('btnToggleCameraView');
-  const validatorEl = document.getElementById('povValidatorText');
   if (cockpitOverlay) {
     cockpitOverlay.classList.toggle('active', isCabinViewActive);
   }
   if (btnCam) {
     btnCam.classList.toggle('cabine-on', isCabinViewActive);
     btnCam.textContent = isCabinViewActive ? '🗺️ Mapa' : '👁️ Cabine';
-  }
-  if (validatorEl) {
-    validatorEl.textContent = activeLetreiroText || 'LINHA';
   }
   if (map) {
     map.setPitch(isCabinViewActive ? 45 : 25);
@@ -1704,8 +1600,10 @@ let busLat = 0;
 
 let currentSpeedKmh = 0;
 let isAutopilotMoving = false;
+let holdBoostActive = false;
 
-let cruiseSpeedKmh = 90;
+const CRUISE_TARGET_KMH = 80;
+let cruiseSpeedKmh = CRUISE_TARGET_KMH;
 let boostSpeedKmh = 140;
 const MAX_REVERSE_SPEED_KMH = -25;
 
@@ -1827,12 +1725,8 @@ function createBusMarkerElement(bodyColor, stripeColor, modelKey, letreiroText, 
   img.className = 'bus-marker-img';
   img.src = getBusSvg(bodyColor, stripeColor, modelKey, letreiroText);
 
-  const windowLights = document.createElement('div');
-  windowLights.className = 'bus-window-lights';
-
   wrap.appendChild(beam);
   wrap.appendChild(img);
-  wrap.appendChild(windowLights);
   return wrap;
 }
 
@@ -1871,6 +1765,10 @@ bindControlTouch('btnDpadUp', 'Up');
 bindControlTouch('btnDpadDown', 'Down');
 bindControlTouch('btnDpadLeft', 'Left');
 bindControlTouch('btnDpadRight', 'Right');
+bindControlTouch('btnWheelLeft', 'Left');
+bindControlTouch('btnWheelRight', 'Right');
+bindControlTouch('btnFreeAccel', 'Up');
+bindControlTouch('btnFreeBrake', 'Down');
 
 document.getElementById('btnSelectLineMode').addEventListener('click', () => {
   refreshLinesDropdown();
@@ -1904,6 +1802,7 @@ btnTripToggle.addEventListener('click', () => {
   } else {
     isTripActive = false;
     isAutopilotMoving = false;
+    holdBoostActive = false;
     currentSpeedKmh = 0;
     stopTripTimer();
     updateTripStatus();
@@ -1912,15 +1811,11 @@ btnTripToggle.addEventListener('click', () => {
 
 document.getElementById('btnStartLineMode').addEventListener('click', () => {
   currentGameMode = 'line';
+  syncModeBodyClass();
   const selectedKey = document.getElementById('selectLine').value;
   activePresetKey = document.getElementById('selectColorLine').value || 'vermelho';
   const chosenTimeMode = document.getElementById('selectTimeModeLine')?.value || 'day';
   saveUserPreferences({ lastLineKey: selectedKey, colorLine: activePresetKey, timeMode: chosenTimeMode });
-
-  currentGear = 1;
-  isReverseGearEngaged = false;
-  currentRpm = 850;
-  updateGearboxUI(true);
 
   const db = getLinesDatabase();
   const lineData = db[selectedKey] || Object.values(db)[0];
@@ -1934,13 +1829,8 @@ document.getElementById('btnStartLineMode').addEventListener('click', () => {
   currentVehicleType = chosenModel;
   activeLetreiroText = (lineData.nome || 'LINHA MUNICIPAL').slice(0, 22);
 
-  if (lineData.tipo === 'rodoviario' || chosenModel === 'rodoviario') {
-    cruiseSpeedKmh = 140;
-    boostSpeedKmh = 180;
-  } else {
-    cruiseSpeedKmh = 80;
-    boostSpeedKmh = 100;
-  }
+  cruiseSpeedKmh = CRUISE_TARGET_KMH;
+  boostSpeedKmh = (lineData.tipo === 'rodoviario' || chosenModel === 'rodoviario') ? 160 : 120;
 
   const isRoadCategory = (lineData.tipo || '').toLowerCase() === 'rodoviario' || chosenModel === 'rodoviario';
   activePath = extractCoordinates(lineData.trajeto);
@@ -1962,11 +1852,13 @@ document.getElementById('btnStartLineMode').addEventListener('click', () => {
   isLineFinished = false;
   isTripActive = false;
   isAutopilotMoving = false;
+  holdBoostActive = false;
   currentSpeedKmh = 0;
   distanceCoveredKm = 0;
   lineLateralCorrectionMeters = 0;
   lineLateralVelocity = 0;
   busVisualYawOffset = 0;
+  wheelAngleDeg = 0;
 
   targetHeading = calculateBearing(activePath[0], activePath[1]);
   smoothHeading = targetHeading;
@@ -1986,6 +1878,7 @@ document.getElementById('btnStartLineMode').addEventListener('click', () => {
 
 document.getElementById('btnStartFreeMode').addEventListener('click', async () => {
   currentGameMode = 'free';
+  syncModeBodyClass();
   const chosenFreeModel = document.getElementById('selectModelFree')?.value || 'bhtrans';
   currentVehicleType = chosenFreeModel;
   activeLetreiroText = chosenFreeModel === 'rodoviario'
@@ -1996,11 +1889,6 @@ document.getElementById('btnStartFreeMode').addEventListener('click', async () =
   const locationQuery = document.getElementById('inputFreeLocation').value.trim();
   saveUserPreferences({ modelFree: chosenFreeModel, colorFree: activePresetKey, timeMode: chosenTimeMode, freeLocation: locationQuery });
 
-  currentGear = 1;
-  isReverseGearEngaged = false;
-  currentRpm = 850;
-  updateGearboxUI(true);
-
   clearSameDirTraffic();
   activePath = [];
   routeCheckpointState.totalKm = 0;
@@ -2009,10 +1897,11 @@ document.getElementById('btnStartFreeMode').addEventListener('click', async () =
 
   currentSpeedKmh = 0;
   isAutopilotMoving = false;
+  holdBoostActive = false;
   isLineFinished = false;
   distanceCoveredKm = 0;
-  cruiseSpeedKmh = 85;
-  boostSpeedKmh = 120;
+  cruiseSpeedKmh = CRUISE_TARGET_KMH;
+  boostSpeedKmh = 140;
   speedMultiplier = 1.0;
   updatePaceButtonUI();
   isTripActive = true;
@@ -2020,6 +1909,7 @@ document.getElementById('btnStartFreeMode').addEventListener('click', async () =
   smoothHeading = 0;
   targetHeading = 0;
   freeSteerRate = 0;
+  wheelAngleDeg = 0;
   lineLateralCorrectionMeters = 0;
   lineLateralVelocity = 0;
   busVisualYawOffset = 0;
@@ -2043,7 +1933,7 @@ document.getElementById('btnStartFreeMode').addEventListener('click', async () =
   }
 
   startSimulation(targetCoords, targetCoords, chosenTimeMode === 'night');
-  showAlert(chosenTimeMode === 'night' ? '🌙 Modo Livre noturno com farol e janelas acesos' : '🗺️ Modo Livre ativo');
+  showAlert(chosenTimeMode === 'night' ? '🌙 Modo Livre noturno • Apenas farol aceso' : '🗺️ Modo Livre ativo • Cruzeiro 80 km/h');
 });
 
 function startSimulation(baseCoords, initialRenderCoords, startAtNight = false) {
@@ -2052,7 +1942,6 @@ function startSimulation(baseCoords, initialRenderCoords, startAtNight = false) 
   mobileTopBar.style.display = 'flex';
   bottomCockpitBar.style.display = 'flex';
   speedBox.style.display = 'flex';
-  gearboxWidget.style.display = 'flex';
   setCabinView(false);
 
   if (currentGameMode === 'free') {
@@ -2090,6 +1979,8 @@ function exitGame() {
   clearSameDirTraffic();
   setCabinView(false);
   applyDayNightTheme(false, true);
+  currentGameMode = 'line';
+  syncModeBodyClass();
   if (animationFrameId) {
     cancelAnimationFrame(animationFrameId);
     animationFrameId = null;
@@ -2104,19 +1995,17 @@ function exitGame() {
   }
   currentSpeedKmh = 0;
   isAutopilotMoving = false;
+  holdBoostActive = false;
   isTripActive = false;
   vehicleHeading = 0;
   freeSteerRate = 0;
+  wheelAngleDeg = 0;
   distanceCoveredKm = 0;
   speedMultiplier = 1.0;
   updatePaceButtonUI();
   lineLateralCorrectionMeters = 0;
   lineLateralVelocity = 0;
   busVisualYawOffset = 0;
-  currentGear = 1;
-  isReverseGearEngaged = false;
-  currentRpm = 850;
-  updateGearboxUI(true);
 
   document.getElementById('tripTimerDisplay').textContent = '00:00';
   document.getElementById('miniTimerDisplay').textContent = '00:00';
@@ -2128,7 +2017,6 @@ function exitGame() {
   hudContainer.classList.remove('mobile-visible');
   speedBox.style.display = 'none';
   sideMinimapBox.style.display = 'none';
-  gearboxWidget.style.display = 'none';
   mobileTopBar.style.display = 'none';
   bottomCockpitBar.style.display = 'none';
   mapBanner.style.display = 'none';
@@ -2146,6 +2034,7 @@ function mostrarRelatorioFinal() {
   stopTripTimer();
   isTripActive = false;
   isAutopilotMoving = false;
+  holdBoostActive = false;
   currentSpeedKmh = 0;
 
   const tempoStr = document.getElementById('tripTimerDisplay').textContent;
@@ -2317,7 +2206,7 @@ function initMap(startCoords) {
 }
 
 // ============================================================
-// DESPACHO A CADA 3 KM + ROTA PROGRAMADA + ULTRAPASSAGEM (SEM SENTIDO OPOSTO)
+// CARROS DE APOIO: SAEM DO PONTO INICIAL, ULTRAPASSAM E AFASTAM
 // ============================================================
 
 const SUPPORT_CAR_COLORS = [
@@ -2335,6 +2224,7 @@ const sameDirTraffic = {
   nextSpawnKm: 3,
   spawnedCount: 0,
   heldSpawnPending: false,
+  postGoalWaveSpawned: false,
   lastToastMessage: '',
   lastCloseAlertTime: 0
 };
@@ -2405,7 +2295,7 @@ function computeRouteTotalKm(pathCoords) {
   return totalMeters / 1000;
 }
 
-function configureTrafficThresholdsForRoute(pathCoords, isRoad = false, lineNameText = '') {
+function configureTrafficThresholdsForRoute(pathCoords, isRoad = false) {
   const totalKm = computeRouteTotalKm(pathCoords);
   sameDirTraffic.totalRouteKm = totalKm;
   sameDirTraffic.isRoadLine = Boolean(isRoad);
@@ -2413,6 +2303,7 @@ function configureTrafficThresholdsForRoute(pathCoords, isRoad = false, lineName
   sameDirTraffic.nextSpawnKm = 3;
   sameDirTraffic.spawnedCount = 0;
   sameDirTraffic.heldSpawnPending = false;
+  sameDirTraffic.postGoalWaveSpawned = false;
   sameDirTraffic.lastToastMessage = '';
   sameDirTraffic.lastCloseAlertTime = 0;
 }
@@ -2427,6 +2318,7 @@ function clearSameDirTraffic() {
   sameDirTraffic.spawnedCount = 0;
   sameDirTraffic.nextSpawnKm = 3;
   sameDirTraffic.heldSpawnPending = false;
+  sameDirTraffic.postGoalWaveSpawned = false;
   sameDirTraffic.lastToastMessage = '';
   sameDirTraffic.lastCloseAlertTime = 0;
   hideRearIndicator();
@@ -2434,12 +2326,12 @@ function clearSameDirTraffic() {
 }
 
 function isTrafficCongestedForSpawn() {
-  const maxConcurrent = sameDirTraffic.isRoadLine ? 2 : 3;
+  const maxConcurrent = sameDirTraffic.isRoadLine ? 3 : 4;
   const activeCount = sameDirTraffic.vehicles.filter(v => !v.finished).length;
   if (activeCount >= maxConcurrent) return true;
 
   const playerRouteMeters = getRouteProgressMeters(currentSegIndex, segProgressMeters);
-  const minSpacingMeters = sameDirTraffic.isRoadLine ? 190 : 120;
+  const minSpacingMeters = sameDirTraffic.isRoadLine ? 120 : 90;
 
   for (const v of sameDirTraffic.vehicles) {
     if (v.finished) continue;
@@ -2453,22 +2345,23 @@ function isTrafficCongestedForSpawn() {
 
 function getCycleBehaviorRole(seqNumber) {
   const posInBlockOfFour = ((seqNumber - 1) % 4) + 1;
-  return posInBlockOfFour <= 2 ? 'overtake' : 'escort';
+  if (posInBlockOfFour <= 2) return 'overtake';
+  return 'allow_pass';
 }
 
-function createFollowingBusBehindPlayer(seqNumber) {
+function spawnSupportCarFromStart(seqNumber, forceFromStart = false) {
   if (!map || !Array.isArray(activePath) || activePath.length < 2) return null;
 
   const playerMeters = getRouteProgressMeters(currentSegIndex, segProgressMeters);
-  const spawnGapMeters = sameDirTraffic.isRoadLine ? 185 : 145;
-  const spawnMeters = Math.max(0, playerMeters - spawnGapMeters);
+  const spawnGapMeters = sameDirTraffic.isRoadLine ? 160 : 120;
+  const spawnMeters = forceFromStart ? 0 : Math.max(0, playerMeters - spawnGapMeters);
   const spawnPt = getPointAtRouteMeters(spawnMeters);
   if (!spawnPt) return null;
 
   const palette = SUPPORT_CAR_COLORS[(seqNumber - 1) % SUPPORT_CAR_COLORS.length];
   const modelKey = sameDirTraffic.isRoadLine ? 'rodoviario' : (currentVehicleType === 'rodoviario' ? 'bhtrans' : currentVehicleType);
   const role = getCycleBehaviorRole(seqNumber);
-  const label = role === 'overtake' ? `APOIO 0${seqNumber} • ULTRAP.` : `APOIO 0${seqNumber} • ROTA`;
+  const label = role === 'overtake' ? `APOIO 0${seqNumber} • ULTRAP.` : `APOIO 0${seqNumber} • PASSA`;
 
   const renderPos = [spawnPt.lng, spawnPt.lat];
   const wrapEl = createBusMarkerElement(palette.bodyColor, palette.stripeColor, modelKey, label, '0.96');
@@ -2484,11 +2377,11 @@ function createFollowingBusBehindPlayer(seqNumber) {
     .setRotation(spawnPt.heading)
     .addTo(map);
 
-  const baseActiveSpeed = Math.max(currentSpeedKmh, sameDirTraffic.isRoadLine ? 85 : 58);
-  const maxLineCap = sameDirTraffic.isRoadLine ? 175 : 130;
+  const baseActiveSpeed = Math.max(currentSpeedKmh, sameDirTraffic.isRoadLine ? 92 : 76);
+  const maxLineCap = sameDirTraffic.isRoadLine ? 185 : 145;
   const initialSpeed = role === 'overtake'
-    ? Math.min(maxLineCap, Math.max(68, baseActiveSpeed + (sameDirTraffic.isRoadLine ? 18 : 24)))
-    : Math.max(50, baseActiveSpeed);
+    ? Math.min(maxLineCap, baseActiveSpeed + 26)
+    : Math.max(58, baseActiveSpeed - 6);
 
   return {
     id: seqNumber,
@@ -2504,18 +2397,36 @@ function createFollowingBusBehindPlayer(seqNumber) {
     baseLaneOffset: 0,
     currentLaneOffset: 0,
     overtakeState: 'none',
+    pullingAway: false,
     finished: false,
     marker: marker
   };
 }
 
+function spawnPostGoalWaveFromStart() {
+  if (sameDirTraffic.postGoalWaveSpawned || !Array.isArray(activePath) || activePath.length < 2) return;
+  sameDirTraffic.postGoalWaveSpawned = true;
+  for (let i = 1; i <= 2; i++) {
+    sameDirTraffic.spawnedCount++;
+    const car = spawnSupportCarFromStart(sameDirTraffic.spawnedCount, true);
+    if (car) {
+      sameDirTraffic.vehicles.push(car);
+    }
+  }
+}
+
 function maybeSpawnSameDirTraffic() {
-  if (currentGameMode !== 'line' || isLineFinished) return;
+  if (currentGameMode !== 'line') return;
   if (!Array.isArray(activePath) || activePath.length < 2) return;
+
+  if (isLineFinished) {
+    spawnPostGoalWaveFromStart();
+    return;
+  }
 
   const totalKm = sameDirTraffic.totalRouteKm || computeRouteTotalKm(activePath);
   const remainingKm = Math.max(0, totalKm - distanceCoveredKm);
-  if (remainingKm < 0.35) return;
+  if (remainingKm < 0.25) return;
 
   if (distanceCoveredKm >= sameDirTraffic.nextSpawnKm) {
     sameDirTraffic.heldSpawnPending = true;
@@ -2527,15 +2438,15 @@ function maybeSpawnSameDirTraffic() {
     }
 
     sameDirTraffic.spawnedCount++;
-    const newVeh = createFollowingBusBehindPlayer(sameDirTraffic.spawnedCount);
+    const newVeh = spawnSupportCarFromStart(sameDirTraffic.spawnedCount, false);
     if (newVeh) {
       sameDirTraffic.vehicles.push(newVeh);
       sameDirTraffic.heldSpawnPending = false;
       sameDirTraffic.nextSpawnKm += sameDirTraffic.spawnIntervalKm;
 
       const roleText = newVeh.role === 'overtake'
-        ? 'mais rápido para ultrapassar'
-        : 'no mesmo ritmo próximo';
+        ? 'aproxima para ultrapassar'
+        : 'permite ser ultrapassado';
       const msg = `🚌 Apoio 0${newVeh.id} entrou na linha (${roleText})`;
       if (sameDirTraffic.lastToastMessage !== msg) {
         sameDirTraffic.lastToastMessage = msg;
@@ -2723,9 +2634,9 @@ function updateSameDirTraffic(deltaTime, frameNow = performance.now()) {
     }
 
     if (deltaAlongRouteMeters > 4) {
-      const tagText = v.role === 'overtake'
-        ? (v.overtakeState === 'passing' ? 'ultrapassando' : 'ultrapassa')
-        : 'acompanha';
+      const tagText = v.pullingAway
+        ? 'acelera e vai'
+        : (v.role === 'overtake' ? 'ultrapassa' : 'permite passar');
       trailingCandidates.push({
         label: `APOIO 0${v.id}`,
         tag: tagText,
@@ -2735,134 +2646,148 @@ function updateSameDirTraffic(deltaTime, frameNow = performance.now()) {
 
       if (v.role === 'overtake' && directDistMeters <= 125 && (frameNow - sameDirTraffic.lastCloseAlertTime > 10000)) {
         sameDirTraffic.lastCloseAlertTime = frameNow;
-        showAlert(`⬅️ APOIO 0${v.id} ultrapassando pela esquerda (${Math.round(directDistMeters)} m)`);
+        showAlert(`⬅️ APOIO 0${v.id} ultrapassando (${Math.round(directDistMeters)} m)`);
       }
     }
 
-    if (!isLineFinished) {
-      let minAheadGapMeters = Infinity;
+    // Verifica se há outro veículo próximo (outro carro de apoio ou o carro oficial): acelera e vai embora
+    let hasCloseOtherVehicle = directDistMeters > 2 && directDistMeters < 48;
+    if (!hasCloseOtherVehicle) {
       for (const other of sameDirTraffic.vehicles) {
         if (other.id === v.id || other.finished) continue;
-        const otherMeters = getRouteProgressMeters(other.segIndex, other.segProgress);
-        const gap = otherMeters - vRouteMeters;
-        if (gap > 0 && gap < minAheadGapMeters) {
-          minAheadGapMeters = gap;
+        if (getMetersBetween([v.lng, v.lat], [other.lng, other.lat]) < 45) {
+          hasCloseOtherVehicle = true;
+          break;
         }
       }
+    }
 
-      const activeRefSpeed = currentSpeedKmh > 3
-        ? currentSpeedKmh
-        : (sameDirTraffic.isRoadLine ? 78 : 54);
-      const maxTrafficSpeed = sameDirTraffic.isRoadLine ? 185 : 138;
-      let targetSpeedKmh = activeRefSpeed;
-      let desiredLaneOffset = 0;
+    if (hasCloseOtherVehicle) {
+      v.pullingAway = true;
+    } else if (directDistMeters > 190) {
+      v.pullingAway = false;
+    }
 
-      if (v.role === 'overtake') {
-        const isApproachingBehind = deltaAlongRouteMeters > 4 && deltaAlongRouteMeters < 115;
-        if (v.overtakeState === 'none' && isApproachingBehind) {
-          v.overtakeState = 'passing';
+    let minAheadGapMeters = Infinity;
+    for (const other of sameDirTraffic.vehicles) {
+      if (other.id === v.id || other.finished) continue;
+      const otherMeters = getRouteProgressMeters(other.segIndex, other.segProgress);
+      const gap = otherMeters - vRouteMeters;
+      if (gap > 0 && gap < minAheadGapMeters) {
+        minAheadGapMeters = gap;
+      }
+    }
+
+    const activeRefSpeed = currentSpeedKmh > 3
+      ? currentSpeedKmh
+      : (sameDirTraffic.isRoadLine ? 82 : 68);
+    const maxTrafficSpeed = sameDirTraffic.isRoadLine ? 195 : 155;
+    let targetSpeedKmh = activeRefSpeed;
+    let desiredLaneOffset = 0;
+
+    if (v.pullingAway) {
+      // Quando tem outro mais próximo, acelera e vai embora
+      desiredLaneOffset = -2.2;
+      targetSpeedKmh = Math.min(maxTrafficSpeed, Math.max(105, activeRefSpeed + 42));
+    } else if (v.role === 'overtake') {
+      const isApproachingBehind = deltaAlongRouteMeters > 4 && deltaAlongRouteMeters < 120;
+      if (v.overtakeState === 'none' && isApproachingBehind) {
+        v.overtakeState = 'passing';
+      }
+
+      if (v.overtakeState === 'passing') {
+        desiredLaneOffset = -2.2;
+        targetSpeedKmh = Math.min(maxTrafficSpeed, Math.max(85, activeRefSpeed + 26));
+        if (deltaAlongRouteMeters < -45) {
+          v.overtakeState = 'returning';
         }
-
-        if (v.overtakeState === 'passing') {
-          desiredLaneOffset = -2.2;
-          targetSpeedKmh = Math.min(maxTrafficSpeed, Math.max(72, activeRefSpeed + (sameDirTraffic.isRoadLine ? 18 : 26)));
-          if (deltaAlongRouteMeters < -45) {
-            v.overtakeState = 'returning';
-          }
-        } else if (v.overtakeState === 'returning') {
-          desiredLaneOffset = 0;
-          targetSpeedKmh = Math.min(maxTrafficSpeed, Math.max(66, activeRefSpeed + 14));
-          if (Math.abs(v.currentLaneOffset) < 0.08) {
-            v.currentLaneOffset = 0;
-            v.overtakeState = 'done';
-          }
-        } else if (v.overtakeState === 'done') {
-          desiredLaneOffset = 0;
-          targetSpeedKmh = Math.min(maxTrafficSpeed, Math.max(64, activeRefSpeed + 12));
-          if (deltaAlongRouteMeters < -450) {
-            v.finished = true;
-          }
-        } else {
-          desiredLaneOffset = 0;
-          targetSpeedKmh = Math.min(maxTrafficSpeed, Math.max(68, activeRefSpeed + 22));
-        }
-      } else {
-        const idealFollowGapMeters = sameDirTraffic.isRoadLine ? 75 : 55;
-        const gapDiff = deltaAlongRouteMeters - idealFollowGapMeters;
-
-        if (currentSpeedKmh <= 3) {
-          targetSpeedKmh = sameDirTraffic.isRoadLine ? 65 : 45;
-        } else if (gapDiff > 15) {
-          targetSpeedKmh = Math.min(maxTrafficSpeed, currentSpeedKmh + 14);
-        } else if (gapDiff < -15) {
-          targetSpeedKmh = Math.max(32, currentSpeedKmh - 10);
-        } else {
-          targetSpeedKmh = currentSpeedKmh;
-        }
+      } else if (v.overtakeState === 'returning') {
         desiredLaneOffset = 0;
-
-        if (deltaAlongRouteMeters < -520) {
+        targetSpeedKmh = Math.min(maxTrafficSpeed, Math.max(75, activeRefSpeed + 14));
+        if (Math.abs(v.currentLaneOffset) < 0.08) {
+          v.currentLaneOffset = 0;
+          v.overtakeState = 'done';
+        }
+      } else if (v.overtakeState === 'done') {
+        desiredLaneOffset = 0;
+        targetSpeedKmh = Math.min(maxTrafficSpeed, Math.max(72, activeRefSpeed + 12));
+        if (!isLineFinished && deltaAlongRouteMeters < -480) {
           v.finished = true;
         }
+      } else {
+        desiredLaneOffset = 0;
+        targetSpeedKmh = Math.min(maxTrafficSpeed, Math.max(82, activeRefSpeed + 24));
+      }
+    } else {
+      // Permite ser ultrapassado pelo jogador com facilidade (mantém faixa direita e ritmo moderado quando não há proximidade crítica)
+      desiredLaneOffset = 1.6;
+      if (deltaAlongRouteMeters < -15 && deltaAlongRouteMeters > -130) {
+        targetSpeedKmh = Math.max(38, activeRefSpeed - 18);
+      } else {
+        targetSpeedKmh = Math.max(48, activeRefSpeed - 6);
+      }
+      if (!isLineFinished && deltaAlongRouteMeters < -520) {
+        v.finished = true;
+      }
+    }
+
+    if (!v.pullingAway && minAheadGapMeters < 38) {
+      targetSpeedKmh = Math.min(targetSpeedKmh, 36);
+    }
+
+    const accelRate = v.pullingAway ? 68 : 44;
+    if (v.speedKmh < targetSpeedKmh) {
+      v.speedKmh = Math.min(targetSpeedKmh, v.speedKmh + accelRate * deltaTime);
+    } else if (v.speedKmh > targetSpeedKmh) {
+      v.speedKmh = Math.max(targetSpeedKmh, v.speedKmh - 36 * deltaTime);
+    }
+
+    v.currentLaneOffset += (desiredLaneOffset - v.currentLaneOffset) * Math.min(1, 6.0 * deltaTime);
+
+    const speedMps = (v.speedKmh / 3.6) * speedMultiplier;
+    let remDist = speedMps * deltaTime;
+
+    while (remDist > 0 && v.segIndex < activePath.length - 1) {
+      const p1 = activePath[v.segIndex];
+      const p2 = activePath[v.segIndex + 1];
+
+      if (v.segLength <= 0) {
+        v.segLength = getMetersBetween(p1, p2);
       }
 
-      if (minAheadGapMeters < 42) {
-        targetSpeedKmh = Math.min(targetSpeedKmh, 34);
+      if (v.segLength <= 0.1) {
+        v.segIndex++;
+        v.segProgress = 0;
+        v.segLength = v.segIndex < activePath.length - 1
+          ? getMetersBetween(activePath[v.segIndex], activePath[v.segIndex + 1])
+          : 0;
+        continue;
       }
 
-      if (v.speedKmh < targetSpeedKmh) {
-        v.speedKmh = Math.min(targetSpeedKmh, v.speedKmh + 42 * deltaTime);
-      } else if (v.speedKmh > targetSpeedKmh) {
-        v.speedKmh = Math.max(targetSpeedKmh, v.speedKmh - 36 * deltaTime);
-      }
-
-      v.currentLaneOffset += (desiredLaneOffset - v.currentLaneOffset) * Math.min(1, 6.0 * deltaTime);
-
-      const speedMps = (v.speedKmh / 3.6) * speedMultiplier;
-      let remDist = speedMps * deltaTime;
-
-      while (remDist > 0 && v.segIndex < activePath.length - 1) {
-        const p1 = activePath[v.segIndex];
-        const p2 = activePath[v.segIndex + 1];
-
-        if (v.segLength <= 0) {
-          v.segLength = getMetersBetween(p1, p2);
-        }
-
-        if (v.segLength <= 0.1) {
-          v.segIndex++;
-          v.segProgress = 0;
-          v.segLength = v.segIndex < activePath.length - 1
-            ? getMetersBetween(activePath[v.segIndex], activePath[v.segIndex + 1])
-            : 0;
-          continue;
-        }
-
-        const leftInSeg = v.segLength - v.segProgress;
-        if (remDist < leftInSeg) {
-          v.segProgress += remDist;
-          remDist = 0;
-          const ratio = v.segProgress / v.segLength;
-          v.lng = p1[0] + (p2[0] - p1[0]) * ratio;
-          v.lat = p1[1] + (p2[1] - p1[1]) * ratio;
-          const segBear = calculateBearing(p1, p2);
-          v.heading = lerpHeading(v.heading, segBear, Math.min(1, 8.5 * deltaTime));
+      const leftInSeg = v.segLength - v.segProgress;
+      if (remDist < leftInSeg) {
+        v.segProgress += remDist;
+        remDist = 0;
+        const ratio = v.segProgress / v.segLength;
+        v.lng = p1[0] + (p2[0] - p1[0]) * ratio;
+        v.lat = p1[1] + (p2[1] - p1[1]) * ratio;
+        const segBear = calculateBearing(p1, p2);
+        v.heading = lerpHeading(v.heading, segBear, Math.min(1, 8.5 * deltaTime));
+      } else {
+        remDist -= leftInSeg;
+        v.segIndex++;
+        v.segProgress = 0;
+        if (v.segIndex >= activePath.length - 1) {
+          v.lng = activePath[activePath.length - 1][0];
+          v.lat = activePath[activePath.length - 1][1];
+          v.finished = true;
+          break;
         } else {
-          remDist -= leftInSeg;
-          v.segIndex++;
-          v.segProgress = 0;
-          if (v.segIndex >= activePath.length - 1) {
-            v.lng = activePath[activePath.length - 1][0];
-            v.lat = activePath[activePath.length - 1][1];
-            v.finished = true;
-            break;
-          } else {
-            v.segLength = getMetersBetween(activePath[v.segIndex], activePath[v.segIndex + 1]);
-            v.lng = activePath[v.segIndex][0];
-            v.lat = activePath[v.segIndex][1];
-            const segBear = calculateBearing(activePath[v.segIndex], activePath[v.segIndex + 1]);
-            v.heading = lerpHeading(v.heading, segBear, Math.min(1, 8.5 * deltaTime));
-          }
+          v.segLength = getMetersBetween(activePath[v.segIndex], activePath[v.segIndex + 1]);
+          v.lng = activePath[v.segIndex][0];
+          v.lat = activePath[v.segIndex][1];
+          const segBear = calculateBearing(activePath[v.segIndex], activePath[v.segIndex + 1]);
+          v.heading = lerpHeading(v.heading, segBear, Math.min(1, 8.5 * deltaTime));
         }
       }
     }
@@ -2924,8 +2849,6 @@ function gameLoop(now) {
   lastFrameTime = now;
 
   const prev = [busLng, busLat];
-  const gearCapKmh = updateGearboxPhysics(deltaTime);
-
   let desiredSpeed = 0;
 
   if (keysPressed.Up) {
@@ -2935,7 +2858,10 @@ function gameLoop(now) {
     }
     mapBanner.style.display = 'none';
     isAutopilotMoving = true;
+    holdBoostActive = true;
     updateTripStatus();
+  } else {
+    holdBoostActive = false;
   }
 
   let renderLng = busLng;
@@ -2946,21 +2872,24 @@ function gameLoop(now) {
     if (isTripActive && isAutopilotMoving && !isLineFinished) {
       if (keysPressed.Down) {
         desiredSpeed = 0;
-        currentSpeedKmh = Math.max(currentSpeedKmh - 60 * deltaTime, 0);
+        currentSpeedKmh = Math.max(currentSpeedKmh - 65 * deltaTime, 0);
         if (currentSpeedKmh <= 2) {
           isAutopilotMoving = false;
         }
-      } else if (keysPressed.Up) {
-        desiredSpeed = Math.min(boostSpeedKmh, gearCapKmh);
+      } else if (holdBoostActive) {
+        // Mantém 80 km/h e vai acelerando enquanto o botão de acelerar fica pressionado
+        const boostedTarget = Math.min(boostSpeedKmh, Math.max(CRUISE_TARGET_KMH, currentSpeedKmh + 28 * deltaTime));
+        desiredSpeed = boostedTarget;
       } else {
-        desiredSpeed = Math.min(cruiseSpeedKmh, gearCapKmh);
+        // Cruzeiro mantido em 80 km/h ao acelerar
+        desiredSpeed = CRUISE_TARGET_KMH;
       }
     }
 
     if (currentSpeedKmh < desiredSpeed) {
-      currentSpeedKmh = Math.min(currentSpeedKmh + 50 * deltaTime, desiredSpeed);
+      currentSpeedKmh = Math.min(currentSpeedKmh + 48 * deltaTime, desiredSpeed);
     } else if (currentSpeedKmh > desiredSpeed) {
-      currentSpeedKmh = Math.max(currentSpeedKmh - 40 * deltaTime, desiredSpeed);
+      currentSpeedKmh = Math.max(currentSpeedKmh - 36 * deltaTime, desiredSpeed);
     }
 
     if (currentSpeedKmh > 0 && !isLineFinished && isTripActive) {
@@ -3050,19 +2979,20 @@ function gameLoop(now) {
     renderLat = lanePos[1];
     busWorldHeading = (smoothHeading + busVisualYawOffset + 360) % 360;
   } else {
+    // Modo Livre: mantém em 80 km/h ao acelerar e vai acelerando enquanto segura o botão de acelerar
     if (keysPressed.Up) {
       if (currentSpeedKmh < 0) {
         currentSpeedKmh = Math.min(currentSpeedKmh + 65 * deltaTime, 0);
+      } else if (currentSpeedKmh < CRUISE_TARGET_KMH) {
+        currentSpeedKmh = Math.min(CRUISE_TARGET_KMH, currentSpeedKmh + 44 * deltaTime);
       } else {
-        desiredSpeed = Math.min(boostSpeedKmh, gearCapKmh);
-        currentSpeedKmh = Math.min(currentSpeedKmh + 42 * deltaTime, desiredSpeed);
+        currentSpeedKmh = Math.min(boostSpeedKmh, currentSpeedKmh + 24 * deltaTime);
       }
     } else if (keysPressed.Down) {
       if (currentSpeedKmh > 0) {
         currentSpeedKmh = Math.max(currentSpeedKmh - 65 * deltaTime, 0);
       } else {
-        const revCap = -Math.min(Math.abs(MAX_REVERSE_SPEED_KMH), gearCapKmh);
-        currentSpeedKmh = Math.max(currentSpeedKmh - 28 * deltaTime, revCap);
+        currentSpeedKmh = Math.max(currentSpeedKmh - 28 * deltaTime, MAX_REVERSE_SPEED_KMH);
       }
     } else {
       if (currentSpeedKmh > 0) {
@@ -3074,11 +3004,17 @@ function gameLoop(now) {
 
     const absSpeed = Math.abs(currentSpeedKmh);
     const steerInput = (keysPressed.Right ? 1 : 0) - (keysPressed.Left ? 1 : 0);
-    const speedGripFactor = absSpeed < 0.5
-      ? 0
-      : Math.max(0.45, Math.min(1, 1.05 - (absSpeed / 140) * 0.55));
-    const targetSteerRate = steerInput * 38 * speedGripFactor;
-    freeSteerRate += (targetSteerRate - freeSteerRate) * Math.min(1, 6.0 * deltaTime);
+
+    // Rotação visual livre do volante e direção mais livre para esquerda/direita
+    const targetWheelDeg = steerInput * 135;
+    wheelAngleDeg += (targetWheelDeg - wheelAngleDeg) * Math.min(1, 10.0 * deltaTime);
+    const wheelImg = document.getElementById('freeSteeringWheelImg');
+    if (wheelImg) {
+      wheelImg.style.transform = `rotate(${wheelAngleDeg.toFixed(1)}deg)`;
+    }
+
+    const targetSteerRate = steerInput * 62;
+    freeSteerRate += (targetSteerRate - freeSteerRate) * Math.min(1, 8.5 * deltaTime);
 
     if (absSpeed > 0.05) {
       const reverseDirFactor = currentSpeedKmh < -0.5 ? -1 : 1;
@@ -3097,7 +3033,7 @@ function gameLoop(now) {
 
     renderLng = busLng;
     renderLat = busLat;
-    busWorldHeading = (vehicleHeading + freeSteerRate * 0.06 + 360) % 360;
+    busWorldHeading = (vehicleHeading + freeSteerRate * 0.08 + 360) % 360;
   }
 
   const distStep = getMetersBetween(prev, [busLng, busLat]) / 1000;
@@ -3159,10 +3095,12 @@ window.addEventListener('keydown', (e) => {
     if (!keysPressed.Up) handleAccelerate();
     keysPressed.Up = true;
     document.getElementById('btnDpadUp')?.classList.add('pressed');
+    document.getElementById('btnFreeAccel')?.classList.add('pressed');
   }
   if (['ArrowDown', 'KeyS'].includes(e.code)) {
     keysPressed.Down = true;
     document.getElementById('btnDpadDown')?.classList.add('pressed');
+    document.getElementById('btnFreeBrake')?.classList.add('pressed');
   }
   if (['ArrowLeft', 'KeyA'].includes(e.code)) {
     keysPressed.Left = true;
@@ -3178,10 +3116,12 @@ window.addEventListener('keyup', (e) => {
   if (['ArrowUp', 'KeyW'].includes(e.code)) {
     keysPressed.Up = false;
     document.getElementById('btnDpadUp')?.classList.remove('pressed');
+    document.getElementById('btnFreeAccel')?.classList.remove('pressed');
   }
   if (['ArrowDown', 'KeyS'].includes(e.code)) {
     keysPressed.Down = false;
     document.getElementById('btnDpadDown')?.classList.remove('pressed');
+    document.getElementById('btnFreeBrake')?.classList.remove('pressed');
   }
   if (['ArrowLeft', 'KeyA'].includes(e.code)) {
     keysPressed.Left = false;
