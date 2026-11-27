@@ -734,7 +734,7 @@ const cssStyles = `
     width: 100%;
     height: 100%;
     border-radius: 50%;
-    transition: transform 0.035s linear;
+    transition: transform 0.05s linear;
     filter: drop-shadow(0 8px 18px rgba(0, 0, 0, 0.85));
     pointer-events: none;
   }
@@ -1660,9 +1660,9 @@ const keysPressed = { Up: false, Down: false, Left: false, Right: false };
 
 function triggerFreeTapSteer(dir) {
   if (currentGameMode !== 'free') return;
-  // dir: -1 esquerda, +1 direita; resposta imediata e instável com simples toques
-  freeTapImpulseRate = Math.max(-135, Math.min(135, freeTapImpulseRate + dir * 78));
-  freeSteerRate = freeTapImpulseRate;
+  // dir: -1 esquerda, +1 direita; resposta por simples toques com sensibilidade moderada
+  freeTapImpulseRate = Math.max(-72, Math.min(72, freeTapImpulseRate + dir * 42));
+  freeSteerRate = freeTapImpulseRate * 0.75;
 }
 
 function calculateBearing(startCoord, endCoord) {
@@ -3012,7 +3012,6 @@ function gameLoop(now) {
         currentSpeedKmh = Math.max(currentSpeedKmh - 32 * deltaTime, MAX_REVERSE_SPEED_KMH);
       }
     } else if (freeCruiseEngaged) {
-      // Mantém cruzeiro constante de 80 km/h mesmo sem pressionar acelerar
       if (currentSpeedKmh < CRUISE_TARGET_KMH) {
         currentSpeedKmh = Math.min(CRUISE_TARGET_KMH, currentSpeedKmh + 48 * deltaTime);
       } else if (currentSpeedKmh > CRUISE_TARGET_KMH) {
@@ -3029,16 +3028,16 @@ function gameLoop(now) {
     const absSpeed = Math.abs(currentSpeedKmh);
     const steerHold = (keysPressed.Right ? 1 : 0) - (keysPressed.Left ? 1 : 0);
 
-    // Decaimento leve do impulso de simples toques + instabilidade natural do volante
-    freeTapImpulseRate *= Math.pow(0.18, deltaTime);
+    // Sensibilidade moderada com toques curtos e baixa oscilação
+    freeTapImpulseRate *= Math.pow(0.08, deltaTime);
     if (Math.abs(freeTapImpulseRate) < 1) freeTapImpulseRate = 0;
 
-    const jitterWave = Math.sin(now * 0.017) * 9.5 + Math.cos(now * 0.031) * 5.5;
-    const rawTargetRate = steerHold * 128 + freeTapImpulseRate + (absSpeed > 1 ? jitterWave : 0);
-    freeSteerRate += (rawTargetRate - freeSteerRate) * Math.min(1, 16.0 * deltaTime);
+    const jitterWave = (Math.sin(now * 0.011) * 3.2 + Math.cos(now * 0.021) * 1.8);
+    const rawTargetRate = steerHold * 74 + freeTapImpulseRate + (absSpeed > 2 ? jitterWave : 0);
+    freeSteerRate += (rawTargetRate - freeSteerRate) * Math.min(1, 9.5 * deltaTime);
 
-    const targetWheelDeg = Math.max(-165, Math.min(165, freeSteerRate * 1.15));
-    wheelAngleDeg += (targetWheelDeg - wheelAngleDeg) * Math.min(1, 20.0 * deltaTime);
+    const targetWheelDeg = Math.max(-125, Math.min(125, freeSteerRate * 1.05));
+    wheelAngleDeg += (targetWheelDeg - wheelAngleDeg) * Math.min(1, 12.0 * deltaTime);
     const wheelImg = document.getElementById('freeSteeringWheelImg');
     if (wheelImg) {
       wheelImg.style.transform = `rotate(${wheelAngleDeg.toFixed(1)}deg)`;
@@ -3061,7 +3060,7 @@ function gameLoop(now) {
 
     renderLng = busLng;
     renderLat = busLat;
-    busWorldHeading = (vehicleHeading + freeSteerRate * 0.12 + 360) % 360;
+    busWorldHeading = (vehicleHeading + freeSteerRate * 0.08 + 360) % 360;
   }
 
   const distStep = getMetersBetween(prev, [busLng, busLat]) / 1000;
