@@ -122,7 +122,6 @@ const cssStyles = `
     box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.75);
   }
 
-  /* No desktop, mantém apenas a guiada de direção limpa */
   @media (min-width: 769px) {
     .pov-validator-console,
     .pov-handrail-yellow {
@@ -717,8 +716,8 @@ const cssStyles = `
 
   .free-wheel-stage {
     position: relative;
-    width: 210px;
-    height: 210px;
+    width: 218px;
+    height: 218px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -726,8 +725,8 @@ const cssStyles = `
 
   @media (max-width: 640px) {
     .free-wheel-stage {
-      width: 176px;
-      height: 176px;
+      width: 184px;
+      height: 184px;
     }
   }
 
@@ -735,16 +734,16 @@ const cssStyles = `
     width: 100%;
     height: 100%;
     border-radius: 50%;
-    transition: transform 0.06s linear;
+    transition: transform 0.035s linear;
     filter: drop-shadow(0 8px 18px rgba(0, 0, 0, 0.85));
     pointer-events: none;
   }
 
   .free-steer-zone {
     position: absolute;
-    top: 12%;
-    bottom: 12%;
-    width: 44%;
+    top: 10%;
+    bottom: 10%;
+    width: 46%;
     background: transparent;
     border: none;
     cursor: pointer;
@@ -1601,14 +1600,17 @@ let busLat = 0;
 let currentSpeedKmh = 0;
 let isAutopilotMoving = false;
 let holdBoostActive = false;
+let freeCruiseEngaged = false;
 
 const CRUISE_TARGET_KMH = 80;
+const FREE_MAX_SPEED_KMH = 200;
 let cruiseSpeedKmh = CRUISE_TARGET_KMH;
 let boostSpeedKmh = 140;
 const MAX_REVERSE_SPEED_KMH = -25;
 
 let vehicleHeading = 0;
 let freeSteerRate = 0;
+let freeTapImpulseRate = 0;
 let distanceCoveredKm = 0;
 
 let currentSegIndex = 0;
@@ -1655,6 +1657,13 @@ const ZOOM_NEAR_LEVEL = 19.2;
 let currentZoomLevel = ZOOM_FAR_LEVEL;
 
 const keysPressed = { Up: false, Down: false, Left: false, Right: false };
+
+function triggerFreeTapSteer(dir) {
+  if (currentGameMode !== 'free') return;
+  // dir: -1 esquerda, +1 direita; resposta imediata e instável com simples toques
+  freeTapImpulseRate = Math.max(-135, Math.min(135, freeTapImpulseRate + dir * 78));
+  freeSteerRate = freeTapImpulseRate;
+}
 
 function calculateBearing(startCoord, endCoord) {
   const [startLng, startLat] = startCoord;
@@ -1747,7 +1756,12 @@ function bindControlTouch(elementId, keyName) {
   el.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     e.stopPropagation();
-    if (keyName === 'Up') handleAccelerate();
+    if (keyName === 'Up') {
+      handleAccelerate();
+      if (currentGameMode === 'free') freeCruiseEngaged = true;
+    }
+    if (keyName === 'Left') triggerFreeTapSteer(-1);
+    if (keyName === 'Right') triggerFreeTapSteer(1);
     keysPressed[keyName] = true;
     el.classList.add('pressed');
   });
@@ -1895,13 +1909,15 @@ document.getElementById('btnStartFreeMode').addEventListener('click', async () =
   routeCheckpointState.milestones = [];
   document.getElementById('lineBadgeDisplay').textContent = 'Modo Livre';
 
-  currentSpeedKmh = 0;
+  // Inicia com cruzeiro constante engatado em 80 km/h após a partida
+  currentSpeedKmh = CRUISE_TARGET_KMH;
+  freeCruiseEngaged = true;
   isAutopilotMoving = false;
   holdBoostActive = false;
   isLineFinished = false;
   distanceCoveredKm = 0;
   cruiseSpeedKmh = CRUISE_TARGET_KMH;
-  boostSpeedKmh = 140;
+  boostSpeedKmh = FREE_MAX_SPEED_KMH;
   speedMultiplier = 1.0;
   updatePaceButtonUI();
   isTripActive = true;
@@ -1909,6 +1925,7 @@ document.getElementById('btnStartFreeMode').addEventListener('click', async () =
   smoothHeading = 0;
   targetHeading = 0;
   freeSteerRate = 0;
+  freeTapImpulseRate = 0;
   wheelAngleDeg = 0;
   lineLateralCorrectionMeters = 0;
   lineLateralVelocity = 0;
@@ -1933,7 +1950,7 @@ document.getElementById('btnStartFreeMode').addEventListener('click', async () =
   }
 
   startSimulation(targetCoords, targetCoords, chosenTimeMode === 'night');
-  showAlert(chosenTimeMode === 'night' ? '🌙 Modo Livre noturno • Apenas farol aceso' : '🗺️ Modo Livre ativo • Cruzeiro 80 km/h');
+  showAlert(chosenTimeMode === 'night' ? '🌙 Modo Livre noturno • Cruzeiro 80 km/h • Máx 200 km/h' : '🗺️ Modo Livre • Cruzeiro 80 km/h • Máx 200 km/h');
 });
 
 function startSimulation(baseCoords, initialRenderCoords, startAtNight = false) {
@@ -1994,11 +2011,13 @@ function exitGame() {
     map = null;
   }
   currentSpeedKmh = 0;
+  freeCruiseEngaged = false;
   isAutopilotMoving = false;
   holdBoostActive = false;
   isTripActive = false;
   vehicleHeading = 0;
   freeSteerRate = 0;
+  freeTapImpulseRate = 0;
   wheelAngleDeg = 0;
   distanceCoveredKm = 0;
   speedMultiplier = 1.0;
@@ -2650,7 +2669,6 @@ function updateSameDirTraffic(deltaTime, frameNow = performance.now()) {
       }
     }
 
-    // Verifica se há outro veículo próximo (outro carro de apoio ou o carro oficial): acelera e vai embora
     let hasCloseOtherVehicle = directDistMeters > 2 && directDistMeters < 48;
     if (!hasCloseOtherVehicle) {
       for (const other of sameDirTraffic.vehicles) {
@@ -2686,7 +2704,6 @@ function updateSameDirTraffic(deltaTime, frameNow = performance.now()) {
     let desiredLaneOffset = 0;
 
     if (v.pullingAway) {
-      // Quando tem outro mais próximo, acelera e vai embora
       desiredLaneOffset = -2.2;
       targetSpeedKmh = Math.min(maxTrafficSpeed, Math.max(105, activeRefSpeed + 42));
     } else if (v.role === 'overtake') {
@@ -2719,7 +2736,6 @@ function updateSameDirTraffic(deltaTime, frameNow = performance.now()) {
         targetSpeedKmh = Math.min(maxTrafficSpeed, Math.max(82, activeRefSpeed + 24));
       }
     } else {
-      // Permite ser ultrapassado pelo jogador com facilidade (mantém faixa direita e ritmo moderado quando não há proximidade crítica)
       desiredLaneOffset = 1.6;
       if (deltaAlongRouteMeters < -15 && deltaAlongRouteMeters > -130) {
         targetSpeedKmh = Math.max(38, activeRefSpeed - 18);
@@ -2859,6 +2875,7 @@ function gameLoop(now) {
     mapBanner.style.display = 'none';
     isAutopilotMoving = true;
     holdBoostActive = true;
+    if (currentGameMode === 'free') freeCruiseEngaged = true;
     updateTripStatus();
   } else {
     holdBoostActive = false;
@@ -2877,11 +2894,9 @@ function gameLoop(now) {
           isAutopilotMoving = false;
         }
       } else if (holdBoostActive) {
-        // Mantém 80 km/h e vai acelerando enquanto o botão de acelerar fica pressionado
         const boostedTarget = Math.min(boostSpeedKmh, Math.max(CRUISE_TARGET_KMH, currentSpeedKmh + 28 * deltaTime));
         desiredSpeed = boostedTarget;
       } else {
-        // Cruzeiro mantido em 80 km/h ao acelerar
         desiredSpeed = CRUISE_TARGET_KMH;
       }
     }
@@ -2979,42 +2994,55 @@ function gameLoop(now) {
     renderLat = lanePos[1];
     busWorldHeading = (smoothHeading + busVisualYawOffset + 360) % 360;
   } else {
-    // Modo Livre: mantém em 80 km/h ao acelerar e vai acelerando enquanto segura o botão de acelerar
+    // Modo Livre: mantém 80 km/h após a partida mesmo sem acelerar, e sobe até 200 km/h segurando acelerar
     if (keysPressed.Up) {
+      freeCruiseEngaged = true;
       if (currentSpeedKmh < 0) {
-        currentSpeedKmh = Math.min(currentSpeedKmh + 65 * deltaTime, 0);
+        currentSpeedKmh = Math.min(currentSpeedKmh + 85 * deltaTime, CRUISE_TARGET_KMH);
       } else if (currentSpeedKmh < CRUISE_TARGET_KMH) {
-        currentSpeedKmh = Math.min(CRUISE_TARGET_KMH, currentSpeedKmh + 44 * deltaTime);
+        currentSpeedKmh = Math.min(CRUISE_TARGET_KMH, currentSpeedKmh + 65 * deltaTime);
       } else {
-        currentSpeedKmh = Math.min(boostSpeedKmh, currentSpeedKmh + 24 * deltaTime);
+        currentSpeedKmh = Math.min(FREE_MAX_SPEED_KMH, currentSpeedKmh + 34 * deltaTime);
       }
     } else if (keysPressed.Down) {
+      freeCruiseEngaged = false;
       if (currentSpeedKmh > 0) {
-        currentSpeedKmh = Math.max(currentSpeedKmh - 65 * deltaTime, 0);
+        currentSpeedKmh = Math.max(currentSpeedKmh - 85 * deltaTime, 0);
       } else {
-        currentSpeedKmh = Math.max(currentSpeedKmh - 28 * deltaTime, MAX_REVERSE_SPEED_KMH);
+        currentSpeedKmh = Math.max(currentSpeedKmh - 32 * deltaTime, MAX_REVERSE_SPEED_KMH);
+      }
+    } else if (freeCruiseEngaged) {
+      // Mantém cruzeiro constante de 80 km/h mesmo sem pressionar acelerar
+      if (currentSpeedKmh < CRUISE_TARGET_KMH) {
+        currentSpeedKmh = Math.min(CRUISE_TARGET_KMH, currentSpeedKmh + 48 * deltaTime);
+      } else if (currentSpeedKmh > CRUISE_TARGET_KMH) {
+        currentSpeedKmh = Math.max(CRUISE_TARGET_KMH, currentSpeedKmh - 34 * deltaTime);
       }
     } else {
       if (currentSpeedKmh > 0) {
-        currentSpeedKmh = Math.max(currentSpeedKmh - 24 * deltaTime, 0);
+        currentSpeedKmh = Math.max(currentSpeedKmh - 26 * deltaTime, 0);
       } else if (currentSpeedKmh < 0) {
-        currentSpeedKmh = Math.min(currentSpeedKmh + 24 * deltaTime, 0);
+        currentSpeedKmh = Math.min(currentSpeedKmh + 26 * deltaTime, 0);
       }
     }
 
     const absSpeed = Math.abs(currentSpeedKmh);
-    const steerInput = (keysPressed.Right ? 1 : 0) - (keysPressed.Left ? 1 : 0);
+    const steerHold = (keysPressed.Right ? 1 : 0) - (keysPressed.Left ? 1 : 0);
 
-    // Rotação visual livre do volante e direção mais livre para esquerda/direita
-    const targetWheelDeg = steerInput * 135;
-    wheelAngleDeg += (targetWheelDeg - wheelAngleDeg) * Math.min(1, 10.0 * deltaTime);
+    // Decaimento leve do impulso de simples toques + instabilidade natural do volante
+    freeTapImpulseRate *= Math.pow(0.18, deltaTime);
+    if (Math.abs(freeTapImpulseRate) < 1) freeTapImpulseRate = 0;
+
+    const jitterWave = Math.sin(now * 0.017) * 9.5 + Math.cos(now * 0.031) * 5.5;
+    const rawTargetRate = steerHold * 128 + freeTapImpulseRate + (absSpeed > 1 ? jitterWave : 0);
+    freeSteerRate += (rawTargetRate - freeSteerRate) * Math.min(1, 16.0 * deltaTime);
+
+    const targetWheelDeg = Math.max(-165, Math.min(165, freeSteerRate * 1.15));
+    wheelAngleDeg += (targetWheelDeg - wheelAngleDeg) * Math.min(1, 20.0 * deltaTime);
     const wheelImg = document.getElementById('freeSteeringWheelImg');
     if (wheelImg) {
       wheelImg.style.transform = `rotate(${wheelAngleDeg.toFixed(1)}deg)`;
     }
-
-    const targetSteerRate = steerInput * 62;
-    freeSteerRate += (targetSteerRate - freeSteerRate) * Math.min(1, 8.5 * deltaTime);
 
     if (absSpeed > 0.05) {
       const reverseDirFactor = currentSpeedKmh < -0.5 ? -1 : 1;
@@ -3033,7 +3061,7 @@ function gameLoop(now) {
 
     renderLng = busLng;
     renderLat = busLat;
-    busWorldHeading = (vehicleHeading + freeSteerRate * 0.08 + 360) % 360;
+    busWorldHeading = (vehicleHeading + freeSteerRate * 0.12 + 360) % 360;
   }
 
   const distStep = getMetersBetween(prev, [busLng, busLat]) / 1000;
@@ -3092,7 +3120,10 @@ document.getElementById('btnZoomFar').addEventListener('pointerdown', (e) => {
 
 window.addEventListener('keydown', (e) => {
   if (['ArrowUp', 'KeyW'].includes(e.code)) {
-    if (!keysPressed.Up) handleAccelerate();
+    if (!keysPressed.Up) {
+      handleAccelerate();
+      if (currentGameMode === 'free') freeCruiseEngaged = true;
+    }
     keysPressed.Up = true;
     document.getElementById('btnDpadUp')?.classList.add('pressed');
     document.getElementById('btnFreeAccel')?.classList.add('pressed');
@@ -3103,10 +3134,12 @@ window.addEventListener('keydown', (e) => {
     document.getElementById('btnFreeBrake')?.classList.add('pressed');
   }
   if (['ArrowLeft', 'KeyA'].includes(e.code)) {
+    if (!keysPressed.Left) triggerFreeTapSteer(-1);
     keysPressed.Left = true;
     document.getElementById('btnDpadLeft')?.classList.add('pressed');
   }
   if (['ArrowRight', 'KeyD'].includes(e.code)) {
+    if (!keysPressed.Right) triggerFreeTapSteer(1);
     keysPressed.Right = true;
     document.getElementById('btnDpadRight')?.classList.add('pressed');
   }
