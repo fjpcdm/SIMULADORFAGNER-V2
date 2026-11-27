@@ -3,7 +3,7 @@
 // MOTOR DE SIMULAÇÃO - MODO TRAJETO + MODO LIVRE + DIA/NOITE + PREFIXOS
 // ============================================================
 
-const STORAGE_KEY_STATE = 'simulador_bus_estado_v8';
+const STORAGE_KEY_STATE = 'simulador_bus_estado_v9';
 
 const cssStyles = `
   * {
@@ -911,7 +911,6 @@ const cssStyles = `
     transform-origin: center 88px;
   }
 
-  /* Plaqueta discreta com o prefixo do ônibus */
   .bus-prefix-tag {
     position: absolute;
     top: 34px;
@@ -1105,7 +1104,6 @@ function generateSupportPrefix(playerPrefixStr, usedPrefixesSet) {
   const num = parseInt(cleanPlayer, 10);
 
   if (Number.isFinite(num) && num >= 100) {
-    // Define a centena do prefixo do jogador (ex: 38185 -> faixa 38100 a 38200)
     const rangeStart = Math.floor(num / 100) * 100;
     const rangeEnd = rangeStart + 100;
 
@@ -1188,10 +1186,6 @@ setupModal.innerHTML = `
 
   <div class="setup-card" id="cardFreeMode" style="display: none;">
     <h2>🗺️ Modo Livre</h2>
-    <div class="form-group">
-      <label>Prefixo do Seu Ônibus (ex: 38185):</label>
-      <input type="text" id="inputBusPrefixFree" inputmode="numeric" maxlength="6" value="38185" placeholder="Ex: 38185" />
-    </div>
     <div class="form-group">
       <label>Modelo do Ônibus:</label>
       <select id="selectModelFree">
@@ -1307,14 +1301,12 @@ function applySavedPreferencesToUI() {
   const timeFreeSelect = document.getElementById('selectTimeModeFree');
   const freeLocInput = document.getElementById('inputFreeLocation');
   const prefixLineInput = document.getElementById('inputBusPrefixLine');
-  const prefixFreeInput = document.getElementById('inputBusPrefixFree');
 
   if (prefs.categoryType && catSelect) {
     catSelect.value = prefs.categoryType;
   }
-  if (prefs.busPrefix) {
-    if (prefixLineInput) prefixLineInput.value = prefs.busPrefix;
-    if (prefixFreeInput) prefixFreeInput.value = prefs.busPrefix;
+  if (prefs.busPrefix && prefixLineInput) {
+    prefixLineInput.value = prefs.busPrefix;
   }
   if (prefs.colorLine && colorLineSelect && COLOR_PRESETS[prefs.colorLine]) {
     colorLineSelect.value = prefs.colorLine;
@@ -1353,11 +1345,6 @@ document.getElementById('selectLine').addEventListener('change', (e) => {
 });
 
 document.getElementById('inputBusPrefixLine').addEventListener('input', (e) => {
-  const clean = sanitizeBusPrefix(e.target.value, '38185');
-  saveUserPreferences({ busPrefix: clean });
-});
-
-document.getElementById('inputBusPrefixFree').addEventListener('input', (e) => {
   const clean = sanitizeBusPrefix(e.target.value, '38185');
   saveUserPreferences({ busPrefix: clean });
 });
@@ -1653,9 +1640,7 @@ let cruiseSpeedKmh = CRUISE_TARGET_KMH;
 let boostSpeedKmh = 140;
 const MAX_REVERSE_SPEED_KMH = -25;
 
-// Controle de redução automática quando um carro de apoio ultrapassa o jogador
 let playerYieldTimer = 0;
-let playerYieldBannerShown = false;
 
 let vehicleHeading = 0;
 let freeSteerRate = 0;
@@ -1805,8 +1790,17 @@ function updateBusMarkerIcon(modelOverride = null, colorKeyOverride = null) {
     imgEl.src = getBusSvg(preset.bodyColor, preset.stripeColor, chosenModel, activeLetreiroText);
   }
   const tagEl = el.querySelector('.bus-prefix-tag');
-  if (tagEl) {
-    tagEl.textContent = playerBusPrefix;
+  if (currentGameMode === 'line') {
+    if (tagEl) {
+      tagEl.textContent = playerBusPrefix;
+    } else if (playerBusPrefix) {
+      const newTag = document.createElement('div');
+      newTag.className = 'bus-prefix-tag';
+      newTag.textContent = playerBusPrefix;
+      el.insertBefore(newTag, el.firstChild);
+    }
+  } else if (tagEl) {
+    tagEl.remove();
   }
 }
 
@@ -1934,7 +1928,6 @@ document.getElementById('btnStartLineMode').addEventListener('click', () => {
   isAutopilotMoving = false;
   holdBoostActive = false;
   playerYieldTimer = 0;
-  playerYieldBannerShown = false;
   currentSpeedKmh = 0;
   distanceCoveredKm = 0;
   lineLateralCorrectionMeters = 0;
@@ -1962,7 +1955,7 @@ document.getElementById('btnStartFreeMode').addEventListener('click', async () =
   currentGameMode = 'free';
   syncModeBodyClass();
   const chosenFreeModel = document.getElementById('selectModelFree')?.value || 'bhtrans';
-  playerBusPrefix = sanitizeBusPrefix(document.getElementById('inputBusPrefixFree')?.value, '38185');
+  playerBusPrefix = '';
   currentVehicleType = chosenFreeModel;
   activeLetreiroText = chosenFreeModel === 'rodoviario'
     ? 'RODOVIÁRIO'
@@ -1974,15 +1967,14 @@ document.getElementById('btnStartFreeMode').addEventListener('click', async () =
     modelFree: chosenFreeModel,
     colorFree: activePresetKey,
     timeMode: chosenTimeMode,
-    freeLocation: locationQuery,
-    busPrefix: playerBusPrefix
+    freeLocation: locationQuery
   });
 
   clearSameDirTraffic();
   activePath = [];
   routeCheckpointState.totalKm = 0;
   routeCheckpointState.milestones = [];
-  document.getElementById('lineBadgeDisplay').textContent = `Modo Livre • Carro ${playerBusPrefix}`;
+  document.getElementById('lineBadgeDisplay').textContent = 'Modo Livre';
 
   currentSpeedKmh = CRUISE_TARGET_KMH;
   freeCruiseEngaged = true;
@@ -1990,7 +1982,6 @@ document.getElementById('btnStartFreeMode').addEventListener('click', async () =
   holdBoostActive = false;
   isLineFinished = false;
   playerYieldTimer = 0;
-  playerYieldBannerShown = false;
   distanceCoveredKm = 0;
   cruiseSpeedKmh = CRUISE_TARGET_KMH;
   boostSpeedKmh = FREE_MAX_SPEED_KMH;
@@ -2026,7 +2017,7 @@ document.getElementById('btnStartFreeMode').addEventListener('click', async () =
   }
 
   startSimulation(targetCoords, targetCoords, chosenTimeMode === 'night');
-  showAlert(chosenTimeMode === 'night' ? `🌙 Carro ${playerBusPrefix} • Cruzeiro 80 km/h` : `🗺️ Carro ${playerBusPrefix} • Cruzeiro 80 km/h`);
+  showAlert(chosenTimeMode === 'night' ? '🌙 Modo Livre • Cruzeiro 80 km/h' : '🗺️ Modo Livre • Cruzeiro 80 km/h');
 });
 
 function startSimulation(baseCoords, initialRenderCoords, startAtNight = false) {
@@ -2092,7 +2083,6 @@ function exitGame() {
   holdBoostActive = false;
   isTripActive = false;
   playerYieldTimer = 0;
-  playerYieldBannerShown = false;
   vehicleHeading = 0;
   freeSteerRate = 0;
   freeTapImpulseRate = 0;
@@ -2279,12 +2269,13 @@ function initMap(startCoords) {
   });
 
   const preset = COLOR_PRESETS[activePresetKey] || COLOR_PRESETS['vermelho'];
+  const prefixForMarker = currentGameMode === 'line' ? playerBusPrefix : '';
   const busWrapEl = createBusMarkerElement(
     preset.bodyColor,
     preset.stripeColor,
     currentVehicleType,
     activeLetreiroText,
-    playerBusPrefix,
+    prefixForMarker,
     '1'
   );
 
@@ -2310,7 +2301,7 @@ function initMap(startCoords) {
 }
 
 // ============================================================
-// CARROS DE APOIO: SAEM DO PONTO INICIAL, ALCANÇAM E ULTRAPASSAM
+// CARROS AUXILIARES: SEGUEM A MESMA ROTA E DESVIAM SÓ NA ULTRAPASSAGEM
 // ============================================================
 
 const SUPPORT_CAR_COLORS = [
@@ -2320,13 +2311,15 @@ const SUPPORT_CAR_COLORS = [
   { bodyColor: '#e2e8f0', stripeColor: '#334155' }
 ];
 
+const AUX_SPAWN_INTERVAL_KM = 2.5;
+
 const sameDirTraffic = {
   vehicles: [],
   usedPrefixes: new Set(),
   totalRouteKm: 0,
   isRoadLine: false,
-  spawnIntervalKm: 1.4,
-  nextSpawnKm: 0.7,
+  spawnIntervalKm: AUX_SPAWN_INTERVAL_KM,
+  nextSpawnKm: AUX_SPAWN_INTERVAL_KM,
   spawnedCount: 0,
   heldSpawnPending: false,
   postGoalWaveSpawned: false,
@@ -2366,8 +2359,8 @@ function configureTrafficThresholdsForRoute(pathCoords, isRoad = false, mainPref
   const totalKm = computeRouteTotalKm(pathCoords);
   sameDirTraffic.totalRouteKm = totalKm;
   sameDirTraffic.isRoadLine = Boolean(isRoad);
-  sameDirTraffic.spawnIntervalKm = isRoad ? 2.2 : 1.3;
-  sameDirTraffic.nextSpawnKm = isRoad ? 1.0 : 0.65;
+  sameDirTraffic.spawnIntervalKm = AUX_SPAWN_INTERVAL_KM;
+  sameDirTraffic.nextSpawnKm = AUX_SPAWN_INTERVAL_KM;
   sameDirTraffic.spawnedCount = 0;
   sameDirTraffic.heldSpawnPending = false;
   sameDirTraffic.postGoalWaveSpawned = false;
@@ -2385,7 +2378,7 @@ function clearSameDirTraffic() {
   sameDirTraffic.vehicles = [];
   sameDirTraffic.usedPrefixes = new Set([sanitizeBusPrefix(playerBusPrefix, '38185')]);
   sameDirTraffic.spawnedCount = 0;
-  sameDirTraffic.nextSpawnKm = 0.65;
+  sameDirTraffic.nextSpawnKm = AUX_SPAWN_INTERVAL_KM;
   sameDirTraffic.heldSpawnPending = false;
   sameDirTraffic.postGoalWaveSpawned = false;
   sameDirTraffic.lastToastMessage = '';
@@ -2400,14 +2393,14 @@ function isStartPointClearForSpawn() {
   if (activeCount >= maxConcurrent) return false;
 
   const startCoord = activePath[0];
-  if (getMetersBetween([busLng, busLat], startCoord) < 70) {
+  if (getMetersBetween([busLng, busLat], startCoord) < 75) {
     return false;
   }
 
   for (const v of sameDirTraffic.vehicles) {
     if (v.finished) continue;
     const vMeters = getRouteProgressMeters(v.segIndex, v.segProgress);
-    if (vMeters < 75) {
+    if (vMeters < 80) {
       return false;
     }
   }
@@ -2417,7 +2410,6 @@ function isStartPointClearForSpawn() {
 function spawnSupportCarFromStart(seqNumber) {
   if (!map || !Array.isArray(activePath) || activePath.length < 2) return null;
 
-  // Sai exatamente do ponto inicial da rota (segIndex = 0)
   const p0 = activePath[0];
   const p1 = activePath[1];
   const initialHeading = calculateBearing(p0, p1);
@@ -2683,7 +2675,6 @@ function updateSameDirTraffic(deltaTime, frameNow = performance.now()) {
     if (v.finished || !v.marker) continue;
 
     const vRouteMeters = getRouteProgressMeters(v.segIndex, v.segProgress);
-    // Positivo = apoio atrás do jogador; Negativo = apoio à frente do jogador
     const deltaAlongRouteMeters = playerRouteMeters - vRouteMeters;
     const directDistMeters = getMetersBetween([v.lng, v.lat], [busLng, busLat]);
 
@@ -2710,7 +2701,6 @@ function updateSameDirTraffic(deltaTime, frameNow = performance.now()) {
       }
     }
 
-    // Verifica distância para outro carro de apoio à frente (evita sobreposição)
     let minAheadOtherGap = Infinity;
     for (const other of sameDirTraffic.vehicles) {
       if (other.id === v.id || other.finished) continue;
@@ -2726,10 +2716,10 @@ function updateSameDirTraffic(deltaTime, frameNow = performance.now()) {
       : (sameDirTraffic.isRoadLine ? 80 : 68);
     const maxTrafficSpeed = sameDirTraffic.isRoadLine ? 175 : 138;
 
+    // Por padrão, segue exatamente na mesma faixa da rota oficial; desvia apenas na ultrapassagem
     let desiredLaneOffset = BASE_RIGHT_LANE_OFFSET_METERS;
     let targetSpeedKmh = activeRefSpeed;
 
-    // 1) Se o jogador ultrapassou este carro de apoio (jogador estava atrás e passou à frente)
     if (v.overtakeState === 'ahead_cruising' && deltaAlongRouteMeters > 8 && deltaAlongRouteMeters < 65) {
       v.overtakeState = 'yielding_to_player';
       v.yieldTimer = 3.2;
@@ -2738,20 +2728,18 @@ function updateSameDirTraffic(deltaTime, frameNow = performance.now()) {
 
     if (v.yieldTimer > 0) {
       v.yieldTimer = Math.max(0, v.yieldTimer - deltaTime);
-      desiredLaneOffset = BASE_RIGHT_LANE_OFFSET_METERS + 0.5;
+      desiredLaneOffset = BASE_RIGHT_LANE_OFFSET_METERS;
       targetSpeedKmh = Math.max(36, activeRefSpeed - 28);
       if (v.yieldTimer <= 0) {
         v.overtakeState = 'after_yield';
       }
     } else if (v.overtakeState === 'catching_up') {
-      // Carro saiu do início mais rápido para alcançar o jogador na linha
-      if (deltaAlongRouteMeters > 85) {
-        desiredLaneOffset = BASE_RIGHT_LANE_OFFSET_METERS;
+      desiredLaneOffset = BASE_RIGHT_LANE_OFFSET_METERS;
+      if (deltaAlongRouteMeters > 65) {
         targetSpeedKmh = Math.min(maxTrafficSpeed, Math.max(106, activeRefSpeed + 34));
-      } else if (deltaAlongRouteMeters > -38) {
-        // Inicia ultrapassagem pela faixa esquerda da mesma via sem sobrepor
+      } else if (deltaAlongRouteMeters > -32) {
         v.overtakeState = 'passing_player';
-        desiredLaneOffset = -1.7;
+        desiredLaneOffset = -1.6;
         targetSpeedKmh = Math.min(maxTrafficSpeed, Math.max(96, activeRefSpeed + 26));
         if (playerYieldTimer <= 0 && isTripActive && currentSpeedKmh > 25) {
           playerYieldTimer = 3.2;
@@ -2760,36 +2748,34 @@ function updateSameDirTraffic(deltaTime, frameNow = performance.now()) {
         v.overtakeState = 'returning_lane';
       }
     } else if (v.overtakeState === 'passing_player') {
-      desiredLaneOffset = -1.7;
+      // Desvio lateral ativo apenas durante a ultrapassagem
+      desiredLaneOffset = -1.6;
       targetSpeedKmh = Math.min(maxTrafficSpeed, Math.max(96, activeRefSpeed + 26));
       if (deltaAlongRouteMeters >= -5 && deltaAlongRouteMeters <= 45 && playerYieldTimer < 1.2 && isTripActive && currentSpeedKmh > 25) {
         playerYieldTimer = 2.0;
       }
-      if (deltaAlongRouteMeters < -42) {
+      if (deltaAlongRouteMeters < -36) {
         v.overtakeState = 'returning_lane';
       }
     } else if (v.overtakeState === 'returning_lane') {
-      // Só volta para a faixa da direita após abrir distância segura à frente (> 42 m)
+      // Retorna ao mesmo percurso/faixa oficial logo após ultrapassar
       desiredLaneOffset = BASE_RIGHT_LANE_OFFSET_METERS;
-      targetSpeedKmh = Math.min(maxTrafficSpeed, Math.max(88, activeRefSpeed + 16));
-      if (Math.abs(v.currentLaneOffset - BASE_RIGHT_LANE_OFFSET_METERS) < 0.12 && deltaAlongRouteMeters < -52) {
+      targetSpeedKmh = Math.min(maxTrafficSpeed, Math.max(86, activeRefSpeed + 14));
+      if (Math.abs(v.currentLaneOffset - BASE_RIGHT_LANE_OFFSET_METERS) < 0.08 && deltaAlongRouteMeters < -42) {
         v.currentLaneOffset = BASE_RIGHT_LANE_OFFSET_METERS;
         v.overtakeState = 'ahead_cruising';
       }
     } else if (v.overtakeState === 'ahead_cruising') {
       desiredLaneOffset = BASE_RIGHT_LANE_OFFSET_METERS;
       targetSpeedKmh = Math.min(maxTrafficSpeed, Math.max(76, activeRefSpeed + 6));
-      // Mantém distância mínima ideal se o jogador se aproximar por trás sem abrir faixa
-      const playerBehindGap = -deltaAlongRouteMeters; // positivo quando apoio está à frente
+      const playerBehindGap = -deltaAlongRouteMeters;
       const lateralDiff = Math.abs((BASE_RIGHT_LANE_OFFSET_METERS + lineLateralCorrectionMeters) - v.currentLaneOffset);
       if (playerBehindGap > 0 && playerBehindGap < 26 && lateralDiff < 1.5) {
         targetSpeedKmh = Math.max(targetSpeedKmh, activeRefSpeed + 14);
       }
     } else {
-      // Após ceder passagem ao jogador, retoma velocidade normal mantendo distância ideal atrás
       desiredLaneOffset = BASE_RIGHT_LANE_OFFSET_METERS;
       if (deltaAlongRouteMeters > 0 && deltaAlongRouteMeters < 32) {
-        // Mantém distância segura mínima de 32 m atrás do jogador
         targetSpeedKmh = Math.max(25, activeRefSpeed - 18);
       } else if (deltaAlongRouteMeters >= 32 && deltaAlongRouteMeters < 95) {
         targetSpeedKmh = activeRefSpeed;
@@ -2798,7 +2784,6 @@ function updateSameDirTraffic(deltaTime, frameNow = performance.now()) {
       }
     }
 
-    // Evita sobreposição com outro carro de apoio à frente
     if (minAheadOtherGap < 34) {
       targetSpeedKmh = Math.min(targetSpeedKmh, 35);
     }
@@ -2809,9 +2794,8 @@ function updateSameDirTraffic(deltaTime, frameNow = performance.now()) {
       v.speedKmh = Math.max(targetSpeedKmh, v.speedKmh - 42 * deltaTime);
     }
 
-    v.currentLaneOffset += (desiredLaneOffset - v.currentLaneOffset) * Math.min(1, 5.5 * deltaTime);
+    v.currentLaneOffset += (desiredLaneOffset - v.currentLaneOffset) * Math.min(1, 8.5 * deltaTime);
 
-    // Avança rigorosamente sobre os segmentos da polilinha da rua
     const speedMps = (v.speedKmh / 3.6) * speedMultiplier;
     let remDist = speedMps * deltaTime;
 
@@ -2950,7 +2934,6 @@ function gameLoop(now) {
           isAutopilotMoving = false;
         }
       } else if (playerYieldTimer > 0) {
-        // Reduz automaticamente a velocidade durante ultrapassagem do apoio e retorna depois
         desiredSpeed = Math.max(38, CRUISE_TARGET_KMH - 28);
       } else if (holdBoostActive) {
         const boostedTarget = Math.min(boostSpeedKmh, Math.max(CRUISE_TARGET_KMH, currentSpeedKmh + 28 * deltaTime));
@@ -2959,7 +2942,6 @@ function gameLoop(now) {
         desiredSpeed = CRUISE_TARGET_KMH;
       }
 
-      // Garante distância segura caso o jogador se aproxime logo atrás de um carro de apoio na mesma faixa
       const playerRouteMeters = getRouteProgressMeters(currentSegIndex, segProgressMeters);
       const playerLaneOffset = BASE_RIGHT_LANE_OFFSET_METERS + lineLateralCorrectionMeters;
       for (const v of sameDirTraffic.vehicles) {
