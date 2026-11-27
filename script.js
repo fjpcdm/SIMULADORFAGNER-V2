@@ -1654,11 +1654,11 @@ let targetHeading = 0;
 let smoothHeading = 0;
 let currentCameraBearing = 0;
 
-const BASE_RIGHT_LANE_OFFSET_METERS = 1.9;
+const BASE_RIGHT_LANE_OFFSET_METERS = 1.2;
 let lineLateralCorrectionMeters = 0;
 let lineLateralVelocity = 0;
 let busVisualYawOffset = 0;
-const MAX_LINE_LATERAL_ADJUST_METERS = 2.6;
+const MAX_LINE_LATERAL_ADJUST_METERS = 1.8;
 
 let isLineFinished = false;
 let isTripActive = false;
@@ -1710,9 +1710,10 @@ function calculateBearing(startCoord, endCoord) {
 }
 
 function lerpHeading(current, target, factor) {
+  const clampedFactor = Math.min(1, Math.max(0, factor));
   let diff = (target - current + 360) % 360;
   if (diff > 180) diff -= 360;
-  return (current + diff * factor + 360) % 360;
+  return (current + diff * clampedFactor + 360) % 360;
 }
 
 function applyRightLaneOffset(lng, lat, headingDeg, lateralMeters) {
@@ -2034,7 +2035,7 @@ function startSimulation(baseCoords, initialRenderCoords, startAtNight = false) 
   } else {
     btnTripToggle.style.display = 'block';
     sideMinimapBox.style.display = 'flex';
-    drawSideMinimap(null, null);
+    drawSideMinimap(null, []);
   }
 
   busLng = baseCoords[0];
@@ -2239,7 +2240,7 @@ function initMap(startCoords) {
     map = null;
   }
 
-  const initialBearing = currentGameMode === 'line' ? smoothHeading : vehicleHeading;
+  const initialBearing = currentGameMode === 'line' ? targetHeading : vehicleHeading;
 
   map = new maplibregl.Map({
     container: 'map',
@@ -2692,7 +2693,7 @@ function updateSameDirTraffic(deltaTime, frameNow = performance.now()) {
         prefix: v.prefix,
         tag: deltaAlongRouteMeters < 110 ? 'ultrapassando' : 'alcançando',
         distMeters: directDistMeters,
-        arrow: getRelativeBearingArrow([busLng, busLat], [v.lng, v.lat], smoothHeading)
+        arrow: getRelativeBearingArrow([busLng, busLat], [v.lng, v.lat], targetHeading)
       });
 
       if (directDistMeters <= 95 && (frameNow - sameDirTraffic.lastCloseAlertTime > 9000)) {
@@ -2716,7 +2717,6 @@ function updateSameDirTraffic(deltaTime, frameNow = performance.now()) {
       : (sameDirTraffic.isRoadLine ? 80 : 68);
     const maxTrafficSpeed = sameDirTraffic.isRoadLine ? 175 : 138;
 
-    // Por padrão, segue exatamente na mesma faixa da rota oficial; desvia apenas na ultrapassagem
     let desiredLaneOffset = BASE_RIGHT_LANE_OFFSET_METERS;
     let targetSpeedKmh = activeRefSpeed;
 
@@ -2748,7 +2748,6 @@ function updateSameDirTraffic(deltaTime, frameNow = performance.now()) {
         v.overtakeState = 'returning_lane';
       }
     } else if (v.overtakeState === 'passing_player') {
-      // Desvio lateral ativo apenas durante a ultrapassagem
       desiredLaneOffset = -1.6;
       targetSpeedKmh = Math.min(maxTrafficSpeed, Math.max(96, activeRefSpeed + 26));
       if (deltaAlongRouteMeters >= -5 && deltaAlongRouteMeters <= 45 && playerYieldTimer < 1.2 && isTripActive && currentSpeedKmh > 25) {
@@ -2758,7 +2757,6 @@ function updateSameDirTraffic(deltaTime, frameNow = performance.now()) {
         v.overtakeState = 'returning_lane';
       }
     } else if (v.overtakeState === 'returning_lane') {
-      // Retorna ao mesmo percurso/faixa oficial logo após ultrapassar
       desiredLaneOffset = BASE_RIGHT_LANE_OFFSET_METERS;
       targetSpeedKmh = Math.min(maxTrafficSpeed, Math.max(86, activeRefSpeed + 14));
       if (Math.abs(v.currentLaneOffset - BASE_RIGHT_LANE_OFFSET_METERS) < 0.08 && deltaAlongRouteMeters < -42) {
@@ -3014,7 +3012,7 @@ function gameLoop(now) {
       }
 
       const speedFactor = Math.min(1, Math.max(0.15, currentSpeedKmh / 35));
-      const maxLateralSpeed = 2.6 * speedFactor;
+      const maxLateralSpeed = 1.8 * speedFactor;
       let targetLateralVel = 0;
 
       if (keysPressed.Left) {
@@ -3023,30 +3021,30 @@ function gameLoop(now) {
         targetLateralVel = maxLateralSpeed;
       }
 
-      lineLateralVelocity += (targetLateralVel - lineLateralVelocity) * Math.min(1, 7.5 * deltaTime);
+      lineLateralVelocity += (targetLateralVel - lineLateralVelocity) * Math.min(1, 9.0 * deltaTime);
       lineLateralCorrectionMeters = Math.max(
         -MAX_LINE_LATERAL_ADJUST_METERS,
         Math.min(MAX_LINE_LATERAL_ADJUST_METERS, lineLateralCorrectionMeters + lineLateralVelocity * deltaTime)
       );
 
       if (!keysPressed.Left && !keysPressed.Right) {
-        lineLateralCorrectionMeters += (0 - lineLateralCorrectionMeters) * Math.min(1, 2.2 * deltaTime);
+        lineLateralCorrectionMeters += (0 - lineLateralCorrectionMeters) * Math.min(1, 4.5 * deltaTime);
       }
 
-      const targetYawOffset = (lineLateralVelocity / Math.max(0.5, maxLateralSpeed)) * 15;
-      busVisualYawOffset += (targetYawOffset - busVisualYawOffset) * Math.min(1, 9.0 * deltaTime);
+      const targetYawOffset = (lineLateralVelocity / Math.max(0.5, maxLateralSpeed)) * 10;
+      busVisualYawOffset += (targetYawOffset - busVisualYawOffset) * Math.min(1, 10.0 * deltaTime);
     } else {
       lineLateralVelocity = 0;
-      busVisualYawOffset += (0 - busVisualYawOffset) * Math.min(1, 8.0 * deltaTime);
+      busVisualYawOffset += (0 - busVisualYawOffset) * Math.min(1, 9.0 * deltaTime);
     }
 
-    smoothHeading = lerpHeading(smoothHeading, targetHeading, 6.0 * deltaTime);
+    smoothHeading = lerpHeading(smoothHeading, targetHeading, 14.0 * deltaTime);
 
     const totalRightOffset = BASE_RIGHT_LANE_OFFSET_METERS + lineLateralCorrectionMeters;
-    const lanePos = applyRightLaneOffset(busLng, busLat, smoothHeading, totalRightOffset);
+    const lanePos = applyRightLaneOffset(busLng, busLat, targetHeading, totalRightOffset);
     renderLng = lanePos[0];
     renderLat = lanePos[1];
-    busWorldHeading = (smoothHeading + busVisualYawOffset + 360) % 360;
+    busWorldHeading = (targetHeading + busVisualYawOffset + 360) % 360;
   } else {
     if (keysPressed.Up) {
       freeCruiseEngaged = true;
@@ -3140,8 +3138,8 @@ function gameLoop(now) {
     busMarker.setRotation(busWorldHeading);
   }
 
-  const rawTargetBearing = currentGameMode === 'line' ? smoothHeading : vehicleHeading;
-  currentCameraBearing = lerpHeading(currentCameraBearing, rawTargetBearing, 5.5 * deltaTime);
+  const rawTargetBearing = currentGameMode === 'line' ? targetHeading : vehicleHeading;
+  currentCameraBearing = lerpHeading(currentCameraBearing, rawTargetBearing, 10.0 * deltaTime);
 
   map.jumpTo({
     center: currentCoords,
