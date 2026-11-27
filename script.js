@@ -509,8 +509,8 @@ const cssStyles = `
     top: 50% !important;
     transform: translateY(-50%) !important;
     z-index: 999999 !important;
-    width: 162px;
-    background: rgba(15, 23, 42, 0.94);
+    width: 170px;
+    background: rgba(15, 23, 42, 0.95);
     border: 1.5px solid rgba(56, 189, 248, 0.65);
     border-radius: 14px;
     padding: 8px;
@@ -525,19 +525,47 @@ const cssStyles = `
   .side-minimap-header {
     width: 100%;
     display: flex;
+    flex-direction: column;
+    gap: 3px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: #e2e8f0;
+    line-height: 1.25;
+  }
+
+  .radar-row-line {
+    display: flex;
     justify-content: space-between;
     align-items: center;
     gap: 4px;
-    font-size: 0.65rem;
-    font-weight: 700;
-    color: #38bdf8;
-    letter-spacing: 0.01em;
     white-space: nowrap;
   }
 
+  .radar-label-atual {
+    color: #38bdf8;
+    font-size: 0.65rem;
+  }
+
+  .radar-val-atual {
+    color: #7dd3fc;
+    font-family: monospace;
+    font-size: 0.7rem;
+  }
+
+  .radar-label-proximo {
+    color: #fbbf24;
+    font-size: 0.66rem;
+  }
+
+  .radar-val-proximo {
+    color: #fde047;
+    font-family: monospace;
+    font-size: 0.72rem;
+  }
+
   .side-minimap-canvas {
-    width: 138px;
-    height: 138px;
+    width: 142px;
+    height: 142px;
     border-radius: 10px;
     background: rgba(2, 6, 23, 0.94);
     border: 1px solid rgba(148, 163, 184, 0.25);
@@ -558,15 +586,15 @@ const cssStyles = `
   @media (max-width: 640px) {
     .side-minimap-box {
       right: 8px !important;
-      width: 128px;
+      width: 136px;
       padding: 6px;
     }
     .side-minimap-header {
-      font-size: 0.58rem;
+      font-size: 0.6rem;
     }
     .side-minimap-canvas {
-      width: 104px;
-      height: 104px;
+      width: 112px;
+      height: 112px;
     }
   }
 
@@ -916,7 +944,6 @@ const cssStyles = `
     transform-origin: center 88px;
   }
 
-  /* Prefixo estratégico fora da frente (na região traseira/lateral baixa do marcador) */
   .bus-prefix-tag {
     position: absolute;
     bottom: 6px;
@@ -1466,10 +1493,16 @@ sideMinimapBox.className = 'side-minimap-box';
 sideMinimapBox.id = 'sideMinimapBox';
 sideMinimapBox.innerHTML = `
   <div class="side-minimap-header">
-    <span>Proximo Carro:</span>
-    <span id="minimapNextBadge" style="color:#fbbf24;">Apoio</span>
+    <div class="radar-row-line">
+      <span class="radar-label-atual">Carro Atual:</span>
+      <span class="radar-val-atual" id="radarCurrentBusVal">---</span>
+    </div>
+    <div class="radar-row-line">
+      <span class="radar-label-proximo">Proximo Carro:</span>
+      <span class="radar-val-proximo" id="minimapNextBadge">Aguardando</span>
+    </div>
   </div>
-  <canvas class="side-minimap-canvas" id="sideMinimapCanvas" width="138" height="138"></canvas>
+  <canvas class="side-minimap-canvas" id="sideMinimapCanvas" width="142" height="142"></canvas>
   <div class="side-minimap-footer" id="minimapNextInfo">Aguardando saída</div>
 `;
 document.body.appendChild(sideMinimapBox);
@@ -2372,7 +2405,6 @@ function configureTrafficThresholdsForRoute(pathCoords, isRoad = false, mainPref
   const totalKm = computeRouteTotalKm(pathCoords);
   sameDirTraffic.totalRouteKm = totalKm;
   sameDirTraffic.isRoadLine = Boolean(isRoad);
-  // Sentido contrário permitido em linhas rodoviárias ou trajetos extensos (>= 4 km)
   sameDirTraffic.oncomingAllowed = Boolean(isRoad) || totalKm >= 4.0;
   sameDirTraffic.nextOncomingKm = 1.5;
   sameDirTraffic.spawnIntervalKm = AUX_SPAWN_INTERVAL_KM;
@@ -2468,8 +2500,8 @@ function spawnSupportCarFromStart(seqNumber) {
     .setRotation(initialHeading)
     .addTo(map);
 
-  const maxLineCap = sameDirTraffic.isRoadLine ? 165 : 130;
-  const catchupSpeed = Math.min(maxLineCap, Math.max(102, CRUISE_TARGET_KMH + 30));
+  const maxLineCap = sameDirTraffic.isRoadLine ? 140 : 112;
+  const catchupSpeed = Math.min(maxLineCap, Math.max(96, CRUISE_TARGET_KMH + 22));
 
   return {
     id: seqNumber,
@@ -2499,7 +2531,6 @@ function spawnOncomingCarIfAllowed() {
 
   if (distanceCoveredKm < sameDirTraffic.nextOncomingKm) return;
 
-  // Posiciona o carro do sentido contrário à frente ao longo do trajeto, movendo-se em direção ao início
   const playerMeters = getRouteProgressMeters(currentSegIndex, segProgressMeters);
   const targetAheadMeters = Math.min((totalKm - 0.35) * 1000, playerMeters + 650);
   if (targetAheadMeters <= playerMeters + 220) return;
@@ -2524,7 +2555,6 @@ function spawnOncomingCarIfAllowed() {
   const baseLng = pA[0] + (pB[0] - pA[0]) * ratio;
   const baseLat = pA[1] + (pB[1] - pA[1]) * ratio;
 
-  // Sentido contrário ao sentido da rota (de pB para pA)
   const reverseHeading = calculateBearing(pB, pA);
   const prefixCode = generateSupportPrefix(playerBusPrefix, sameDirTraffic.usedPrefixes);
   const palette = SUPPORT_CAR_COLORS[(sameDirTraffic.spawnedCount + 1) % SUPPORT_CAR_COLORS.length];
@@ -2725,9 +2755,14 @@ function updateRearDirectionalIndicator(trailingCandidates) {
 
 function drawSideMinimap(nextVehicleItem, trailingCandidates) {
   const canvas = document.getElementById('sideMinimapCanvas');
+  const currentBusEl = document.getElementById('radarCurrentBusVal');
   const badgeEl = document.getElementById('minimapNextBadge');
   const infoEl = document.getElementById('minimapNextInfo');
   if (!canvas || !badgeEl || !infoEl) return;
+
+  if (currentBusEl) {
+    currentBusEl.textContent = playerBusPrefix || '---';
+  }
 
   const ctx = canvas.getContext('2d');
   const w = canvas.width;
@@ -2800,8 +2835,8 @@ function drawSideMinimap(nextVehicleItem, trailingCandidates) {
   const activeList = sameDirTraffic.vehicles.filter(v => !v.finished);
   if (activeList.length === 0) {
     const faltaKm = Math.max(0, sameDirTraffic.nextSpawnKm - distanceCoveredKm);
-    badgeEl.textContent = playerBusPrefix;
-    infoEl.textContent = faltaKm > 0 ? `Saída em ${faltaKm.toFixed(1)} km` : 'Aguardando';
+    badgeEl.textContent = faltaKm > 0 ? `Em ${faltaKm.toFixed(1)}km` : 'Aguardando';
+    infoEl.textContent = faltaKm > 0 ? `Próximo em ${faltaKm.toFixed(1)} km` : 'Saída no início';
     return;
   }
 
@@ -2830,14 +2865,14 @@ function drawSideMinimap(nextVehicleItem, trailingCandidates) {
       ? `${(nextVehicleItem.distMeters / 1000).toFixed(2)} km`
       : `${Math.round(nextVehicleItem.distMeters)} m`;
     badgeEl.textContent = nextVehicleItem.prefix;
-    infoEl.textContent = `${distStr} • ${Math.round(nextVehicleItem.speedKmh || 0)}km/h`;
+    infoEl.textContent = `${nextVehicleItem.statusLabel || 'Próximo'} • ${distStr}`;
   } else if (trailingCandidates && trailingCandidates.length > 0) {
     const nearest = trailingCandidates[0];
     const distStr = nearest.distMeters >= 1000
       ? `${(nearest.distMeters / 1000).toFixed(2)} km`
       : `${Math.round(nearest.distMeters)} m`;
     badgeEl.textContent = nearest.prefix;
-    infoEl.textContent = `Atrás: ${distStr}`;
+    infoEl.textContent = `${nearest.tag} • ${distStr}`;
   }
 }
 
@@ -2867,12 +2902,17 @@ function updateSameDirTraffic(deltaTime, frameNow = performance.now()) {
     const deltaAlongRouteMeters = playerRouteMeters - vRouteMeters;
     const directDistMeters = getMetersBetween([v.lng, v.lat], [busLng, busLat]);
 
+    const statusLabel = deltaAlongRouteMeters > 10
+      ? 'Vindo atrás'
+      : (deltaAlongRouteMeters > -26 ? 'Ultrapassando' : 'Na frente');
+
     if (!nextVehicleSummary || directDistMeters < nextVehicleSummary.distMeters) {
       nextVehicleSummary = {
         id: v.id,
         prefix: v.prefix,
         distMeters: directDistMeters,
-        speedKmh: v.speedKmh
+        speedKmh: v.speedKmh,
+        statusLabel: statusLabel
       };
     }
 
@@ -2890,26 +2930,30 @@ function updateSameDirTraffic(deltaTime, frameNow = performance.now()) {
       }
     }
 
-    // Avança o carro auxiliar continuamente ao longo do trajeto
     const activeRefSpeed = currentSpeedKmh > 5
       ? currentSpeedKmh
       : (sameDirTraffic.isRoadLine ? 78 : 66);
-    const maxTrafficSpeed = sameDirTraffic.isRoadLine ? 160 : 128;
+    const maxTrafficSpeed = sameDirTraffic.isRoadLine ? 135 : 108;
 
     let desiredLaneOffset = BASE_RIGHT_LANE_OFFSET_METERS;
     let targetSpeedKmh = activeRefSpeed;
 
-    // Só desvia para ultrapassar quando alcança o jogador e ainda não concluiu a passagem
-    if (deltaAlongRouteMeters > -28 && deltaAlongRouteMeters < 55 && v.overtakeState !== 'done_passing') {
+    // Durante ultrapassagem: abre à esquerda (-1.5 m) até passar 26 m à frente do jogador
+    if (deltaAlongRouteMeters > -26 && deltaAlongRouteMeters < 55 && v.overtakeState !== 'done_passing') {
       desiredLaneOffset = -1.5;
-      targetSpeedKmh = Math.min(maxTrafficSpeed, Math.max(92, activeRefSpeed + 22));
-      if (deltaAlongRouteMeters < -22) {
+      targetSpeedKmh = Math.min(maxTrafficSpeed, Math.max(90, activeRefSpeed + 18));
+    } else {
+      // Já ultrapassou (ou ainda não alcançou): retorna firme para a pista oficial (BASE_RIGHT_LANE_OFFSET_METERS)
+      if (deltaAlongRouteMeters <= -26) {
         v.overtakeState = 'done_passing';
       }
-    } else {
       desiredLaneOffset = BASE_RIGHT_LANE_OFFSET_METERS;
-      if (deltaAlongRouteMeters > 70) {
-        targetSpeedKmh = Math.min(maxTrafficSpeed, Math.max(98, activeRefSpeed + 26));
+
+      if (v.overtakeState === 'done_passing') {
+        // Mantém-se na frente seguindo o trajeto oficial em ritmo equilibrado
+        targetSpeedKmh = Math.min(maxTrafficSpeed, Math.max(activeRefSpeed + 4, 72));
+      } else if (deltaAlongRouteMeters > 70) {
+        targetSpeedKmh = Math.min(maxTrafficSpeed, Math.max(94, activeRefSpeed + 20));
       } else if (deltaAlongRouteMeters > 0 && deltaAlongRouteMeters < 28) {
         targetSpeedKmh = Math.max(30, activeRefSpeed - 15);
       } else {
@@ -2918,12 +2962,16 @@ function updateSameDirTraffic(deltaTime, frameNow = performance.now()) {
     }
 
     if (v.speedKmh < targetSpeedKmh) {
-      v.speedKmh = Math.min(targetSpeedKmh, v.speedKmh + 40 * deltaTime);
+      v.speedKmh = Math.min(targetSpeedKmh, v.speedKmh + 42 * deltaTime);
     } else if (v.speedKmh > targetSpeedKmh) {
-      v.speedKmh = Math.max(targetSpeedKmh, v.speedKmh - 36 * deltaTime);
+      v.speedKmh = Math.max(targetSpeedKmh, v.speedKmh - 38 * deltaTime);
     }
 
-    v.currentLaneOffset += (desiredLaneOffset - v.currentLaneOffset) * Math.min(1, 7.0 * deltaTime);
+    const laneSnapRate = v.overtakeState === 'done_passing' ? 11.0 : 8.0;
+    v.currentLaneOffset += (desiredLaneOffset - v.currentLaneOffset) * Math.min(1, laneSnapRate * deltaTime);
+    if (Math.abs(v.currentLaneOffset - BASE_RIGHT_LANE_OFFSET_METERS) < 0.02 && desiredLaneOffset === BASE_RIGHT_LANE_OFFSET_METERS) {
+      v.currentLaneOffset = BASE_RIGHT_LANE_OFFSET_METERS;
+    }
 
     const speedMps = (v.speedKmh / 3.6) * speedMultiplier;
     let remDist = speedMps * deltaTime;
