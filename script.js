@@ -293,6 +293,12 @@ const cssStyles = `
     color: #0f172a;
   }
 
+  .btn-camera-view.aerial-on {
+    background: #2563eb;
+    border-color: #93c5fd;
+    color: #ffffff;
+  }
+
   .btn-time-cycle {
     background: #1e293b;
     border: 1px solid #fbbf24;
@@ -741,7 +747,7 @@ const cssStyles = `
     width: 100%;
     height: 100%;
     border-radius: 50%;
-    transition: transform 0.05s linear;
+    transition: transform 0.06s ease-out;
     filter: drop-shadow(0 8px 18px rgba(0, 0, 0, 0.85));
     pointer-events: none;
   }
@@ -1568,7 +1574,8 @@ let currentVehicleType = 'urbano';
 let activeLetreiroText = 'EXECUTIVO';
 let playerBusPrefix = '38185';
 
-let isCabinViewActive = false;
+// Modos de câmera: 'map' (Mapa), 'aerial' (Visão Aérea Ampla de Cima), 'cockpit' (Cabine)
+let cameraViewMode = 'map';
 let isNightMode = false;
 let wheelAngleDeg = 0;
 
@@ -1645,24 +1652,63 @@ function checkRouteProgressAlerts() {
   }
 }
 
-function setCabinView(enabled) {
-  isCabinViewActive = Boolean(enabled);
+function syncCameraButtonAndOverlay() {
   const btnCam = document.getElementById('btnToggleCameraView');
+  const isCockpit = cameraViewMode === 'cockpit';
+  const isAerial = cameraViewMode === 'aerial';
+
   if (cockpitOverlay) {
-    cockpitOverlay.classList.toggle('active', isCabinViewActive);
+    cockpitOverlay.classList.toggle('active', isCockpit);
   }
   if (btnCam) {
-    btnCam.classList.toggle('cabine-on', isCabinViewActive);
-    btnCam.textContent = isCabinViewActive ? '🗺️ Mapa' : '👁️ Cabine';
+    btnCam.classList.toggle('cabine-on', isCockpit);
+    btnCam.classList.toggle('aerial-on', isAerial);
+    if (isCockpit) {
+      btnCam.textContent = '🛰️ Aérea';
+    } else if (isAerial) {
+      btnCam.textContent = '🗺️ Mapa';
+    } else {
+      btnCam.textContent = '👁️ Cabine';
+    }
   }
   if (map) {
-    map.setPitch(isCabinViewActive ? 45 : 25);
+    if (isCockpit) {
+      map.setPitch(45);
+    } else if (isAerial) {
+      map.setPitch(0);
+    } else {
+      map.setPitch(25);
+    }
+  }
+}
+
+function setCameraViewMode(mode, announce = false) {
+  cameraViewMode = (mode === 'cockpit' || mode === 'aerial') ? mode : 'map';
+  syncCameraButtonAndOverlay();
+  if (announce) {
+    if (cameraViewMode === 'aerial') {
+      showAlert('🛰️ Vista Aérea Ampla ativa (visão de cima)');
+    } else if (cameraViewMode === 'cockpit') {
+      showAlert('👁️ Vista da Cabine ativa');
+    } else {
+      showAlert('🗺️ Vista Padrão do Mapa ativa');
+    }
+  }
+}
+
+function cycleCameraViewMode() {
+  if (cameraViewMode === 'map') {
+    setCameraViewMode('aerial', true);
+  } else if (cameraViewMode === 'aerial') {
+    setCameraViewMode('cockpit', true);
+  } else {
+    setCameraViewMode('map', true);
   }
 }
 
 document.getElementById('btnToggleCameraView').addEventListener('pointerdown', (e) => {
   e.stopPropagation();
-  setCabinView(!isCabinViewActive);
+  cycleCameraViewMode();
 });
 
 let activePath = [];
@@ -1728,14 +1774,15 @@ document.getElementById('btnTogglePace').addEventListener('pointerdown', (e) => 
 
 const ZOOM_FAR_LEVEL = 18.3;
 const ZOOM_NEAR_LEVEL = 19.2;
+const ZOOM_AERIAL_LEVEL = 16.3;
 let currentZoomLevel = ZOOM_FAR_LEVEL;
 
 const keysPressed = { Up: false, Down: false, Left: false, Right: false };
 
 function triggerFreeTapSteer(dir) {
   if (currentGameMode !== 'free') return;
-  freeTapImpulseRate = Math.max(-72, Math.min(72, freeTapImpulseRate + dir * 42));
-  freeSteerRate = freeTapImpulseRate * 0.75;
+  freeTapImpulseRate = Math.max(-52, Math.min(52, freeTapImpulseRate + dir * 28));
+  freeSteerRate = freeTapImpulseRate * 0.72;
 }
 
 function calculateBearing(startCoord, endCoord) {
@@ -1757,6 +1804,9 @@ function lerpHeading(current, target, factor) {
 }
 
 function applyRightLaneOffset(lng, lat, headingDeg, lateralMeters) {
+  if (!Number.isFinite(lateralMeters) || Math.abs(lateralMeters) < 1e-6) {
+    return [lng, lat];
+  }
   const perpHeading = (headingDeg + 90) % 360;
   const perpRad = (perpHeading * Math.PI) / 180;
   const metersPerDegreeLat = 111320;
@@ -2068,7 +2118,7 @@ function startSimulation(baseCoords, initialRenderCoords, startAtNight = false) 
   mobileTopBar.style.display = 'flex';
   bottomCockpitBar.style.display = 'flex';
   speedBox.style.display = 'flex';
-  setCabinView(false);
+  setCameraViewMode('map', false);
 
   if (currentGameMode === 'free') {
     btnTripToggle.style.display = 'none';
@@ -2103,7 +2153,7 @@ function hideRearIndicator() {
 function exitGame() {
   stopTripTimer();
   clearSameDirTraffic();
-  setCabinView(false);
+  setCameraViewMode('map', false);
   applyDayNightTheme(false, true);
   currentGameMode = 'line';
   syncModeBodyClass();
@@ -2282,6 +2332,7 @@ function initMap(startCoords) {
   }
 
   const initialBearing = currentGameMode === 'line' ? targetHeading : vehicleHeading;
+  const initialPitch = cameraViewMode === 'cockpit' ? 45 : (cameraViewMode === 'aerial' ? 0 : 25);
 
   map = new maplibregl.Map({
     container: 'map',
@@ -2305,7 +2356,7 @@ function initMap(startCoords) {
     },
     center: startCoords,
     zoom: currentZoomLevel,
-    pitch: isCabinViewActive ? 45 : 25,
+    pitch: initialPitch,
     bearing: initialBearing,
     renderWorldCopies: false
   });
@@ -2343,7 +2394,7 @@ function initMap(startCoords) {
 }
 
 // ============================================================
-// CARROS AUXILIARES + SENTIDO CONTRÁRIO (QUANDO PERMITIDO)
+// CARROS AUXILIARES + SENTIDO CONTRÁRIO (RUA FIEL AO TRAJETO)
 // ============================================================
 
 const SUPPORT_CAR_COLORS = [
@@ -2482,7 +2533,7 @@ function spawnSupportCarFromStart(seqNumber) {
     ? 'rodoviario'
     : (currentVehicleType === 'rodoviario' ? 'bhtrans' : currentVehicleType);
 
-  const renderPos = applyRightLaneOffset(p0[0], p0[1], initialHeading, BASE_RIGHT_LANE_OFFSET_METERS);
+  const renderPos = [p0[0], p0[1]];
   const wrapEl = createBusMarkerElement(
     palette.bodyColor,
     palette.stripeColor,
@@ -2517,7 +2568,7 @@ function spawnSupportCarFromStart(seqNumber) {
     heading: initialHeading,
     renderHeading: initialHeading,
     speedKmh: catchupSpeed,
-    currentLaneOffset: BASE_RIGHT_LANE_OFFSET_METERS,
+    currentLaneOffset: 0,
     overtakeState: 'catching_up',
     yieldTimer: 0,
     finished: false,
@@ -2564,7 +2615,7 @@ function spawnOncomingCarIfAllowed() {
   const palette = SUPPORT_CAR_COLORS[(sameDirTraffic.spawnedCount + 1) % SUPPORT_CAR_COLORS.length];
   const modelKey = sameDirTraffic.isRoadLine ? 'rodoviario' : 'bhtrans';
 
-  const oppPos = applyRightLaneOffset(baseLng, baseLat, reverseHeading, BASE_RIGHT_LANE_OFFSET_METERS);
+  const oppPos = [baseLng, baseLat];
   const wrapEl = createBusMarkerElement(
     palette.bodyColor,
     palette.stripeColor,
@@ -2669,9 +2720,8 @@ function updateOncomingTraffic(deltaTime, frameNow = performance.now()) {
       continue;
     }
 
-    ov.renderHeading = lerpHeading(ov.renderHeading ?? ov.heading, ov.heading, 12.0 * deltaTime);
-    const oppPos = applyRightLaneOffset(ov.lng, ov.lat, ov.renderHeading, BASE_RIGHT_LANE_OFFSET_METERS);
-    ov.marker.setLngLat(oppPos);
+    ov.renderHeading = lerpHeading(ov.renderHeading ?? ov.heading, ov.heading, 14.0 * deltaTime);
+    ov.marker.setLngLat([ov.lng, ov.lat]);
     ov.marker.setRotation(ov.renderHeading);
   }
 
@@ -2946,17 +2996,18 @@ function updateSameDirTraffic(deltaTime, frameNow = performance.now()) {
       v.overtakeState = 'done_passing';
     }
 
-    let desiredLaneOffset = BASE_RIGHT_LANE_OFFSET_METERS;
+    // Segue exatamente o trajeto da linha (offset 0), desviando apenas na ultrapassagem
+    let desiredLaneOffset = 0;
     let targetSpeedKmh = activeRefSpeed;
 
     if (v.overtakeState !== 'done_passing' && deltaAlongRouteMeters > -22 && deltaAlongRouteMeters < 48) {
-      desiredLaneOffset = -1.15;
+      desiredLaneOffset = -1.65;
       targetSpeedKmh = Math.min(maxTrafficSpeed, Math.max(88, activeRefSpeed + 16));
     } else if (v.overtakeState === 'done_passing') {
-      desiredLaneOffset = BASE_RIGHT_LANE_OFFSET_METERS;
+      desiredLaneOffset = 0;
       targetSpeedKmh = Math.min(maxTrafficSpeed, Math.max(activeRefSpeed + 3, 72));
     } else {
-      desiredLaneOffset = BASE_RIGHT_LANE_OFFSET_METERS;
+      desiredLaneOffset = 0;
       if (deltaAlongRouteMeters > 70) {
         targetSpeedKmh = Math.min(maxTrafficSpeed, Math.max(92, activeRefSpeed + 18));
       } else if (deltaAlongRouteMeters > 0 && deltaAlongRouteMeters < 28) {
@@ -2972,10 +3023,10 @@ function updateSameDirTraffic(deltaTime, frameNow = performance.now()) {
       v.speedKmh = Math.max(targetSpeedKmh, v.speedKmh - 38 * deltaTime);
     }
 
-    const laneSnapRate = v.overtakeState === 'done_passing' ? 14.0 : 9.0;
+    const laneSnapRate = v.overtakeState === 'done_passing' ? 16.0 : 10.0;
     v.currentLaneOffset += (desiredLaneOffset - v.currentLaneOffset) * Math.min(1, laneSnapRate * deltaTime);
-    if (Math.abs(v.currentLaneOffset - BASE_RIGHT_LANE_OFFSET_METERS) < 0.015 && desiredLaneOffset === BASE_RIGHT_LANE_OFFSET_METERS) {
-      v.currentLaneOffset = BASE_RIGHT_LANE_OFFSET_METERS;
+    if (Math.abs(v.currentLaneOffset) < 0.01 && desiredLaneOffset === 0) {
+      v.currentLaneOffset = 0;
     }
 
     const speedMps = (v.speedKmh / 3.6) * speedMultiplier;
@@ -3032,7 +3083,7 @@ function updateSameDirTraffic(deltaTime, frameNow = performance.now()) {
       continue;
     }
 
-    v.renderHeading = lerpHeading(v.renderHeading ?? v.heading, v.heading, 13.0 * deltaTime);
+    v.renderHeading = lerpHeading(v.renderHeading ?? v.heading, v.heading, 15.0 * deltaTime);
     const pos = applyRightLaneOffset(v.lng, v.lat, v.renderHeading, v.currentLaneOffset);
     v.marker.setLngLat(pos);
     v.marker.setRotation(v.renderHeading);
@@ -3262,15 +3313,19 @@ function gameLoop(now) {
     const absSpeed = Math.abs(currentSpeedKmh);
     const steerHold = (keysPressed.Right ? 1 : 0) - (keysPressed.Left ? 1 : 0);
 
-    freeTapImpulseRate *= Math.pow(0.08, deltaTime);
+    // Direção mais firme e estável no Modo Livre
+    freeTapImpulseRate *= Math.pow(0.03, deltaTime);
     if (Math.abs(freeTapImpulseRate) < 1) freeTapImpulseRate = 0;
 
-    const jitterWave = (Math.sin(now * 0.011) * 3.2 + Math.cos(now * 0.021) * 1.8);
-    const rawTargetRate = steerHold * 74 + freeTapImpulseRate + (absSpeed > 2 ? jitterWave : 0);
-    freeSteerRate += (rawTargetRate - freeSteerRate) * Math.min(1, 9.5 * deltaTime);
+    const rawTargetRate = steerHold * 56 + freeTapImpulseRate;
+    const steerResponsiveness = steerHold !== 0 ? 13.0 : 16.5;
+    freeSteerRate += (rawTargetRate - freeSteerRate) * Math.min(1, steerResponsiveness * deltaTime);
+    if (steerHold === 0 && Math.abs(freeTapImpulseRate) === 0 && Math.abs(freeSteerRate) < 0.8) {
+      freeSteerRate = 0;
+    }
 
-    const targetWheelDeg = Math.max(-125, Math.min(125, freeSteerRate * 1.05));
-    wheelAngleDeg += (targetWheelDeg - wheelAngleDeg) * Math.min(1, 12.0 * deltaTime);
+    const targetWheelDeg = Math.max(-105, Math.min(105, freeSteerRate * 1.15));
+    wheelAngleDeg += (targetWheelDeg - wheelAngleDeg) * Math.min(1, 15.0 * deltaTime);
     const wheelImg = document.getElementById('freeSteeringWheelImg');
     if (wheelImg) {
       wheelImg.style.transform = `rotate(${wheelAngleDeg.toFixed(1)}deg)`;
@@ -3293,7 +3348,7 @@ function gameLoop(now) {
 
     renderLng = busLng;
     renderLat = busLat;
-    busWorldHeading = (vehicleHeading + freeSteerRate * 0.08 + 360) % 360;
+    busWorldHeading = (vehicleHeading + freeSteerRate * 0.05 + 360) % 360;
   }
 
   const distStep = getMetersBetween(prev, [busLng, busLat]) / 1000;
@@ -3324,11 +3379,16 @@ function gameLoop(now) {
   const rawTargetBearing = currentGameMode === 'line' ? smoothHeading : vehicleHeading;
   currentCameraBearing = lerpHeading(currentCameraBearing, rawTargetBearing, 10.0 * deltaTime);
 
+  const activePitch = cameraViewMode === 'cockpit' ? 45 : (cameraViewMode === 'aerial' ? 0 : 25);
+  const activeZoom = cameraViewMode === 'aerial'
+    ? ZOOM_AERIAL_LEVEL
+    : (cameraViewMode === 'cockpit' ? Math.max(currentZoomLevel, 18.8) : currentZoomLevel);
+
   map.jumpTo({
     center: currentCoords,
     bearing: currentCameraBearing,
-    pitch: isCabinViewActive ? 45 : 25,
-    zoom: isCabinViewActive ? Math.max(currentZoomLevel, 18.8) : currentZoomLevel
+    pitch: activePitch,
+    zoom: activeZoom
   });
 
   if (!isLineFinished) {
@@ -3339,6 +3399,7 @@ function gameLoop(now) {
 document.getElementById('btnZoomNear').addEventListener('pointerdown', (e) => {
   e.stopPropagation();
   currentZoomLevel = ZOOM_NEAR_LEVEL;
+  if (cameraViewMode === 'aerial') setCameraViewMode('map', false);
   document.getElementById('btnZoomNear').classList.add('active');
   document.getElementById('btnZoomFar').classList.remove('active');
 });
@@ -3346,6 +3407,7 @@ document.getElementById('btnZoomNear').addEventListener('pointerdown', (e) => {
 document.getElementById('btnZoomFar').addEventListener('pointerdown', (e) => {
   e.stopPropagation();
   currentZoomLevel = ZOOM_FAR_LEVEL;
+  if (cameraViewMode === 'aerial') setCameraViewMode('map', false);
   document.getElementById('btnZoomFar').classList.add('active');
   document.getElementById('btnZoomNear').classList.remove('active');
 });
