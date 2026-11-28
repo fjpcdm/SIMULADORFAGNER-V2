@@ -1694,11 +1694,11 @@ let targetHeading = 0;
 let smoothHeading = 0;
 let currentCameraBearing = 0;
 
-const BASE_RIGHT_LANE_OFFSET_METERS = 1.2;
+const BASE_RIGHT_LANE_OFFSET_METERS = 0.85;
 let lineLateralCorrectionMeters = 0;
 let lineLateralVelocity = 0;
 let busVisualYawOffset = 0;
-const MAX_LINE_LATERAL_ADJUST_METERS = 1.8;
+const MAX_LINE_LATERAL_ADJUST_METERS = 1.1;
 
 let isLineFinished = false;
 let isTripActive = false;
@@ -2353,7 +2353,8 @@ const SUPPORT_CAR_COLORS = [
   { bodyColor: '#e2e8f0', stripeColor: '#334155' }
 ];
 
-const AUX_SPAWN_INTERVAL_KM = 2.5;
+const URBAN_SPAWN_INTERVAL_KM = 2.5;
+const ROAD_SPAWN_INTERVAL_KM = 15.0;
 
 const sameDirTraffic = {
   vehicles: [],
@@ -2363,8 +2364,8 @@ const sameDirTraffic = {
   usedPrefixes: new Set(),
   totalRouteKm: 0,
   isRoadLine: false,
-  spawnIntervalKm: AUX_SPAWN_INTERVAL_KM,
-  nextSpawnKm: AUX_SPAWN_INTERVAL_KM,
+  spawnIntervalKm: URBAN_SPAWN_INTERVAL_KM,
+  nextSpawnKm: URBAN_SPAWN_INTERVAL_KM,
   spawnedCount: 0,
   heldSpawnPending: false,
   postGoalWaveSpawned: false,
@@ -2403,12 +2404,13 @@ function computeRouteTotalKm(pathCoords) {
 
 function configureTrafficThresholdsForRoute(pathCoords, isRoad = false, mainPrefix = '38185') {
   const totalKm = computeRouteTotalKm(pathCoords);
+  const intervalKm = isRoad ? ROAD_SPAWN_INTERVAL_KM : URBAN_SPAWN_INTERVAL_KM;
   sameDirTraffic.totalRouteKm = totalKm;
   sameDirTraffic.isRoadLine = Boolean(isRoad);
   sameDirTraffic.oncomingAllowed = Boolean(isRoad) || totalKm >= 4.0;
-  sameDirTraffic.nextOncomingKm = 1.5;
-  sameDirTraffic.spawnIntervalKm = AUX_SPAWN_INTERVAL_KM;
-  sameDirTraffic.nextSpawnKm = AUX_SPAWN_INTERVAL_KM;
+  sameDirTraffic.nextOncomingKm = isRoad ? 5.0 : 1.5;
+  sameDirTraffic.spawnIntervalKm = intervalKm;
+  sameDirTraffic.nextSpawnKm = intervalKm;
   sameDirTraffic.spawnedCount = 0;
   sameDirTraffic.heldSpawnPending = false;
   sameDirTraffic.postGoalWaveSpawned = false;
@@ -2435,7 +2437,8 @@ function clearSameDirTraffic() {
   sameDirTraffic.nextOncomingKm = 1.5;
   sameDirTraffic.usedPrefixes = new Set([sanitizeBusPrefix(playerBusPrefix, '38185')]);
   sameDirTraffic.spawnedCount = 0;
-  sameDirTraffic.nextSpawnKm = AUX_SPAWN_INTERVAL_KM;
+  sameDirTraffic.spawnIntervalKm = URBAN_SPAWN_INTERVAL_KM;
+  sameDirTraffic.nextSpawnKm = URBAN_SPAWN_INTERVAL_KM;
   sameDirTraffic.heldSpawnPending = false;
   sameDirTraffic.postGoalWaveSpawned = false;
   sameDirTraffic.lastToastMessage = '';
@@ -2446,7 +2449,7 @@ function clearSameDirTraffic() {
 }
 
 function isStartPointClearForSpawn() {
-  const maxConcurrent = sameDirTraffic.isRoadLine ? 3 : 4;
+  const maxConcurrent = sameDirTraffic.isRoadLine ? 4 : 4;
   const activeCount = sameDirTraffic.vehicles.filter(v => !v.finished).length;
   if (activeCount >= maxConcurrent) return false;
 
@@ -2500,8 +2503,8 @@ function spawnSupportCarFromStart(seqNumber) {
     .setRotation(initialHeading)
     .addTo(map);
 
-  const maxLineCap = sameDirTraffic.isRoadLine ? 140 : 112;
-  const catchupSpeed = Math.min(maxLineCap, Math.max(96, CRUISE_TARGET_KMH + 22));
+  const maxLineCap = sameDirTraffic.isRoadLine ? 130 : 108;
+  const catchupSpeed = Math.min(maxLineCap, Math.max(92, CRUISE_TARGET_KMH + 18));
 
   return {
     id: seqNumber,
@@ -2512,6 +2515,7 @@ function spawnSupportCarFromStart(seqNumber) {
     segProgress: 0,
     segLength: segLen0,
     heading: initialHeading,
+    renderHeading: initialHeading,
     speedKmh: catchupSpeed,
     currentLaneOffset: BASE_RIGHT_LANE_OFFSET_METERS,
     overtakeState: 'catching_up',
@@ -2590,12 +2594,13 @@ function spawnOncomingCarIfAllowed() {
     segProgress: startProg,
     segLength: segLen,
     heading: reverseHeading,
+    renderHeading: reverseHeading,
     speedKmh: sameDirTraffic.isRoadLine ? 78 : 64,
     finished: false,
     marker: marker
   });
 
-  sameDirTraffic.nextOncomingKm += 3.5;
+  sameDirTraffic.nextOncomingKm += sameDirTraffic.isRoadLine ? 8.0 : 3.5;
 }
 
 function updateOncomingTraffic(deltaTime, frameNow = performance.now()) {
@@ -2664,9 +2669,10 @@ function updateOncomingTraffic(deltaTime, frameNow = performance.now()) {
       continue;
     }
 
-    const oppRenderPos = applyRightLaneOffset(ov.lng, ov.lat, ov.heading, BASE_RIGHT_LANE_OFFSET_METERS);
-    ov.marker.setLngLat(oppRenderPos);
-    ov.marker.setRotation(ov.heading);
+    ov.renderHeading = lerpHeading(ov.renderHeading ?? ov.heading, ov.heading, 12.0 * deltaTime);
+    const oppPos = applyRightLaneOffset(ov.lng, ov.lat, ov.renderHeading, BASE_RIGHT_LANE_OFFSET_METERS);
+    ov.marker.setLngLat(oppPos);
+    ov.marker.setRotation(ov.renderHeading);
   }
 
   sameDirTraffic.oncomingVehicles = sameDirTraffic.oncomingVehicles.filter(ov => !ov.finished && ov.marker);
@@ -2711,7 +2717,8 @@ function maybeSpawnSameDirTraffic() {
       sameDirTraffic.heldSpawnPending = false;
       sameDirTraffic.nextSpawnKm += sameDirTraffic.spawnIntervalKm;
 
-      const msg = `🚌 Carro ${newVeh.prefix} saiu do ponto inicial na linha`;
+      const labelTipo = sameDirTraffic.isRoadLine ? ' na rodovia (ciclo 15 km)' : ' na linha';
+      const msg = `🚌 Carro ${newVeh.prefix} saiu do ponto inicial${labelTipo}`;
       if (sameDirTraffic.lastToastMessage !== msg) {
         sameDirTraffic.lastToastMessage = msg;
         showAlert(msg);
@@ -2904,7 +2911,7 @@ function updateSameDirTraffic(deltaTime, frameNow = performance.now()) {
 
     const statusLabel = deltaAlongRouteMeters > 10
       ? 'Vindo atrás'
-      : (deltaAlongRouteMeters > -26 ? 'Ultrapassando' : 'Na frente');
+      : (deltaAlongRouteMeters > -22 ? 'Ultrapassando' : 'Na frente');
 
     if (!nextVehicleSummary || directDistMeters < nextVehicleSummary.distMeters) {
       nextVehicleSummary = {
@@ -2921,7 +2928,7 @@ function updateSameDirTraffic(deltaTime, frameNow = performance.now()) {
         prefix: v.prefix,
         tag: deltaAlongRouteMeters < 110 ? 'ultrapassando' : 'alcançando',
         distMeters: directDistMeters,
-        arrow: getRelativeBearingArrow([busLng, busLat], [v.lng, v.lat], targetHeading)
+        arrow: getRelativeBearingArrow([busLng, busLat], [v.lng, v.lat], smoothHeading)
       });
 
       if (directDistMeters <= 95 && (frameNow - sameDirTraffic.lastCloseAlertTime > 9000)) {
@@ -2933,27 +2940,25 @@ function updateSameDirTraffic(deltaTime, frameNow = performance.now()) {
     const activeRefSpeed = currentSpeedKmh > 5
       ? currentSpeedKmh
       : (sameDirTraffic.isRoadLine ? 78 : 66);
-    const maxTrafficSpeed = sameDirTraffic.isRoadLine ? 135 : 108;
+    const maxTrafficSpeed = sameDirTraffic.isRoadLine ? 128 : 104;
+
+    if (deltaAlongRouteMeters <= -22) {
+      v.overtakeState = 'done_passing';
+    }
 
     let desiredLaneOffset = BASE_RIGHT_LANE_OFFSET_METERS;
     let targetSpeedKmh = activeRefSpeed;
 
-    // Durante ultrapassagem: abre à esquerda (-1.5 m) até passar 26 m à frente do jogador
-    if (deltaAlongRouteMeters > -26 && deltaAlongRouteMeters < 55 && v.overtakeState !== 'done_passing') {
-      desiredLaneOffset = -1.5;
-      targetSpeedKmh = Math.min(maxTrafficSpeed, Math.max(90, activeRefSpeed + 18));
-    } else {
-      // Já ultrapassou (ou ainda não alcançou): retorna firme para a pista oficial (BASE_RIGHT_LANE_OFFSET_METERS)
-      if (deltaAlongRouteMeters <= -26) {
-        v.overtakeState = 'done_passing';
-      }
+    if (v.overtakeState !== 'done_passing' && deltaAlongRouteMeters > -22 && deltaAlongRouteMeters < 48) {
+      desiredLaneOffset = -1.15;
+      targetSpeedKmh = Math.min(maxTrafficSpeed, Math.max(88, activeRefSpeed + 16));
+    } else if (v.overtakeState === 'done_passing') {
       desiredLaneOffset = BASE_RIGHT_LANE_OFFSET_METERS;
-
-      if (v.overtakeState === 'done_passing') {
-        // Mantém-se na frente seguindo o trajeto oficial em ritmo equilibrado
-        targetSpeedKmh = Math.min(maxTrafficSpeed, Math.max(activeRefSpeed + 4, 72));
-      } else if (deltaAlongRouteMeters > 70) {
-        targetSpeedKmh = Math.min(maxTrafficSpeed, Math.max(94, activeRefSpeed + 20));
+      targetSpeedKmh = Math.min(maxTrafficSpeed, Math.max(activeRefSpeed + 3, 72));
+    } else {
+      desiredLaneOffset = BASE_RIGHT_LANE_OFFSET_METERS;
+      if (deltaAlongRouteMeters > 70) {
+        targetSpeedKmh = Math.min(maxTrafficSpeed, Math.max(92, activeRefSpeed + 18));
       } else if (deltaAlongRouteMeters > 0 && deltaAlongRouteMeters < 28) {
         targetSpeedKmh = Math.max(30, activeRefSpeed - 15);
       } else {
@@ -2967,9 +2972,9 @@ function updateSameDirTraffic(deltaTime, frameNow = performance.now()) {
       v.speedKmh = Math.max(targetSpeedKmh, v.speedKmh - 38 * deltaTime);
     }
 
-    const laneSnapRate = v.overtakeState === 'done_passing' ? 11.0 : 8.0;
+    const laneSnapRate = v.overtakeState === 'done_passing' ? 14.0 : 9.0;
     v.currentLaneOffset += (desiredLaneOffset - v.currentLaneOffset) * Math.min(1, laneSnapRate * deltaTime);
-    if (Math.abs(v.currentLaneOffset - BASE_RIGHT_LANE_OFFSET_METERS) < 0.02 && desiredLaneOffset === BASE_RIGHT_LANE_OFFSET_METERS) {
+    if (Math.abs(v.currentLaneOffset - BASE_RIGHT_LANE_OFFSET_METERS) < 0.015 && desiredLaneOffset === BASE_RIGHT_LANE_OFFSET_METERS) {
       v.currentLaneOffset = BASE_RIGHT_LANE_OFFSET_METERS;
     }
 
@@ -3027,9 +3032,10 @@ function updateSameDirTraffic(deltaTime, frameNow = performance.now()) {
       continue;
     }
 
-    const pos = applyRightLaneOffset(v.lng, v.lat, v.heading, v.currentLaneOffset);
+    v.renderHeading = lerpHeading(v.renderHeading ?? v.heading, v.heading, 13.0 * deltaTime);
+    const pos = applyRightLaneOffset(v.lng, v.lat, v.renderHeading, v.currentLaneOffset);
     v.marker.setLngLat(pos);
-    v.marker.setRotation(v.heading);
+    v.marker.setRotation(v.renderHeading);
   }
 
   sameDirTraffic.vehicles = sameDirTraffic.vehicles.filter(v => !v.finished && v.marker);
@@ -3123,7 +3129,7 @@ function gameLoop(now) {
         if (v.finished) continue;
         const vRouteMeters = getRouteProgressMeters(v.segIndex, v.segProgress);
         const gapAhead = vRouteMeters - playerRouteMeters;
-        const sameLane = Math.abs(playerLaneOffset - v.currentLaneOffset) < 1.45;
+        const sameLane = Math.abs(playerLaneOffset - v.currentLaneOffset) < 1.35;
         if (gapAhead > 0 && gapAhead < 24 && sameLane) {
           desiredSpeed = Math.min(desiredSpeed, Math.max(25, v.speedKmh - 6));
         }
@@ -3189,7 +3195,7 @@ function gameLoop(now) {
       }
 
       const speedFactor = Math.min(1, Math.max(0.15, currentSpeedKmh / 35));
-      const maxLateralSpeed = 1.8 * speedFactor;
+      const maxLateralSpeed = 1.4 * speedFactor;
       let targetLateralVel = 0;
 
       if (keysPressed.Left) {
@@ -3205,10 +3211,10 @@ function gameLoop(now) {
       );
 
       if (!keysPressed.Left && !keysPressed.Right) {
-        lineLateralCorrectionMeters += (0 - lineLateralCorrectionMeters) * Math.min(1, 4.5 * deltaTime);
+        lineLateralCorrectionMeters += (0 - lineLateralCorrectionMeters) * Math.min(1, 6.5 * deltaTime);
       }
 
-      const targetYawOffset = (lineLateralVelocity / Math.max(0.5, maxLateralSpeed)) * 10;
+      const targetYawOffset = (lineLateralVelocity / Math.max(0.5, maxLateralSpeed)) * 7;
       busVisualYawOffset += (targetYawOffset - busVisualYawOffset) * Math.min(1, 10.0 * deltaTime);
     } else {
       lineLateralVelocity = 0;
@@ -3218,10 +3224,10 @@ function gameLoop(now) {
     smoothHeading = lerpHeading(smoothHeading, targetHeading, 14.0 * deltaTime);
 
     const totalRightOffset = BASE_RIGHT_LANE_OFFSET_METERS + lineLateralCorrectionMeters;
-    const lanePos = applyRightLaneOffset(busLng, busLat, targetHeading, totalRightOffset);
+    const lanePos = applyRightLaneOffset(busLng, busLat, smoothHeading, totalRightOffset);
     renderLng = lanePos[0];
     renderLat = lanePos[1];
-    busWorldHeading = (targetHeading + busVisualYawOffset + 360) % 360;
+    busWorldHeading = (smoothHeading + busVisualYawOffset + 360) % 360;
   } else {
     if (keysPressed.Up) {
       freeCruiseEngaged = true;
@@ -3315,7 +3321,7 @@ function gameLoop(now) {
     busMarker.setRotation(busWorldHeading);
   }
 
-  const rawTargetBearing = currentGameMode === 'line' ? targetHeading : vehicleHeading;
+  const rawTargetBearing = currentGameMode === 'line' ? smoothHeading : vehicleHeading;
   currentCameraBearing = lerpHeading(currentCameraBearing, rawTargetBearing, 10.0 * deltaTime);
 
   map.jumpTo({
