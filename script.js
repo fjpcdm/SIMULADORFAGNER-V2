@@ -293,12 +293,6 @@ const cssStyles = `
     color: #0f172a;
   }
 
-  .btn-camera-view.aerial-on {
-    background: #2563eb;
-    border-color: #93c5fd;
-    color: #ffffff;
-  }
-
   .btn-time-cycle {
     background: #1e293b;
     border: 1px solid #fbbf24;
@@ -1574,8 +1568,7 @@ let currentVehicleType = 'urbano';
 let activeLetreiroText = 'EXECUTIVO';
 let playerBusPrefix = '38185';
 
-// Modos de câmera: 'map' (Mapa), 'aerial' (Visão Aérea Ampla de Cima), 'cockpit' (Cabine)
-let cameraViewMode = 'map';
+let isCabinViewActive = false;
 let isNightMode = false;
 let wheelAngleDeg = 0;
 
@@ -1652,63 +1645,24 @@ function checkRouteProgressAlerts() {
   }
 }
 
-function syncCameraButtonAndOverlay() {
+function setCabinView(enabled) {
+  isCabinViewActive = Boolean(enabled);
   const btnCam = document.getElementById('btnToggleCameraView');
-  const isCockpit = cameraViewMode === 'cockpit';
-  const isAerial = cameraViewMode === 'aerial';
-
   if (cockpitOverlay) {
-    cockpitOverlay.classList.toggle('active', isCockpit);
+    cockpitOverlay.classList.toggle('active', isCabinViewActive);
   }
   if (btnCam) {
-    btnCam.classList.toggle('cabine-on', isCockpit);
-    btnCam.classList.toggle('aerial-on', isAerial);
-    if (isCockpit) {
-      btnCam.textContent = '🛰️ Aérea';
-    } else if (isAerial) {
-      btnCam.textContent = '🗺️ Mapa';
-    } else {
-      btnCam.textContent = '👁️ Cabine';
-    }
+    btnCam.classList.toggle('cabine-on', isCabinViewActive);
+    btnCam.textContent = isCabinViewActive ? '🗺️ Mapa' : '👁️ Cabine';
   }
   if (map) {
-    if (isCockpit) {
-      map.setPitch(45);
-    } else if (isAerial) {
-      map.setPitch(0);
-    } else {
-      map.setPitch(25);
-    }
-  }
-}
-
-function setCameraViewMode(mode, announce = false) {
-  cameraViewMode = (mode === 'cockpit' || mode === 'aerial') ? mode : 'map';
-  syncCameraButtonAndOverlay();
-  if (announce) {
-    if (cameraViewMode === 'aerial') {
-      showAlert('🛰️ Vista Aérea Ampla ativa (visão de cima)');
-    } else if (cameraViewMode === 'cockpit') {
-      showAlert('👁️ Vista da Cabine ativa');
-    } else {
-      showAlert('🗺️ Vista Padrão do Mapa ativa');
-    }
-  }
-}
-
-function cycleCameraViewMode() {
-  if (cameraViewMode === 'map') {
-    setCameraViewMode('aerial', true);
-  } else if (cameraViewMode === 'aerial') {
-    setCameraViewMode('cockpit', true);
-  } else {
-    setCameraViewMode('map', true);
+    map.setPitch(isCabinViewActive ? 45 : 25);
   }
 }
 
 document.getElementById('btnToggleCameraView').addEventListener('pointerdown', (e) => {
   e.stopPropagation();
-  cycleCameraViewMode();
+  setCabinView(!isCabinViewActive);
 });
 
 let activePath = [];
@@ -1774,15 +1728,14 @@ document.getElementById('btnTogglePace').addEventListener('pointerdown', (e) => 
 
 const ZOOM_FAR_LEVEL = 18.3;
 const ZOOM_NEAR_LEVEL = 19.2;
-const ZOOM_AERIAL_LEVEL = 16.3;
 let currentZoomLevel = ZOOM_FAR_LEVEL;
 
 const keysPressed = { Up: false, Down: false, Left: false, Right: false };
 
 function triggerFreeTapSteer(dir) {
   if (currentGameMode !== 'free') return;
-  freeTapImpulseRate = Math.max(-52, Math.min(52, freeTapImpulseRate + dir * 28));
-  freeSteerRate = freeTapImpulseRate * 0.72;
+  freeTapImpulseRate = Math.max(-45, Math.min(45, freeTapImpulseRate + dir * 24));
+  freeSteerRate = freeTapImpulseRate * 0.7;
 }
 
 function calculateBearing(startCoord, endCoord) {
@@ -2118,7 +2071,7 @@ function startSimulation(baseCoords, initialRenderCoords, startAtNight = false) 
   mobileTopBar.style.display = 'flex';
   bottomCockpitBar.style.display = 'flex';
   speedBox.style.display = 'flex';
-  setCameraViewMode('map', false);
+  setCabinView(false);
 
   if (currentGameMode === 'free') {
     btnTripToggle.style.display = 'none';
@@ -2153,7 +2106,7 @@ function hideRearIndicator() {
 function exitGame() {
   stopTripTimer();
   clearSameDirTraffic();
-  setCameraViewMode('map', false);
+  setCabinView(false);
   applyDayNightTheme(false, true);
   currentGameMode = 'line';
   syncModeBodyClass();
@@ -2332,7 +2285,6 @@ function initMap(startCoords) {
   }
 
   const initialBearing = currentGameMode === 'line' ? targetHeading : vehicleHeading;
-  const initialPitch = cameraViewMode === 'cockpit' ? 45 : (cameraViewMode === 'aerial' ? 0 : 25);
 
   map = new maplibregl.Map({
     container: 'map',
@@ -2356,7 +2308,7 @@ function initMap(startCoords) {
     },
     center: startCoords,
     zoom: currentZoomLevel,
-    pitch: initialPitch,
+    pitch: isCabinViewActive ? 45 : 25,
     bearing: initialBearing,
     renderWorldCopies: false
   });
@@ -2394,7 +2346,7 @@ function initMap(startCoords) {
 }
 
 // ============================================================
-// CARROS AUXILIARES + SENTIDO CONTRÁRIO (RUA FIEL AO TRAJETO)
+// CARROS AUXILIARES FIÉIS AO TRAJETO DO JOGO
 // ============================================================
 
 const SUPPORT_CAR_COLORS = [
@@ -2409,9 +2361,6 @@ const ROAD_SPAWN_INTERVAL_KM = 15.0;
 
 const sameDirTraffic = {
   vehicles: [],
-  oncomingVehicles: [],
-  oncomingAllowed: false,
-  nextOncomingKm: 1.5,
   usedPrefixes: new Set(),
   totalRouteKm: 0,
   isRoadLine: false,
@@ -2421,8 +2370,7 @@ const sameDirTraffic = {
   heldSpawnPending: false,
   postGoalWaveSpawned: false,
   lastToastMessage: '',
-  lastCloseAlertTime: 0,
-  lastOncomingAlertTime: 0
+  lastCloseAlertTime: 0
 };
 
 function getRouteProgressMeters(segIndex, segProgress) {
@@ -2458,8 +2406,6 @@ function configureTrafficThresholdsForRoute(pathCoords, isRoad = false, mainPref
   const intervalKm = isRoad ? ROAD_SPAWN_INTERVAL_KM : URBAN_SPAWN_INTERVAL_KM;
   sameDirTraffic.totalRouteKm = totalKm;
   sameDirTraffic.isRoadLine = Boolean(isRoad);
-  sameDirTraffic.oncomingAllowed = Boolean(isRoad) || totalKm >= 4.0;
-  sameDirTraffic.nextOncomingKm = isRoad ? 5.0 : 1.5;
   sameDirTraffic.spawnIntervalKm = intervalKm;
   sameDirTraffic.nextSpawnKm = intervalKm;
   sameDirTraffic.spawnedCount = 0;
@@ -2467,7 +2413,6 @@ function configureTrafficThresholdsForRoute(pathCoords, isRoad = false, mainPref
   sameDirTraffic.postGoalWaveSpawned = false;
   sameDirTraffic.lastToastMessage = '';
   sameDirTraffic.lastCloseAlertTime = 0;
-  sameDirTraffic.lastOncomingAlertTime = 0;
   sameDirTraffic.usedPrefixes = new Set([sanitizeBusPrefix(mainPrefix, '38185')]);
 }
 
@@ -2477,15 +2422,7 @@ function clearSameDirTraffic() {
       try { v.marker.remove(); } catch (e) {}
     }
   }
-  for (const ov of sameDirTraffic.oncomingVehicles) {
-    if (ov.marker) {
-      try { ov.marker.remove(); } catch (e) {}
-    }
-  }
   sameDirTraffic.vehicles = [];
-  sameDirTraffic.oncomingVehicles = [];
-  sameDirTraffic.oncomingAllowed = false;
-  sameDirTraffic.nextOncomingKm = 1.5;
   sameDirTraffic.usedPrefixes = new Set([sanitizeBusPrefix(playerBusPrefix, '38185')]);
   sameDirTraffic.spawnedCount = 0;
   sameDirTraffic.spawnIntervalKm = URBAN_SPAWN_INTERVAL_KM;
@@ -2494,13 +2431,12 @@ function clearSameDirTraffic() {
   sameDirTraffic.postGoalWaveSpawned = false;
   sameDirTraffic.lastToastMessage = '';
   sameDirTraffic.lastCloseAlertTime = 0;
-  sameDirTraffic.lastOncomingAlertTime = 0;
   hideRearIndicator();
   drawSideMinimap(null, []);
 }
 
 function isStartPointClearForSpawn() {
-  const maxConcurrent = sameDirTraffic.isRoadLine ? 4 : 4;
+  const maxConcurrent = 4;
   const activeCount = sameDirTraffic.vehicles.filter(v => !v.finished).length;
   if (activeCount >= maxConcurrent) return false;
 
@@ -2533,7 +2469,6 @@ function spawnSupportCarFromStart(seqNumber) {
     ? 'rodoviario'
     : (currentVehicleType === 'rodoviario' ? 'bhtrans' : currentVehicleType);
 
-  const renderPos = [p0[0], p0[1]];
   const wrapEl = createBusMarkerElement(
     palette.bodyColor,
     palette.stripeColor,
@@ -2550,12 +2485,12 @@ function spawnSupportCarFromStart(seqNumber) {
     rotationAlignment: 'map',
     pitchAlignment: 'map'
   })
-    .setLngLat(renderPos)
+    .setLngLat(p0)
     .setRotation(initialHeading)
     .addTo(map);
 
-  const maxLineCap = sameDirTraffic.isRoadLine ? 130 : 108;
-  const catchupSpeed = Math.min(maxLineCap, Math.max(92, CRUISE_TARGET_KMH + 18));
+  const maxLineCap = sameDirTraffic.isRoadLine ? 125 : 102;
+  const catchupSpeed = Math.min(maxLineCap, Math.max(88, CRUISE_TARGET_KMH + 14));
 
   return {
     id: seqNumber,
@@ -2566,166 +2501,10 @@ function spawnSupportCarFromStart(seqNumber) {
     segProgress: 0,
     segLength: segLen0,
     heading: initialHeading,
-    renderHeading: initialHeading,
     speedKmh: catchupSpeed,
-    currentLaneOffset: 0,
-    overtakeState: 'catching_up',
-    yieldTimer: 0,
     finished: false,
     marker: marker
   };
-}
-
-function spawnOncomingCarIfAllowed() {
-  if (!sameDirTraffic.oncomingAllowed || !map || !Array.isArray(activePath) || activePath.length < 4) return;
-  if (sameDirTraffic.oncomingVehicles.length >= 1) return;
-
-  const totalKm = sameDirTraffic.totalRouteKm || computeRouteTotalKm(activePath);
-  const remainingKm = Math.max(0, totalKm - distanceCoveredKm);
-  if (remainingKm < 0.8) return;
-
-  if (distanceCoveredKm < sameDirTraffic.nextOncomingKm) return;
-
-  const playerMeters = getRouteProgressMeters(currentSegIndex, segProgressMeters);
-  const targetAheadMeters = Math.min((totalKm - 0.35) * 1000, playerMeters + 650);
-  if (targetAheadMeters <= playerMeters + 220) return;
-
-  let accum = 0;
-  let startSeg = activePath.length - 2;
-  let startProg = 0;
-  for (let i = 0; i < activePath.length - 1; i++) {
-    const segLen = getMetersBetween(activePath[i], activePath[i + 1]);
-    if (accum + segLen >= targetAheadMeters) {
-      startSeg = i;
-      startProg = Math.max(0, targetAheadMeters - accum);
-      break;
-    }
-    accum += segLen;
-  }
-
-  const pA = activePath[startSeg];
-  const pB = activePath[startSeg + 1];
-  const segLen = Math.max(0.1, getMetersBetween(pA, pB));
-  const ratio = Math.min(1, startProg / segLen);
-  const baseLng = pA[0] + (pB[0] - pA[0]) * ratio;
-  const baseLat = pA[1] + (pB[1] - pA[1]) * ratio;
-
-  const reverseHeading = calculateBearing(pB, pA);
-  const prefixCode = generateSupportPrefix(playerBusPrefix, sameDirTraffic.usedPrefixes);
-  const palette = SUPPORT_CAR_COLORS[(sameDirTraffic.spawnedCount + 1) % SUPPORT_CAR_COLORS.length];
-  const modelKey = sameDirTraffic.isRoadLine ? 'rodoviario' : 'bhtrans';
-
-  const oppPos = [baseLng, baseLat];
-  const wrapEl = createBusMarkerElement(
-    palette.bodyColor,
-    palette.stripeColor,
-    modelKey,
-    'SENTIDO OPOSTO',
-    prefixCode,
-    '0.97'
-  );
-
-  const marker = new maplibregl.Marker({
-    element: wrapEl,
-    anchor: 'center',
-    offset: [0, -28],
-    rotationAlignment: 'map',
-    pitchAlignment: 'map'
-  })
-    .setLngLat(oppPos)
-    .setRotation(reverseHeading)
-    .addTo(map);
-
-  sameDirTraffic.oncomingVehicles.push({
-    id: `opp_${Date.now()}`,
-    prefix: prefixCode,
-    lng: baseLng,
-    lat: baseLat,
-    segIndex: startSeg,
-    segProgress: startProg,
-    segLength: segLen,
-    heading: reverseHeading,
-    renderHeading: reverseHeading,
-    speedKmh: sameDirTraffic.isRoadLine ? 78 : 64,
-    finished: false,
-    marker: marker
-  });
-
-  sameDirTraffic.nextOncomingKm += sameDirTraffic.isRoadLine ? 8.0 : 3.5;
-}
-
-function updateOncomingTraffic(deltaTime, frameNow = performance.now()) {
-  if (!sameDirTraffic.oncomingAllowed || !map) return;
-
-  spawnOncomingCarIfAllowed();
-
-  for (const ov of sameDirTraffic.oncomingVehicles) {
-    if (ov.finished || !ov.marker) continue;
-
-    const speedMps = (ov.speedKmh / 3.6) * speedMultiplier;
-    let remDist = speedMps * deltaTime;
-
-    while (remDist > 0 && ov.segIndex >= 0) {
-      const p1 = activePath[ov.segIndex];
-      const p2 = activePath[ov.segIndex + 1];
-      if (!p1 || !p2) {
-        ov.finished = true;
-        break;
-      }
-
-      if (ov.segLength <= 0) {
-        ov.segLength = getMetersBetween(p1, p2);
-      }
-
-      if (ov.segLength <= 0.1) {
-        ov.segIndex--;
-        ov.segProgress = ov.segIndex >= 0 ? getMetersBetween(activePath[ov.segIndex], activePath[ov.segIndex + 1]) : 0;
-        continue;
-      }
-
-      if (remDist <= ov.segProgress) {
-        ov.segProgress -= remDist;
-        remDist = 0;
-        const ratio = ov.segProgress / ov.segLength;
-        ov.lng = p1[0] + (p2[0] - p1[0]) * ratio;
-        ov.lat = p1[1] + (p2[1] - p1[1]) * ratio;
-        ov.heading = calculateBearing(p2, p1);
-      } else {
-        remDist -= ov.segProgress;
-        ov.segIndex--;
-        if (ov.segIndex < 0) {
-          ov.finished = true;
-          break;
-        }
-        const prevP1 = activePath[ov.segIndex];
-        const prevP2 = activePath[ov.segIndex + 1];
-        ov.segLength = getMetersBetween(prevP1, prevP2);
-        ov.segProgress = ov.segLength;
-        ov.lng = prevP2[0];
-        ov.lat = prevP2[1];
-        ov.heading = calculateBearing(prevP2, prevP1);
-      }
-    }
-
-    const distToPlayer = getMetersBetween([ov.lng, ov.lat], [busLng, busLat]);
-    if (distToPlayer <= 160 && (frameNow - sameDirTraffic.lastOncomingAlertTime > 8000)) {
-      sameDirTraffic.lastOncomingAlertTime = frameNow;
-      showAlert(`↔️ Carro ${ov.prefix} no sentido contrário (${Math.round(distToPlayer)} m)`);
-    }
-
-    if (ov.finished || distToPlayer > 1400) {
-      try { ov.marker.remove(); } catch (e) {}
-      ov.marker = null;
-      ov.finished = true;
-      continue;
-    }
-
-    ov.renderHeading = lerpHeading(ov.renderHeading ?? ov.heading, ov.heading, 14.0 * deltaTime);
-    ov.marker.setLngLat([ov.lng, ov.lat]);
-    ov.marker.setRotation(ov.renderHeading);
-  }
-
-  sameDirTraffic.oncomingVehicles = sameDirTraffic.oncomingVehicles.filter(ov => !ov.finished && ov.marker);
 }
 
 function spawnPostGoalWaveFromStart() {
@@ -2880,15 +2659,6 @@ function drawSideMinimap(nextVehicleItem, trailingCandidates) {
   ctx.arc(w / 2, h / 2, 4.5, 0, Math.PI * 2);
   ctx.fill();
 
-  for (const ov of sameDirTraffic.oncomingVehicles) {
-    if (ov.finished) continue;
-    const [ox, oy] = toRadarXY(ov.lng, ov.lat);
-    ctx.fillStyle = '#f87171';
-    ctx.beginPath();
-    ctx.arc(Math.max(8, Math.min(w - 8, ox)), Math.max(8, Math.min(h - 8, oy)), 4.2, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
   const activeList = sameDirTraffic.vehicles.filter(v => !v.finished);
   if (activeList.length === 0) {
     const faltaKm = Math.max(0, sameDirTraffic.nextSpawnKm - distanceCoveredKm);
@@ -2940,7 +2710,6 @@ function updateSameDirTraffic(deltaTime, frameNow = performance.now()) {
   }
 
   maybeSpawnSameDirTraffic();
-  updateOncomingTraffic(deltaTime, frameNow);
 
   if (sameDirTraffic.vehicles.length === 0) {
     hideRearIndicator();
@@ -2961,7 +2730,7 @@ function updateSameDirTraffic(deltaTime, frameNow = performance.now()) {
 
     const statusLabel = deltaAlongRouteMeters > 10
       ? 'Vindo atrás'
-      : (deltaAlongRouteMeters > -22 ? 'Ultrapassando' : 'Na frente');
+      : (deltaAlongRouteMeters > -22 ? 'Alinhado' : 'Na frente');
 
     if (!nextVehicleSummary || directDistMeters < nextVehicleSummary.distMeters) {
       nextVehicleSummary = {
@@ -2976,57 +2745,35 @@ function updateSameDirTraffic(deltaTime, frameNow = performance.now()) {
     if (deltaAlongRouteMeters > 4) {
       trailingCandidates.push({
         prefix: v.prefix,
-        tag: deltaAlongRouteMeters < 110 ? 'ultrapassando' : 'alcançando',
+        tag: deltaAlongRouteMeters < 110 ? 'próximo' : 'alcançando',
         distMeters: directDistMeters,
         arrow: getRelativeBearingArrow([busLng, busLat], [v.lng, v.lat], smoothHeading)
       });
 
       if (directDistMeters <= 95 && (frameNow - sameDirTraffic.lastCloseAlertTime > 9000)) {
         sameDirTraffic.lastCloseAlertTime = frameNow;
-        showAlert(`⬅️ Carro ${v.prefix} ultrapassando • Reduzindo velocidade`);
+        showAlert(`🚌 Carro ${v.prefix} se aproximando na rota`);
       }
     }
 
     const activeRefSpeed = currentSpeedKmh > 5
       ? currentSpeedKmh
       : (sameDirTraffic.isRoadLine ? 78 : 66);
-    const maxTrafficSpeed = sameDirTraffic.isRoadLine ? 128 : 104;
+    const maxTrafficSpeed = sameDirTraffic.isRoadLine ? 125 : 102;
 
-    if (deltaAlongRouteMeters <= -22) {
-      v.overtakeState = 'done_passing';
-    }
-
-    // Segue exatamente o trajeto da linha (offset 0), desviando apenas na ultrapassagem
-    let desiredLaneOffset = 0;
     let targetSpeedKmh = activeRefSpeed;
-
-    if (v.overtakeState !== 'done_passing' && deltaAlongRouteMeters > -22 && deltaAlongRouteMeters < 48) {
-      desiredLaneOffset = -1.65;
-      targetSpeedKmh = Math.min(maxTrafficSpeed, Math.max(88, activeRefSpeed + 16));
-    } else if (v.overtakeState === 'done_passing') {
-      desiredLaneOffset = 0;
-      targetSpeedKmh = Math.min(maxTrafficSpeed, Math.max(activeRefSpeed + 3, 72));
-    } else {
-      desiredLaneOffset = 0;
-      if (deltaAlongRouteMeters > 70) {
-        targetSpeedKmh = Math.min(maxTrafficSpeed, Math.max(92, activeRefSpeed + 18));
-      } else if (deltaAlongRouteMeters > 0 && deltaAlongRouteMeters < 28) {
-        targetSpeedKmh = Math.max(30, activeRefSpeed - 15);
-      } else {
-        targetSpeedKmh = activeRefSpeed;
-      }
+    if (deltaAlongRouteMeters > 70) {
+      targetSpeedKmh = Math.min(maxTrafficSpeed, Math.max(88, activeRefSpeed + 14));
+    } else if (deltaAlongRouteMeters > 0 && deltaAlongRouteMeters < 35) {
+      targetSpeedKmh = Math.max(25, activeRefSpeed - 12);
+    } else if (deltaAlongRouteMeters < 0 && Math.abs(deltaAlongRouteMeters) < 25) {
+      targetSpeedKmh = Math.max(25, activeRefSpeed - 8);
     }
 
     if (v.speedKmh < targetSpeedKmh) {
-      v.speedKmh = Math.min(targetSpeedKmh, v.speedKmh + 42 * deltaTime);
+      v.speedKmh = Math.min(targetSpeedKmh, v.speedKmh + 40 * deltaTime);
     } else if (v.speedKmh > targetSpeedKmh) {
-      v.speedKmh = Math.max(targetSpeedKmh, v.speedKmh - 38 * deltaTime);
-    }
-
-    const laneSnapRate = v.overtakeState === 'done_passing' ? 16.0 : 10.0;
-    v.currentLaneOffset += (desiredLaneOffset - v.currentLaneOffset) * Math.min(1, laneSnapRate * deltaTime);
-    if (Math.abs(v.currentLaneOffset) < 0.01 && desiredLaneOffset === 0) {
-      v.currentLaneOffset = 0;
+      v.speedKmh = Math.max(targetSpeedKmh, v.speedKmh - 36 * deltaTime);
     }
 
     const speedMps = (v.speedKmh / 3.6) * speedMultiplier;
@@ -3083,10 +2830,9 @@ function updateSameDirTraffic(deltaTime, frameNow = performance.now()) {
       continue;
     }
 
-    v.renderHeading = lerpHeading(v.renderHeading ?? v.heading, v.heading, 15.0 * deltaTime);
-    const pos = applyRightLaneOffset(v.lng, v.lat, v.renderHeading, v.currentLaneOffset);
-    v.marker.setLngLat(pos);
-    v.marker.setRotation(v.renderHeading);
+    // Coordenada e rumo exatos da rota (sem deslocamento lateral que causa zigue-zague)
+    v.marker.setLngLat([v.lng, v.lat]);
+    v.marker.setRotation(v.heading);
   }
 
   sameDirTraffic.vehicles = sameDirTraffic.vehicles.filter(v => !v.finished && v.marker);
@@ -3175,13 +2921,11 @@ function gameLoop(now) {
       }
 
       const playerRouteMeters = getRouteProgressMeters(currentSegIndex, segProgressMeters);
-      const playerLaneOffset = BASE_RIGHT_LANE_OFFSET_METERS + lineLateralCorrectionMeters;
       for (const v of sameDirTraffic.vehicles) {
         if (v.finished) continue;
         const vRouteMeters = getRouteProgressMeters(v.segIndex, v.segProgress);
         const gapAhead = vRouteMeters - playerRouteMeters;
-        const sameLane = Math.abs(playerLaneOffset - v.currentLaneOffset) < 1.35;
-        if (gapAhead > 0 && gapAhead < 24 && sameLane) {
+        if (gapAhead > 0 && gapAhead < 22) {
           desiredSpeed = Math.min(desiredSpeed, Math.max(25, v.speedKmh - 6));
         }
       }
@@ -3313,19 +3057,19 @@ function gameLoop(now) {
     const absSpeed = Math.abs(currentSpeedKmh);
     const steerHold = (keysPressed.Right ? 1 : 0) - (keysPressed.Left ? 1 : 0);
 
-    // Direção mais firme e estável no Modo Livre
-    freeTapImpulseRate *= Math.pow(0.03, deltaTime);
-    if (Math.abs(freeTapImpulseRate) < 1) freeTapImpulseRate = 0;
+    // Direção mais firme e centralizada no Modo Livre
+    freeTapImpulseRate *= Math.pow(0.015, deltaTime);
+    if (Math.abs(freeTapImpulseRate) < 0.8) freeTapImpulseRate = 0;
 
-    const rawTargetRate = steerHold * 56 + freeTapImpulseRate;
-    const steerResponsiveness = steerHold !== 0 ? 13.0 : 16.5;
+    const rawTargetRate = steerHold * 48 + freeTapImpulseRate;
+    const steerResponsiveness = steerHold !== 0 ? 15.0 : 20.0;
     freeSteerRate += (rawTargetRate - freeSteerRate) * Math.min(1, steerResponsiveness * deltaTime);
-    if (steerHold === 0 && Math.abs(freeTapImpulseRate) === 0 && Math.abs(freeSteerRate) < 0.8) {
+    if (steerHold === 0 && Math.abs(freeTapImpulseRate) === 0 && Math.abs(freeSteerRate) < 0.6) {
       freeSteerRate = 0;
     }
 
-    const targetWheelDeg = Math.max(-105, Math.min(105, freeSteerRate * 1.15));
-    wheelAngleDeg += (targetWheelDeg - wheelAngleDeg) * Math.min(1, 15.0 * deltaTime);
+    const targetWheelDeg = Math.max(-95, Math.min(95, freeSteerRate * 1.2));
+    wheelAngleDeg += (targetWheelDeg - wheelAngleDeg) * Math.min(1, 18.0 * deltaTime);
     const wheelImg = document.getElementById('freeSteeringWheelImg');
     if (wheelImg) {
       wheelImg.style.transform = `rotate(${wheelAngleDeg.toFixed(1)}deg)`;
@@ -3348,7 +3092,7 @@ function gameLoop(now) {
 
     renderLng = busLng;
     renderLat = busLat;
-    busWorldHeading = (vehicleHeading + freeSteerRate * 0.05 + 360) % 360;
+    busWorldHeading = vehicleHeading;
   }
 
   const distStep = getMetersBetween(prev, [busLng, busLat]) / 1000;
@@ -3379,16 +3123,11 @@ function gameLoop(now) {
   const rawTargetBearing = currentGameMode === 'line' ? smoothHeading : vehicleHeading;
   currentCameraBearing = lerpHeading(currentCameraBearing, rawTargetBearing, 10.0 * deltaTime);
 
-  const activePitch = cameraViewMode === 'cockpit' ? 45 : (cameraViewMode === 'aerial' ? 0 : 25);
-  const activeZoom = cameraViewMode === 'aerial'
-    ? ZOOM_AERIAL_LEVEL
-    : (cameraViewMode === 'cockpit' ? Math.max(currentZoomLevel, 18.8) : currentZoomLevel);
-
   map.jumpTo({
     center: currentCoords,
     bearing: currentCameraBearing,
-    pitch: activePitch,
-    zoom: activeZoom
+    pitch: isCabinViewActive ? 45 : 25,
+    zoom: isCabinViewActive ? Math.max(currentZoomLevel, 18.8) : currentZoomLevel
   });
 
   if (!isLineFinished) {
@@ -3399,7 +3138,6 @@ function gameLoop(now) {
 document.getElementById('btnZoomNear').addEventListener('pointerdown', (e) => {
   e.stopPropagation();
   currentZoomLevel = ZOOM_NEAR_LEVEL;
-  if (cameraViewMode === 'aerial') setCameraViewMode('map', false);
   document.getElementById('btnZoomNear').classList.add('active');
   document.getElementById('btnZoomFar').classList.remove('active');
 });
@@ -3407,7 +3145,6 @@ document.getElementById('btnZoomNear').addEventListener('pointerdown', (e) => {
 document.getElementById('btnZoomFar').addEventListener('pointerdown', (e) => {
   e.stopPropagation();
   currentZoomLevel = ZOOM_FAR_LEVEL;
-  if (cameraViewMode === 'aerial') setCameraViewMode('map', false);
   document.getElementById('btnZoomFar').classList.add('active');
   document.getElementById('btnZoomNear').classList.remove('active');
 });
