@@ -2699,7 +2699,16 @@ function drawSideMinimap(nextVehicleItem, trailingCandidates) {
   const startIdx = Math.max(0, currentSegIndex - 35);
   const endIdx = Math.min(activePath.length - 1, currentSegIndex + 45);
   for (let i = startIdx; i <= endIdx; i++) {
-    const [px, py] = toRadarXY(activePath[i][0], activePath[i][1]);
+    const segBear = i < activePath.length - 1
+      ? calculateBearing(activePath[i], activePath[i + 1])
+      : smoothHeading;
+    const [lLng, lLat] = applyRightLaneOffset(
+      activePath[i][0],
+      activePath[i][1],
+      segBear,
+      BASE_RIGHT_LANE_OFFSET_METERS
+    );
+    const [px, py] = toRadarXY(lLng, lLat);
     if (!started) {
       ctx.moveTo(px, py);
       started = true;
@@ -2709,7 +2718,14 @@ function drawSideMinimap(nextVehicleItem, trailingCandidates) {
   }
   ctx.stroke();
 
-  const [stX, stY] = toRadarXY(activePath[0][0], activePath[0][1]);
+  const startBear = calculateBearing(activePath[0], activePath[1]);
+  const [stLaneLng, stLaneLat] = applyRightLaneOffset(
+    activePath[0][0],
+    activePath[0][1],
+    startBear,
+    BASE_RIGHT_LANE_OFFSET_METERS
+  );
+  const [stX, stY] = toRadarXY(stLaneLng, stLaneLat);
   ctx.fillStyle = '#f97316';
   ctx.beginPath();
   ctx.arc(Math.max(6, Math.min(w - 6, stX)), Math.max(6, Math.min(h - 6, stY)), 3.5, 0, Math.PI * 2);
@@ -2730,7 +2746,13 @@ function drawSideMinimap(nextVehicleItem, trailingCandidates) {
   }
 
   for (const v of activeList) {
-    const [vx, vy] = toRadarXY(v.lng, v.lat);
+    const [vLaneLng, vLaneLat] = applyRightLaneOffset(
+      v.lng,
+      v.lat,
+      v.smoothHeading ?? v.heading,
+      BASE_RIGHT_LANE_OFFSET_METERS
+    );
+    const [vx, vy] = toRadarXY(vLaneLng, vLaneLat);
     const clampedX = Math.max(8, Math.min(w - 8, vx));
     const clampedY = Math.max(8, Math.min(h - 8, vy));
     const isNext = nextVehicleItem && nextVehicleItem.id === v.id;
@@ -2848,17 +2870,22 @@ function updateSameDirTraffic(deltaTime, frameNow = performance.now()) {
       continue;
     }
 
-    // Suavização de rumo idêntica ao carro titular, com limite por frame para curvas fechadas
+    // Giro sincronizado com o ritmo da viagem e sem atraso em curvas acentuadas
     const prevSmooth = v.smoothHeading ?? v.heading;
-    const desiredSmooth = lerpHeading(prevSmooth, v.heading, Math.min(1, 14.0 * deltaTime));
+    const desiredSmooth = lerpHeading(prevSmooth, v.heading, Math.min(1, 18.0 * deltaTime));
     let deltaAngle = (desiredSmooth - prevSmooth + 360) % 360;
     if (deltaAngle > 180) deltaAngle -= 360;
-    const maxTurnPerFrame = Math.max(4.5, 180 * deltaTime);
+    const maxTurnPerFrame = Math.max(8.0, 260 * speedMultiplier * deltaTime);
     const clampedDelta = Math.max(-maxTurnPerFrame, Math.min(maxTurnPerFrame, deltaAngle));
     v.smoothHeading = (prevSmooth + clampedDelta + 360) % 360;
 
-    // Aplica o deslocamento lateral da pista exatamente com v.smoothHeading (mesma lógica do titular)
-    const lanePos = applyRightLaneOffset(v.lng, v.lat, v.smoothHeading, BASE_RIGHT_LANE_OFFSET_METERS);
+    // Reduz o offset perpendicular durante curvas fechadas para o marcador não "abrir" fora da pista
+    let curveDiff = Math.abs((v.heading - v.smoothHeading + 360) % 360);
+    if (curveDiff > 180) curveDiff = 360 - curveDiff;
+    const curveFactor = Math.max(0.15, 1 - Math.min(1, curveDiff / 45));
+    const effectiveOffset = BASE_RIGHT_LANE_OFFSET_METERS * curveFactor;
+
+    const lanePos = applyRightLaneOffset(v.lng, v.lat, v.smoothHeading, effectiveOffset);
     v.marker.setLngLat(lanePos);
     v.marker.setRotation(v.smoothHeading);
   }
