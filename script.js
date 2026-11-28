@@ -934,19 +934,19 @@ const cssStyles = `
 
   .bus-marker-wrap {
     width: 68px;
-    height: 126px;
+    height: 92px;
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: flex-end;
+    justify-content: center;
     position: relative;
     pointer-events: none !important;
-    transform-origin: center 88px;
+    transform-origin: center center;
   }
 
   .bus-prefix-tag {
     position: absolute;
-    bottom: 6px;
+    bottom: 2px;
     left: 50%;
     transform: translateX(-50%);
     background: #0f172a;
@@ -967,11 +967,11 @@ const cssStyles = `
 
   .bus-headlight-beam {
     position: absolute;
-    top: 6px;
+    top: -36px;
     left: 50%;
     transform: translateX(-50%);
     width: 46px;
-    height: 64px;
+    height: 60px;
     background: radial-gradient(ellipse at 50% 98%, rgba(254, 249, 195, 0.78) 0%, rgba(254, 240, 138, 0.32) 52%, rgba(254, 240, 138, 0) 100%);
     clip-path: polygon(35% 100%, 65% 100%, 100% 0%, 0% 0%);
     opacity: 0;
@@ -991,7 +991,6 @@ const cssStyles = `
     filter: drop-shadow(0px 3px 6px rgba(0, 0, 0, 0.95));
     position: relative;
     z-index: 2;
-    margin-bottom: 18px;
   }
 
   @media (max-width: 768px) {
@@ -1770,6 +1769,55 @@ function applyRightLaneOffset(lng, lat, headingDeg, lateralMeters) {
   ];
 }
 
+// Função única de avanço sobre activePath compartilhada entre o carro titular e os carros auxiliares
+function advanceAlongActivePath(stateObj, distanceMeters) {
+  let remDist = distanceMeters;
+  while (remDist > 0 && stateObj.segIndex < activePath.length - 1) {
+    const p1 = activePath[stateObj.segIndex];
+    const p2 = activePath[stateObj.segIndex + 1];
+
+    if (stateObj.segLength <= 0) {
+      stateObj.segLength = getMetersBetween(p1, p2);
+    }
+
+    if (stateObj.segLength <= 0.1) {
+      stateObj.segIndex++;
+      stateObj.segProgress = 0;
+      stateObj.segLength = stateObj.segIndex < activePath.length - 1
+        ? getMetersBetween(activePath[stateObj.segIndex], activePath[stateObj.segIndex + 1])
+        : 0;
+      continue;
+    }
+
+    const leftInSeg = stateObj.segLength - stateObj.segProgress;
+    if (remDist < leftInSeg) {
+      stateObj.segProgress += remDist;
+      remDist = 0;
+      const ratio = stateObj.segProgress / stateObj.segLength;
+      stateObj.lng = p1[0] + (p2[0] - p1[0]) * ratio;
+      stateObj.lat = p1[1] + (p2[1] - p1[1]) * ratio;
+      stateObj.heading = calculateBearing(p1, p2);
+    } else {
+      remDist -= leftInSeg;
+      stateObj.segIndex++;
+      stateObj.segProgress = 0;
+      if (stateObj.segIndex >= activePath.length - 1) {
+        stateObj.lng = activePath[activePath.length - 1][0];
+        stateObj.lat = activePath[activePath.length - 1][1];
+        stateObj.finished = true;
+        break;
+      } else {
+        const nextP1 = activePath[stateObj.segIndex];
+        const nextP2 = activePath[stateObj.segIndex + 1];
+        stateObj.segLength = getMetersBetween(nextP1, nextP2);
+        stateObj.lng = nextP1[0];
+        stateObj.lat = nextP1[1];
+        stateObj.heading = calculateBearing(nextP1, nextP2);
+      }
+    }
+  }
+}
+
 function startTripTimer() {
   tripStartTime = Date.now();
   const nowObj = new Date();
@@ -2327,7 +2375,6 @@ function initMap(startCoords) {
   busMarker = new maplibregl.Marker({
     element: busWrapEl,
     anchor: 'center',
-    offset: [0, -28],
     rotationAlignment: 'map',
     pitchAlignment: 'map'
   })
@@ -2346,7 +2393,7 @@ function initMap(startCoords) {
 }
 
 // ============================================================
-// CARROS AUXILIARES FIÉIS AO TRAJETO DO JOGO
+// CARROS AUXILIARES FIÉIS À MESMA ROTA E PISTA DO CARRO TITULAR
 // ============================================================
 
 const SUPPORT_CAR_COLORS = [
@@ -2469,6 +2516,13 @@ function spawnSupportCarFromStart(seqNumber) {
     ? 'rodoviario'
     : (currentVehicleType === 'rodoviario' ? 'bhtrans' : currentVehicleType);
 
+  const initialLanePos = applyRightLaneOffset(
+    p0[0],
+    p0[1],
+    initialHeading,
+    BASE_RIGHT_LANE_OFFSET_METERS
+  );
+
   const wrapEl = createBusMarkerElement(
     palette.bodyColor,
     palette.stripeColor,
@@ -2481,11 +2535,10 @@ function spawnSupportCarFromStart(seqNumber) {
   const marker = new maplibregl.Marker({
     element: wrapEl,
     anchor: 'center',
-    offset: [0, -28],
     rotationAlignment: 'map',
     pitchAlignment: 'map'
   })
-    .setLngLat(p0)
+    .setLngLat(initialLanePos)
     .setRotation(initialHeading)
     .addTo(map);
 
@@ -2501,6 +2554,7 @@ function spawnSupportCarFromStart(seqNumber) {
     segProgress: 0,
     segLength: segLen0,
     heading: initialHeading,
+    smoothHeading: initialHeading,
     speedKmh: catchupSpeed,
     finished: false,
     marker: marker
@@ -2625,18 +2679,25 @@ function drawSideMinimap(nextVehicleItem, trailingCandidates) {
   const radarRadiusMeters = sameDirTraffic.isRoadLine ? 950 : 600;
   const scale = (w * 0.42) / radarRadiusMeters;
 
+  // Rotaciona o minimapa conforme o rumo da câmera para alinhar visualmente a linha e os carros
+  const bearingRad = (currentCameraBearing * Math.PI) / 180;
+  const cosB = Math.cos(bearingRad);
+  const sinB = Math.sin(bearingRad);
+
   const toRadarXY = (lng, lat) => {
-    const dxMeters = (lng - busLng) * metersPerDegreeLng;
-    const dyMeters = (lat - busLat) * metersPerDegreeLat;
-    return [w / 2 + dxMeters * scale, h / 2 - dyMeters * scale];
+    const eastMeters = (lng - busLng) * metersPerDegreeLng;
+    const northMeters = (lat - busLat) * metersPerDegreeLat;
+    const rightMeters = eastMeters * cosB - northMeters * sinB;
+    const forwardMeters = eastMeters * sinB + northMeters * cosB;
+    return [w / 2 + rightMeters * scale, h / 2 - forwardMeters * scale];
   };
 
-  ctx.strokeStyle = 'rgba(148, 163, 184, 0.55)';
-  ctx.lineWidth = 2.2;
+  ctx.strokeStyle = 'rgba(148, 163, 184, 0.65)';
+  ctx.lineWidth = 2.4;
   ctx.beginPath();
   let started = false;
-  const startIdx = Math.max(0, currentSegIndex - 30);
-  const endIdx = Math.min(activePath.length - 1, currentSegIndex + 40);
+  const startIdx = Math.max(0, currentSegIndex - 35);
+  const endIdx = Math.min(activePath.length - 1, currentSegIndex + 45);
   for (let i = startIdx; i <= endIdx; i++) {
     const [px, py] = toRadarXY(activePath[i][0], activePath[i][1]);
     if (!started) {
@@ -2654,6 +2715,7 @@ function drawSideMinimap(nextVehicleItem, trailingCandidates) {
   ctx.arc(Math.max(6, Math.min(w - 6, stX)), Math.max(6, Math.min(h - 6, stY)), 3.5, 0, Math.PI * 2);
   ctx.fill();
 
+  // Carro titular sempre no centro apontando para cima
   ctx.fillStyle = '#38bdf8';
   ctx.beginPath();
   ctx.arc(w / 2, h / 2, 4.5, 0, Math.PI * 2);
@@ -2761,13 +2823,14 @@ function updateSameDirTraffic(deltaTime, frameNow = performance.now()) {
       : (sameDirTraffic.isRoadLine ? 78 : 66);
     const maxTrafficSpeed = sameDirTraffic.isRoadLine ? 125 : 102;
 
+    // Sem ultrapassagem lateral: mantém distância segura na mesma linha e pista do titular
     let targetSpeedKmh = activeRefSpeed;
-    if (deltaAlongRouteMeters > 70) {
+    if (deltaAlongRouteMeters > 85) {
       targetSpeedKmh = Math.min(maxTrafficSpeed, Math.max(88, activeRefSpeed + 14));
-    } else if (deltaAlongRouteMeters > 0 && deltaAlongRouteMeters < 35) {
-      targetSpeedKmh = Math.max(25, activeRefSpeed - 12);
-    } else if (deltaAlongRouteMeters < 0 && Math.abs(deltaAlongRouteMeters) < 25) {
-      targetSpeedKmh = Math.max(25, activeRefSpeed - 8);
+    } else if (deltaAlongRouteMeters > 0 && deltaAlongRouteMeters <= 42) {
+      targetSpeedKmh = Math.max(0, activeRefSpeed - 14);
+    } else if (deltaAlongRouteMeters < 0 && Math.abs(deltaAlongRouteMeters) <= 42) {
+      targetSpeedKmh = Math.min(maxTrafficSpeed, activeRefSpeed + 14);
     }
 
     if (v.speedKmh < targetSpeedKmh) {
@@ -2777,52 +2840,7 @@ function updateSameDirTraffic(deltaTime, frameNow = performance.now()) {
     }
 
     const speedMps = (v.speedKmh / 3.6) * speedMultiplier;
-    let remDist = speedMps * deltaTime;
-
-    while (remDist > 0 && v.segIndex < activePath.length - 1) {
-      const p1 = activePath[v.segIndex];
-      const p2 = activePath[v.segIndex + 1];
-
-      if (v.segLength <= 0) {
-        v.segLength = getMetersBetween(p1, p2);
-      }
-
-      if (v.segLength <= 0.1) {
-        v.segIndex++;
-        v.segProgress = 0;
-        v.segLength = v.segIndex < activePath.length - 1
-          ? getMetersBetween(activePath[v.segIndex], activePath[v.segIndex + 1])
-          : 0;
-        continue;
-      }
-
-      const leftInSeg = v.segLength - v.segProgress;
-      if (remDist < leftInSeg) {
-        v.segProgress += remDist;
-        remDist = 0;
-        const ratio = v.segProgress / v.segLength;
-        v.lng = p1[0] + (p2[0] - p1[0]) * ratio;
-        v.lat = p1[1] + (p2[1] - p1[1]) * ratio;
-        v.heading = calculateBearing(p1, p2);
-      } else {
-        remDist -= leftInSeg;
-        v.segIndex++;
-        v.segProgress = 0;
-        if (v.segIndex >= activePath.length - 1) {
-          v.lng = activePath[activePath.length - 1][0];
-          v.lat = activePath[activePath.length - 1][1];
-          v.finished = true;
-          break;
-        } else {
-          const nextP1 = activePath[v.segIndex];
-          const nextP2 = activePath[v.segIndex + 1];
-          v.segLength = getMetersBetween(nextP1, nextP2);
-          v.lng = nextP1[0];
-          v.lat = nextP1[1];
-          v.heading = calculateBearing(nextP1, nextP2);
-        }
-      }
-    }
+    advanceAlongActivePath(v, speedMps * deltaTime);
 
     if (v.finished) {
       try { v.marker.remove(); } catch (e) {}
@@ -2830,9 +2848,11 @@ function updateSameDirTraffic(deltaTime, frameNow = performance.now()) {
       continue;
     }
 
-    // Coordenada e rumo exatos da rota (sem deslocamento lateral que causa zigue-zague)
-    v.marker.setLngLat([v.lng, v.lat]);
-    v.marker.setRotation(v.heading);
+    // Usa exatamente a mesma suavização angular e o mesmo deslocamento de pista do carro titular
+    v.smoothHeading = lerpHeading(v.smoothHeading ?? v.heading, v.heading, 14.0 * deltaTime);
+    const lanePos = applyRightLaneOffset(v.lng, v.lat, v.smoothHeading, BASE_RIGHT_LANE_OFFSET_METERS);
+    v.marker.setLngLat(lanePos);
+    v.marker.setRotation(v.smoothHeading);
   }
 
   sameDirTraffic.vehicles = sameDirTraffic.vehicles.filter(v => !v.finished && v.marker);
@@ -2925,8 +2945,8 @@ function gameLoop(now) {
         if (v.finished) continue;
         const vRouteMeters = getRouteProgressMeters(v.segIndex, v.segProgress);
         const gapAhead = vRouteMeters - playerRouteMeters;
-        if (gapAhead > 0 && gapAhead < 22) {
-          desiredSpeed = Math.min(desiredSpeed, Math.max(25, v.speedKmh - 6));
+        if (gapAhead > 0 && gapAhead < 28) {
+          desiredSpeed = Math.min(desiredSpeed, Math.max(20, v.speedKmh - 8));
         }
       }
     }
@@ -2939,54 +2959,28 @@ function gameLoop(now) {
 
     if (currentSpeedKmh > 0 && !isLineFinished && isTripActive) {
       const speedMps = (currentSpeedKmh / 3.6) * speedMultiplier;
-      let remainingDistance = speedMps * deltaTime;
+      const playerPathState = {
+        lng: busLng,
+        lat: busLat,
+        segIndex: currentSegIndex,
+        segProgress: segProgressMeters,
+        segLength: currentSegLength,
+        heading: targetHeading,
+        finished: false
+      };
 
-      while (remainingDistance > 0 && currentSegIndex < activePath.length - 1) {
-        const p1 = activePath[currentSegIndex];
-        const p2 = activePath[currentSegIndex + 1];
+      advanceAlongActivePath(playerPathState, speedMps * deltaTime);
 
-        if (currentSegLength <= 0) {
-          currentSegLength = getMetersBetween(p1, p2);
-        }
+      busLng = playerPathState.lng;
+      busLat = playerPathState.lat;
+      currentSegIndex = playerPathState.segIndex;
+      segProgressMeters = playerPathState.segProgress;
+      currentSegLength = playerPathState.segLength;
+      targetHeading = playerPathState.heading;
 
-        if (currentSegLength <= 0.1) {
-          currentSegIndex++;
-          segProgressMeters = 0;
-          currentSegLength = currentSegIndex < activePath.length - 1
-            ? getMetersBetween(activePath[currentSegIndex], activePath[currentSegIndex + 1])
-            : 0;
-          continue;
-        }
-
-        const distanceLeftInSeg = currentSegLength - segProgressMeters;
-
-        if (remainingDistance < distanceLeftInSeg) {
-          segProgressMeters += remainingDistance;
-          remainingDistance = 0;
-
-          const ratio = segProgressMeters / currentSegLength;
-          busLng = p1[0] + (p2[0] - p1[0]) * ratio;
-          busLat = p1[1] + (p2[1] - p1[1]) * ratio;
-
-          targetHeading = calculateBearing(p1, p2);
-        } else {
-          remainingDistance -= distanceLeftInSeg;
-          currentSegIndex++;
-          segProgressMeters = 0;
-
-          if (currentSegIndex >= activePath.length - 1) {
-            busLng = activePath[activePath.length - 1][0];
-            busLat = activePath[activePath.length - 1][1];
-            isLineFinished = true;
-            mostrarRelatorioFinal();
-            break;
-          } else {
-            currentSegLength = getMetersBetween(activePath[currentSegIndex], activePath[currentSegIndex + 1]);
-            busLng = activePath[currentSegIndex][0];
-            busLat = activePath[currentSegIndex][1];
-            targetHeading = calculateBearing(activePath[currentSegIndex], activePath[currentSegIndex + 1]);
-          }
-        }
+      if (playerPathState.finished) {
+        isLineFinished = true;
+        mostrarRelatorioFinal();
       }
 
       const speedFactor = Math.min(1, Math.max(0.15, currentSpeedKmh / 35));
@@ -3057,7 +3051,6 @@ function gameLoop(now) {
     const absSpeed = Math.abs(currentSpeedKmh);
     const steerHold = (keysPressed.Right ? 1 : 0) - (keysPressed.Left ? 1 : 0);
 
-    // Direção mais firme e centralizada no Modo Livre
     freeTapImpulseRate *= Math.pow(0.015, deltaTime);
     if (Math.abs(freeTapImpulseRate) < 0.8) freeTapImpulseRate = 0;
 
@@ -3112,6 +3105,9 @@ function gameLoop(now) {
   document.getElementById('speedValue').textContent = speedDisplay;
   document.getElementById('miniSpeedDisplay').textContent = speedDisplay;
 
+  const rawTargetBearing = currentGameMode === 'line' ? smoothHeading : vehicleHeading;
+  currentCameraBearing = lerpHeading(currentCameraBearing, rawTargetBearing, 10.0 * deltaTime);
+
   updateSameDirTraffic(deltaTime, now);
 
   const currentCoords = [renderLng, renderLat];
@@ -3119,9 +3115,6 @@ function gameLoop(now) {
     busMarker.setLngLat(currentCoords);
     busMarker.setRotation(busWorldHeading);
   }
-
-  const rawTargetBearing = currentGameMode === 'line' ? smoothHeading : vehicleHeading;
-  currentCameraBearing = lerpHeading(currentCameraBearing, rawTargetBearing, 10.0 * deltaTime);
 
   map.jumpTo({
     center: currentCoords,
