@@ -2848,8 +2848,16 @@ function updateSameDirTraffic(deltaTime, frameNow = performance.now()) {
       continue;
     }
 
-    // Usa exatamente a mesma suavização angular e o mesmo deslocamento de pista do carro titular
-    v.smoothHeading = lerpHeading(v.smoothHeading ?? v.heading, v.heading, 14.0 * deltaTime);
+    // Suavização de rumo idêntica ao carro titular, com limite por frame para curvas fechadas
+    const prevSmooth = v.smoothHeading ?? v.heading;
+    const desiredSmooth = lerpHeading(prevSmooth, v.heading, Math.min(1, 14.0 * deltaTime));
+    let deltaAngle = (desiredSmooth - prevSmooth + 360) % 360;
+    if (deltaAngle > 180) deltaAngle -= 360;
+    const maxTurnPerFrame = Math.max(4.5, 180 * deltaTime);
+    const clampedDelta = Math.max(-maxTurnPerFrame, Math.min(maxTurnPerFrame, deltaAngle));
+    v.smoothHeading = (prevSmooth + clampedDelta + 360) % 360;
+
+    // Aplica o deslocamento lateral da pista exatamente com v.smoothHeading (mesma lógica do titular)
     const lanePos = applyRightLaneOffset(v.lng, v.lat, v.smoothHeading, BASE_RIGHT_LANE_OFFSET_METERS);
     v.marker.setLngLat(lanePos);
     v.marker.setRotation(v.smoothHeading);
